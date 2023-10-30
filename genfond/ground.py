@@ -9,16 +9,16 @@ def _ground_ops(op, mapping):
     if optype == Predicate:
         return Predicate(op.name, *[_ground_ops(t, mapping) for t in op.terms])
     elif optype == Variable:
-        if op in mapping:
+        try:
             return mapping[op]
-        else:
-            return mapping[op]
+        except KeyError as e:
+            raise NameError(f'Unknown variable {op}') from e
     elif issubclass(optype, UnaryOp):
         return optype(_ground_ops(op.argument, mapping))
     elif issubclass(optype, BinaryOp):
         return optype(*[_ground_ops(t, mapping) for t in op.operands])
     else:
-        raise ValueError("Unknown operator type: {}".format(optype))
+        raise TypeError("Unknown operator type: {}".format(optype))
 
 
 def ground(domain, problem):
