@@ -2,10 +2,15 @@ import itertools
 from pddl.action import Action
 from pddl.logic import Predicate, Variable
 from pddl.logic.base import UnaryOp, BinaryOp
+from pddl.logic.predicates import EqualTo
+from pddl.logic.terms import Constant
+from pddl.logic.effects import AndEffect, When
 
 
 def _ground_ops(op, mapping):
     optype = type(op)
+    if optype == Constant:
+        return op
     if optype == Predicate:
         return Predicate(op.name, *[_ground_ops(t, mapping) for t in op.terms])
     elif optype == Variable:
@@ -13,10 +18,18 @@ def _ground_ops(op, mapping):
             return mapping[op]
         except KeyError as e:
             raise NameError(f'Unknown variable {op}') from e
+    elif optype == EqualTo:
+        return EqualTo(_ground_ops(op.left, mapping),
+                       _ground_ops(op.right, mapping))
     elif issubclass(optype, UnaryOp):
         return optype(_ground_ops(op.argument, mapping))
     elif issubclass(optype, BinaryOp):
         return optype(*[_ground_ops(t, mapping) for t in op.operands])
+    elif optype == AndEffect:
+        return optype(*[_ground_ops(t, mapping) for t in op.operands])
+    elif optype == When:
+        return optype(_ground_ops(op.condition, mapping),
+                      _ground_ops(op.effect, mapping))
     else:
         raise TypeError("Unknown operator type: {}".format(optype))
 
