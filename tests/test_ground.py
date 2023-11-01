@@ -1,9 +1,5 @@
-import os.path
-import pddl
 from pddl.action import Action
-from pddl.core import Domain, Problem
 from pddl.logic import Predicate, constants, variables
-from pddl.requirements import Requirements
 from pddl.logic.base import And, OneOf
 from pddl.logic.predicates import EqualTo
 from pddl.logic.effects import AndEffect, When
@@ -11,32 +7,12 @@ from pddl.logic.effects import AndEffect, When
 from genfond.ground import ground
 
 
-def test_ground_simple():
-    requirements = [Requirements.STRIPS]
+def test_ground_simple(simple_blocks):
+    domain, problem = simple_blocks
+    a, b = constants('a b')
     x, y = variables('x y')
     on = Predicate('on', x, y)
     holding = Predicate('holding', x)
-    pick = Action('pick',
-                  parameters=[x, y],
-                  precondition=on(x, y),
-                  effect=holding(x) & ~on(x, y))
-    put = Action('put',
-                 parameters=[x, y],
-                 precondition=holding(x),
-                 effect=on(x, y) & ~holding(x))
-    domain = Domain('typed-blocks',
-                    requirements=requirements,
-                    predicates=[on, holding],
-                    actions=[pick, put])
-    assert domain
-    a, b = constants('a b')
-    problem = Problem('p1',
-                      domain=domain,
-                      requirements=requirements,
-                      objects=[a, b],
-                      init=[on(a, b)],
-                      goal=[on(b, a)])
-    assert problem
     ground_actions = ground(domain, problem)
     assert len(ground_actions) == 8
     assert all(isinstance(action, Action) for action in ground_actions)
@@ -57,11 +33,8 @@ def test_ground_simple():
     assert ab_pick.effect == holding(a) & ~on(a, b)
 
 
-def test_ground_blocksworld():
-    blocksworld_path = os.path.join(os.path.dirname(__file__), 'fixtures',
-                                    'pddl_files', 'blocksworld_fond')
-    domain = pddl.parse_domain(os.path.join(blocksworld_path, 'domain.pddl'))
-    problem = pddl.parse_problem(os.path.join(blocksworld_path, 'p01.pddl'))
+def test_ground_blocksworld(fond_blocks):
+    domain, problem = fond_blocks
     ground_actions = ground(domain, problem)
     x, y = variables('x y')
     on = Predicate('on', x, y)
