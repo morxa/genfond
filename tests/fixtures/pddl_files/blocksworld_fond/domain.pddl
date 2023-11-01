@@ -22,7 +22,6 @@
             )
             (and (on ?x Table)
             (when (not (= ?z Table)) (and (not (on ?x ?z)) (clear ?z)))
-            (when (not (= ?y Table)) (not (clear ?y)))
             )
             )
        )

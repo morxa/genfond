@@ -53,6 +53,6 @@ def test_ground_blocksworld(fond_blocks):
     expected_effect = OneOf(
         AndEffect(on(a, b), ~on(a, c), When(~EqualTo(c, table), clear(c)),
                   When(~EqualTo(b, table), ~clear(b))),
-        AndEffect(on(a, table), When(~EqualTo(c, table), ~on(a, c) & clear(c)),
-                  When(~EqualTo(b, table), ~clear(b))))
+        AndEffect(on(a, table), When(~EqualTo(c, table),
+                                     ~on(a, c) & clear(c))))
     assert abc_puton.effect == expected_effect
