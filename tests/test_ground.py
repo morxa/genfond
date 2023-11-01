@@ -6,6 +6,8 @@ from pddl.logic.effects import AndEffect, When
 
 from genfond.ground import ground
 
+from helpers import get_action
+
 
 def test_ground_simple(simple_blocks):
     domain, problem = simple_blocks
@@ -25,10 +27,7 @@ def test_ground_simple(simple_blocks):
     assert all(action.precondition in (on(a, a), on(a, b), on(b, a), on(b, b),
                                        holding(a), holding(b))
                for action in ground_actions)
-    ab_pick = [
-        action for action in ground_actions
-        if action.name == 'pick' and action.parameters == (a, b)
-    ][0]
+    ab_pick = get_action(ground_actions, 'pick', (a, b))
     assert ab_pick.precondition == on(a, b)
     assert ab_pick.effect == holding(a) & ~on(a, b)
 
@@ -47,9 +46,7 @@ def test_ground_blocksworld(fond_blocks):
     assert any(action.parameters == (a, a, a) for action in ground_actions)
     assert any(action.parameters == (a, b, table) for action in ground_actions)
     assert any(action.parameters == (a, b, c) for action in ground_actions)
-    abc_puton = [
-        action for action in ground_actions if action.parameters == (a, b, c)
-    ][0]
+    abc_puton = get_action(ground_actions, 'puton', (a, b, c))
     assert abc_puton.precondition == And(on(a, c), clear(a), clear(b),
                                          ~EqualTo(b, c), ~EqualTo(a, c),
                                          ~EqualTo(a, b), ~EqualTo(a, table))
