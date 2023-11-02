@@ -50,3 +50,14 @@ def ground(domain, problem):
                         effect=ground_effect)
             operators.append(op)
     return operators
+
+
+def ground_domain_predicates(domain, problem):
+    constants = domain.constants | problem.objects
+    ground_predicates = set()
+    for predicate in domain.predicates:
+        for grounding in itertools.product(constants, repeat=predicate.arity):
+            mapping = dict(zip(predicate.terms, grounding))
+            ground_predicate = _ground_ops(predicate, mapping)
+            ground_predicates.add(ground_predicate)
+    return ground_predicates

@@ -4,7 +4,7 @@ from pddl.logic.base import And, OneOf
 from pddl.logic.predicates import EqualTo
 from pddl.logic.effects import AndEffect, When
 
-from genfond.ground import ground
+from genfond.ground import ground, ground_domain_predicates
 
 from helpers import get_action
 
@@ -56,3 +56,18 @@ def test_ground_blocksworld(fond_blocks):
         AndEffect(on(a, table), When(~EqualTo(c, table),
                                      ~on(a, c) & clear(c))))
     assert abc_puton.effect == expected_effect
+
+
+def test_ground_predicates(simple_blocks):
+    domain, problem = simple_blocks
+    ground_predicates = ground_domain_predicates(domain, problem)
+    assert len(ground_predicates) == 6
+    a, b = constants('a b')
+    assert ground_predicates == {
+        Predicate('on', a, a),
+        Predicate('on', a, b),
+        Predicate('on', b, a),
+        Predicate('on', b, b),
+        Predicate('holding', a),
+        Predicate('holding', b)
+    }
