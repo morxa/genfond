@@ -11,6 +11,8 @@ def test_precondition_check_simple_blocks(simple_blocks):
     grounded_actions = ground(domain, problem)
     ab_pick = get_action(grounded_actions, 'pick', (a, b))
     assert check_formula(state, ab_pick.precondition)
+    aa_pick = get_action(grounded_actions, 'pick', (a, a))
+    assert not check_formula(state, aa_pick.precondition)
     ba_pick = get_action(grounded_actions, 'pick', (b, a))
     assert not check_formula(state, ba_pick.precondition)
     ab_put = get_action(grounded_actions, 'put', (a, b))
