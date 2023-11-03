@@ -10,7 +10,7 @@ def test_generate_features_simple_blocks(simple_blocks):
     domain, problem = simple_blocks
     state_graph = generate_state_space(domain, problem)
     states = [node.state for node in state_graph.nodes.values()]
-    feature_pool = FeaturePool(domain, problem, states)
+    feature_pool = FeaturePool(domain, [problem])
     a, b = constants('a b')
     assert 'b_empty(c_primitive(holding,0))' in feature_pool.features
     assert 'b_empty(r_primitive(on,0,1))' in feature_pool.features
@@ -54,7 +54,7 @@ def test_generate_features_fond_blocks(fond_blocks):
         if check_formula(node.state, problem.goal)
     ]
     assert len(gstates) > 0
-    feature_pool = FeaturePool(domain, problem, states)
+    feature_pool = FeaturePool(domain, [problem])
     a, b, c, table = constants('A B C Table')
     istate = state_graph.root.state
     assert feature_pool.evaluate_feature('n_count(r_primitive(on,0,1))',

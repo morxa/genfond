@@ -3,7 +3,7 @@ from dlplan.core import VocabularyInfo, InstanceInfo, State, \
 import dlplan.generator as dlplan_gen
 from pddl.logic import Predicate
 from .ground import ground_domain_predicates
-from .state_space_generator import apply_effects
+from .state_space_generator import apply_effects, generate_state_space
 
 
 def construct_vocabulary_info(domain):
@@ -31,6 +31,8 @@ def _get_state_from_goal(goal_formula):
 def construct_instance_info(vocabulary, domain, problem):
     instance = InstanceInfo(vocabulary)
     map = dict()
+    for object in problem.objects:
+        instance.add_object(object.name)
     for predicate in ground_domain_predicates(domain, problem):
         map[predicate] = instance.add_atom(predicate.name,
                                            [str(t) for t in predicate.terms])
@@ -42,20 +44,29 @@ def construct_instance_info(vocabulary, domain, problem):
 
 class FeaturePool:
 
-    def __init__(self, domain, problem, pddl_states):
+    def __init__(self, domain, problems):
         vocabulary = construct_vocabulary_info(domain)
-        instance, mapping = construct_instance_info(vocabulary, domain,
-                                                    problem)
+        self.states = dict()
+        for problem in problems:
+            instance, mapping = construct_instance_info(
+                vocabulary, domain, problem)
+            pddl_states = {
+                node.state
+                for node in generate_state_space(domain,
+                                                 problem).nodes.values()
+            }
+            goal_state = _get_state_from_goal(problem.goal)
+            self.states[problem.name] = {
+                state:
+                State(instance,
+                      [mapping[predicate] for predicate in state | goal_state])
+                for state in pddl_states
+            }
         factory = SyntacticElementFactory(vocabulary)
-        goal_state = _get_state_from_goal(problem.goal)
-        self.states = {
-            state:
-            State(instance,
-                  [mapping[predicate] for predicate in state | goal_state])
-            for state in pddl_states
-        }
-        str_features = dlplan_gen.generate_features(factory,
-                                                    list(self.states.values()))
+        str_features = dlplan_gen.generate_features(factory, [
+            state for state in self.states[problem.name].values()
+            for problem in problems
+        ])
         self.features = {}
         for str_feature in str_features:
             if str_feature.startswith("b_"):
@@ -67,4 +78,13 @@ class FeaturePool:
             self.features[feature.compute_repr()] = feature
 
     def evaluate_feature(self, feature, state):
-        return self.features[feature].evaluate(self.states[state])
+        # Try to guess which problem the state belongs to.
+        problems = [
+            problem for (problem, states) in self.states.items()
+            if state in states
+        ]
+        assert len(problems) == 1
+        return self.evaluate_feature_from_problem(feature, problems[0], state)
+
+    def evaluate_feature_from_problem(self, feature, problem, state):
+        return self.features[feature].evaluate(self.states[problem][state])
