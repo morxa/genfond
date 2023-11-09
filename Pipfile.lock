@@ -48,7 +48,7 @@
         },
         "dlplan": {
             "git": "https://github.com/morxa/dlplan",
-            "ref": "55a4a54661c8f33c63ef8c3fd13d625cd1afba15"
+            "ref": "f60b7da8902e7c7b49a4d06e42348c9f4401f78f"
         },
         "flake8": {
             "hashes": [
