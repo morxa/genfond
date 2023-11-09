@@ -8,6 +8,7 @@ pddl = "*"
 pytest = "*"
 flake8 = "*"
 dlplan = {ref = "main", git = "https://github.com/morxa/dlplan"}
+clingo = "*"
 
 [dev-packages]
 
