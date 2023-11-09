@@ -47,13 +47,15 @@ class FeaturePool:
     def __init__(self, domain, problems):
         vocabulary = construct_vocabulary_info(domain)
         self.states = dict()
+        self.state_graphs = dict()
         for problem in problems:
             instance, mapping = construct_instance_info(
                 vocabulary, domain, problem)
+            self.state_graphs[problem.name] = generate_state_space(
+                domain, problem)
             pddl_states = {
                 node.state
-                for node in generate_state_space(domain,
-                                                 problem).nodes.values()
+                for node in self.state_graphs[problem.name].nodes.values()
             }
             goal_state = _get_state_from_goal(problem.goal)
             self.states[problem.name] = {

@@ -1,6 +1,5 @@
 from genfond.feature_generator import FeaturePool
-from genfond.state_space_generator import generate_state_space, \
-        apply_action_effects, check_formula
+from genfond.state_space_generator import apply_action_effects, check_formula
 from genfond.ground import ground
 from pddl.logic import constants, Predicate
 from helpers import get_action
@@ -8,8 +7,6 @@ from helpers import get_action
 
 def test_generate_features_simple_blocks(simple_blocks):
     domain, problem = simple_blocks
-    state_graph = generate_state_space(domain, problem)
-    states = [node.state for node in state_graph.nodes.values()]
     feature_pool = FeaturePool(domain, [problem])
     a, b = constants('a b')
     assert 'b_empty(c_primitive(holding,0))' in feature_pool.features
@@ -47,16 +44,15 @@ def test_generate_features_simple_blocks(simple_blocks):
 def test_generate_features_fond_blocks(fond_blocks):
     domain, problem = fond_blocks
     ground_actions = ground(domain, problem)
-    state_graph = generate_state_space(domain, problem)
-    states = [node.state for node in state_graph.nodes.values()]
+    feature_pool = FeaturePool(domain, [problem])
     gstates = [
-        node.state for node in state_graph.nodes.values()
+        node.state
+        for node in feature_pool.state_graphs[problem.name].nodes.values()
         if check_formula(node.state, problem.goal)
     ]
     assert len(gstates) > 0
-    feature_pool = FeaturePool(domain, [problem])
     a, b, c, table = constants('A B C Table')
-    istate = state_graph.root.state
+    istate = feature_pool.state_graphs[problem.name].root.state
     assert feature_pool.evaluate_feature('n_count(r_primitive(on,0,1))',
                                          istate) == 3
     assert feature_pool.evaluate_feature('n_count(c_primitive(clear,0))',
