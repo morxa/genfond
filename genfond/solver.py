@@ -24,16 +24,18 @@ class Solver:
         s = clingo.Symbol
         s.type
         progfile = open(os.path.dirname(__file__) + '/solve.lp', 'r')
-        prog = progfile.read() + '\n' + asp_code
-        self.control.add("base", [], prog)
+        self.prog = progfile.read() + '\n' + asp_code
+        self.control.add("base", [], self.prog)
         self.control.ground([("base", [])])
         self.solution = None
+        self.cost = None
 
     def on_model(self, model):
         self.solution = dict()
         for symbol in model.symbols(shown=True):
             self.solution.setdefault(symbol.name, set()).add(
                 tuple([convert_arg(arg) for arg in symbol.arguments]))
+        self.cost = model.cost
 
     def solve(self):
         return self.control.solve(on_model=self.on_model).satisfiable
