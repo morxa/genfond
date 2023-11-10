@@ -103,7 +103,7 @@ def test_solver_feature_selection():
     """
     solver = Solver(program)
     assert solver.solve()
-    assert solver.solution['selected'] == {('g', )}
+    assert solver.solution['selected'] == {'g'}
 
 
 def test_solver_equiv():
@@ -136,7 +136,7 @@ def test_solver_equiv():
     """
     solver = Solver(program)
     assert solver.solve()
-    assert solver.solution['selected'] == {('f', )}
+    assert solver.solution['selected'] == {'f'}
 
 
 def test_solver_equiv2():
@@ -197,7 +197,7 @@ def test_solver_equiv2():
     """
     solver = Solver(program)
     assert solver.solve()
-    assert solver.solution['selected'] == {('f', ), ('g', )}
+    assert solver.solution['selected'] == {'f', 'g'}
     assert solver.solution['good_trans'] == {(0, 0, 0), (0, 0, 1), (0, 1, 3),
                                              (0, 3, 1), (0, 3, 4), (0, 1, 5),
                                              (0, 5, 1), (0, 5, 6)}

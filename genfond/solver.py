@@ -8,10 +8,7 @@ def convert_arg(symbol):
     elif symbol.type == clingo.SymbolType.String:
         return symbol.string
     elif symbol.type == clingo.SymbolType.Function:
-        if len(symbol.arguments) == 0:
-            return symbol.name
-        else:
-            return tuple([convert_arg(arg) for arg in symbol.arguments])
+        return str(symbol)
     else:
         raise ValueError(f'Unknown symbol type: {symbol.type} for {symbol}')
 
@@ -33,8 +30,14 @@ class Solver:
     def on_model(self, model):
         self.solution = dict()
         for symbol in model.symbols(shown=True):
-            self.solution.setdefault(symbol.name, set()).add(
-                tuple([convert_arg(arg) for arg in symbol.arguments]))
+            args = [convert_arg(arg) for arg in symbol.arguments]
+            if len(args) == 0:
+                self.solution.setdefault(symbol.name, set()).add(True)
+            elif len(args) == 1:
+                self.solution.setdefault(symbol.name, set()).add(args[0])
+            else:
+                self.solution.setdefault(symbol.name, set()).add(
+                    tuple([convert_arg(arg) for arg in symbol.arguments]))
         self.cost = model.cost
 
     def solve(self):
