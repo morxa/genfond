@@ -59,8 +59,9 @@ def apply_effects(state, effects):
 
 class StateSpaceNode:
 
-    def __init__(self, state):
+    def __init__(self, state, id):
         self.state = state
+        self.id = id
         self.children = dict()
 
     def __repr__(self):
@@ -73,7 +74,8 @@ class StateSpaceNode:
 class StateSpaceGraph:
 
     def __init__(self, root_state):
-        self.root = StateSpaceNode(root_state)
+        self.root = StateSpaceNode(root_state, 0)
+        self.next_id = 1
         self.nodes = {root_state: self.root}
 
     def add_node(self, state, parent_state, action):
@@ -82,7 +84,8 @@ class StateSpaceGraph:
             parent.add_child(action, self.nodes[state])
             return None
         except KeyError:
-            node = StateSpaceNode(state)
+            node = StateSpaceNode(state, self.next_id)
+            self.next_id += 1
             self.nodes[state] = node
             parent.add_child(action, node)
             return node
