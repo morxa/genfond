@@ -201,3 +201,35 @@ def test_solver_equiv2():
     assert solver.solution['good_trans'] == {(0, 0, 0), (0, 0, 1), (0, 1, 3),
                                              (0, 3, 1), (0, 3, 4), (0, 1, 5),
                                              (0, 5, 1), (0, 5, 6)}
+
+
+def test_solver_rank():
+    program = """
+        feature(f).
+        feature_complexity(f, 1).
+        state(0, 0).
+        eval(0, 0, f, 0).
+
+        state(0, 1).
+        eval(0, 1, f, 1).
+
+        state(0, 2).
+        eval(0, 2, f, 2).
+
+        state(0, 3).
+        eval(0, 3, f, 3).
+        goal(0, 3).
+
+        trans(0, 0, b, 1).
+        trans(0, 1, a, 2).
+        trans(0, 2, a, 0).
+        trans(0, 0, a, 3).
+
+        % Fix some good transitions.
+        good_trans(0, 0, 1).
+        good_trans(0, 1, 2).
+        good_trans(0, 2, 0).
+    """
+    solver = Solver(program)
+    assert solver.solve()
+    assert (0, 0, 3) in solver.solution['good_trans']

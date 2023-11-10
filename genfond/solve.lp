@@ -27,6 +27,21 @@ repr(I1, S1) :- state(I1, S1), not equiv(I1, S1, I2, S2) : state(I2, S2), (I2, S
 % Equivalence must distinguish between goal and non-goal states.
 :- equiv(I1, S1, I2, S2), goal(I1, S1), not goal(I2, S2).
 
+
+% Count the number of states.
+num_states(I, N) :- state(I, _), N = #count { S : state(I, S) }.
+max_num_states(N) :- N = #max { M : num_states(_, M) }.
+
+#const delta = 1.
+% Assign a rank to each state between 0 and delta*<max_num_states>.
+{ rank(I, S, N) :  N=0..delta*M } = 1 :- max_num_states(M), repr(I, S).
+% Infer the rank for the other states.
+rank(I, S, N) :- equiv(I, S, I2, R), repr(I2, R), rank(I2, R, N).
+% Goals must have rank 0.
+:- goal(I, S), rank(I, S, N), N > 0.
+% For every alive state, there must be one good transition that decreases the rank.
+:- state(I, S), alive(I, S), not goal(I, S), rank(I, S, N), N <= N2 : good_trans(I, S, S2), rank(I, S2, N2).
+
 #minimize { C,F : selected(F), feature_complexity(F, C) }.
 
 #show good_trans/3.
