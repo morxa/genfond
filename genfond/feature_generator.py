@@ -45,23 +45,25 @@ def construct_instance_info(vocabulary, domain, problem):
 class FeaturePool:
 
     def __init__(self, domain, problems):
+        assert len({problem.name for problem in problems}) == len(problems), \
+            "Problem names must be unique."
         vocabulary = construct_vocabulary_info(domain)
         self.states = dict()
         self.state_graphs = dict()
+        self.goal_states = dict()
         for problem in problems:
             instance, mapping = construct_instance_info(
                 vocabulary, domain, problem)
             self.state_graphs[problem.name] = generate_state_space(
                 domain, problem)
+            self.goal_states[problem.name] = _get_state_from_goal(problem.goal)
             pddl_states = {
-                node.state
+                node.state | self.goal_states[problem.name]
                 for node in self.state_graphs[problem.name].nodes.values()
             }
-            goal_state = _get_state_from_goal(problem.goal)
             self.states[problem.name] = {
-                state:
-                State(instance,
-                      [mapping[predicate] for predicate in state | goal_state])
+                state: State(instance,
+                             [mapping[predicate] for predicate in state])
                 for state in pddl_states
             }
         factory = SyntacticElementFactory(vocabulary)
@@ -83,10 +85,13 @@ class FeaturePool:
         # Try to guess which problem the state belongs to.
         problems = [
             problem for (problem, states) in self.states.items()
-            if state in states
+            if state | self.goal_states[problem] in states
         ]
-        assert len(problems) == 1
+        assert len(problems) == 1, \
+            'Cannot determine which problem the state belongs to,' \
+            f' found {len(problems)} matching problems'
         return self.evaluate_feature_from_problem(feature, problems[0], state)
 
     def evaluate_feature_from_problem(self, feature, problem, state):
-        return self.features[feature].evaluate(self.states[problem][state])
+        return self.features[feature].evaluate(
+            self.states[problem][state | self.goal_states[problem]])
