@@ -64,6 +64,12 @@ class StateSpaceNode:
         self.id = id
         self.children = dict()
 
+    def __str__(self):
+        return ','.join([
+            f'{p.name}({",".join([str(p) for p in p.terms])})'
+            for p in self.state
+        ])
+
     def __repr__(self):
         return repr(self.state)
 
