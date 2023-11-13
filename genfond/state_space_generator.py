@@ -8,9 +8,7 @@ from .ground import ground
 
 def check_formula(state, formula):
     if isinstance(formula, And):
-        return all(
-            check_formula(state, subformula)
-            for subformula in formula.operands)
+        return all(check_formula(state, subformula) for subformula in formula.operands)
     elif isinstance(formula, Not):
         return not check_formula(state, formula.argument)
     elif isinstance(formula, Predicate):
@@ -23,10 +21,7 @@ def check_formula(state, formula):
 
 def apply_action_effects(state, action):
     if isinstance(action.effect, OneOf):
-        return {
-            apply_effects(state, effect)
-            for effect in action.effect.operands
-        }
+        return {apply_effects(state, effect) for effect in action.effect.operands}
     else:
         return {apply_effects(state, action.effect)}
 
@@ -65,10 +60,7 @@ class StateSpaceNode:
         self.children = dict()
 
     def __str__(self):
-        return ','.join([
-            f'{p.name}({",".join([str(p) for p in p.terms])})'
-            for p in self.state
-        ])
+        return ','.join([f'{p.name}({",".join([str(p) for p in p.terms])})' for p in self.state])
 
     def __repr__(self):
         return repr(self.state)
