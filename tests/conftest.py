@@ -31,7 +31,7 @@ def simple_blocks():
                       requirements=requirements,
                       objects=[a, b],
                       init=[on(a, b)],
-                      goal=[on(b, a)])
+                      goal=on(b, a))
     return domain, problem
 
 

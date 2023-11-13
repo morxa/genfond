@@ -3,7 +3,8 @@ from dlplan.core import VocabularyInfo, InstanceInfo, State, \
 import dlplan.generator as dlplan_gen
 from pddl.logic import Predicate
 from .ground import ground_domain_predicates
-from .state_space_generator import apply_effects, generate_state_space
+from .state_space_generator import apply_effects, generate_state_space, \
+        check_formula
 
 
 def construct_vocabulary_info(domain):
@@ -44,9 +45,13 @@ def construct_instance_info(vocabulary, domain, problem):
 
 class FeaturePool:
 
-    def __init__(self, domain, problems):
+    def __init__(self, domain, problems, max_complexity=9):
         assert len({problem.name for problem in problems}) == len(problems), \
             "Problem names must be unique."
+        self.problem_name_to_id = {
+            problem.name: i
+            for i, problem in enumerate(problems)
+        }
         vocabulary = construct_vocabulary_info(domain)
         self.states = dict()
         self.state_graphs = dict()
@@ -70,7 +75,7 @@ class FeaturePool:
         str_features = dlplan_gen.generate_features(factory, [
             state for state in self.states[problem.name].values()
             for problem in problems
-        ])
+        ], *5 * [max_complexity])
         self.features = {}
         for str_feature in str_features:
             if str_feature.startswith("b_"):
@@ -95,3 +100,27 @@ class FeaturePool:
     def evaluate_feature_from_problem(self, feature, problem, state):
         return self.features[feature].evaluate(
             self.states[problem][state | self.goal_states[problem]])
+
+    def to_clingo(self):
+        clingo_program = ""
+        for feature_str, feature in self.features.items():
+            feature_str = feature_str.lower()
+            clingo_program += f'feature({feature_str}).\n'
+            clingo_program += f'feature_complexity({feature_str}, {feature.compute_complexity()}).\n'
+        for problem, state_graph in self.state_graphs.items():
+            problem_id = self.problem_name_to_id[problem]
+            for node in state_graph.nodes.values():
+                clingo_program += f'state({problem_id}, {node.id}).\n'
+                if check_formula(node.state, state_graph.problem.goal):
+                    clingo_program += f'goal({problem_id}, {node.id}).\n'
+                for feature_str, feature in self.features.items():
+                    eval = self.evaluate_feature_from_problem(
+                        feature_str, problem, node.state)
+                    if type(eval) is bool:
+                        eval = 1 if eval else 0
+                    clingo_program += f'eval({problem_id}, {node.id}, {feature_str.lower()}, {eval}).\n'
+                for action, children in node.children.items():
+                    action_str = f'{action.name}({",".join([ str(p).lower() for p in action.parameters])})'
+                    for child in children:
+                        clingo_program += f'trans({problem_id}, {node.id}, {action_str}, {child.id}).\n'
+        return clingo_program
