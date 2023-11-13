@@ -1,5 +1,6 @@
 import clingo
 import os.path
+import os
 
 
 def convert_arg(symbol):
@@ -15,7 +16,7 @@ def convert_arg(symbol):
 
 class Solver:
 
-    def __init__(self, asp_code):
+    def __init__(self, asp_code, num_threads=None):
         self.asp_code = asp_code
         self.control = clingo.Control()
         s = clingo.Symbol
@@ -24,6 +25,7 @@ class Solver:
         self.prog = progfile.read() + '\n' + asp_code
         self.control.add("base", [], self.prog)
         self.control.ground([("base", [])])
+        self.control.configuration.solve.parallel_mode = num_threads or os.cpu_count()
         self.solution = None
         self.cost = None
 
