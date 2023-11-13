@@ -79,10 +79,25 @@ class StateSpaceNode:
 
 class StateSpaceGraph:
 
-    def __init__(self, root_state):
+    def __init__(self, domain, problem):
+        self.domain = domain
+        self.problem = problem
+        root_state = problem.init
         self.root = StateSpaceNode(root_state, 0)
         self.next_id = 1
         self.nodes = {root_state: self.root}
+        queue = [self.root]
+        grounded_actions = ground(domain, problem)
+        while queue:
+            node = queue.pop()
+            state = node.state
+            for action in grounded_actions:
+                if not check_formula(state, action.precondition):
+                    continue
+                for succ in apply_action_effects(node.state, action):
+                    new_node = self.add_node(succ, state, action)
+                    if new_node:
+                        queue.append(new_node)
 
     def add_node(self, state, parent_state, action):
         parent = self.nodes[parent_state]
@@ -98,18 +113,4 @@ class StateSpaceGraph:
 
 
 def generate_state_space(domain, problem):
-    root_state = problem.init
-    graph = StateSpaceGraph(root_state)
-    queue = [graph.root]
-    grounded_actions = ground(domain, problem)
-    while queue:
-        node = queue.pop()
-        state = node.state
-        for action in grounded_actions:
-            if not check_formula(state, action.precondition):
-                continue
-            for succ in apply_action_effects(node.state, action):
-                new_node = graph.add_node(succ, state, action)
-                if new_node:
-                    queue.append(new_node)
-    return graph
+    return StateSpaceGraph(domain, problem)
