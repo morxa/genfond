@@ -52,7 +52,9 @@ rank(I, S, N) :- equiv(I, S, I2, R), repr(I2, R), rank(I2, R, N).
 % For every alive state, there must be one good transition that decreases the rank.
 :- state(I, S), alive(I, S), not goal(I, S), rank(I, S, N), N <= N2 : good_trans(I, S, S2), rank(I, S2, N2).
 
-#minimize { C,F : selected(F), feature_complexity(F, C) }.
+#minimize { C@2,F : selected(F), feature_complexity(F, C) }.
+#minimize { 1@1,I,S1,S2 : good_trans(I, S1, S2) }.
+
 
 #show good_trans/3.
 #show selected/1.
