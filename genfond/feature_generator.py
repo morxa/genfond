@@ -85,12 +85,13 @@ class FeaturePool:
         return self.evaluate_feature_from_problem(feature, problems[0], state)
 
     def evaluate_feature_from_problem(self, feature, problem, state):
+        feature = feature.strip('"')
         return self.features[feature].evaluate(self.states[problem][state | self.goal_states[problem]])
 
     def to_clingo(self):
         clingo_program = ""
         for feature_str, feature in self.features.items():
-            feature_str = feature_str.lower()
+            feature_str = f'"{feature_str}"'
             clingo_program += f'feature({feature_str}).\n'
             clingo_program += f'feature_complexity({feature_str}, {feature.compute_complexity()}).\n'
         for problem, state_graph in self.state_graphs.items():
@@ -100,12 +101,13 @@ class FeaturePool:
                 if check_formula(node.state, state_graph.problem.goal):
                     clingo_program += f'goal({problem_id}, {node.id}).\n'
                 for feature_str, feature in self.features.items():
+                    feature_str = f'"{feature_str}"'
                     eval = self.evaluate_feature_from_problem(feature_str, problem, node.state)
                     if type(eval) is bool:
                         eval = 1 if eval else 0
-                    clingo_program += f'eval({problem_id}, {node.id}, {feature_str.lower()}, {eval}).\n'
+                    clingo_program += f'eval({problem_id}, {node.id}, {feature_str}, {eval}).\n'
                 for action, children in node.children.items():
-                    action_str = f'{action.name}({",".join([ str(p).lower() for p in action.parameters])})'
+                    action_str = f'"{action.name}({",".join([str(p) for p in action.parameters])})"'
                     for child in children:
                         clingo_program += f'trans({problem_id}, {node.id}, {action_str}, {child.id}).\n'
         return clingo_program
