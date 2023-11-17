@@ -18,7 +18,7 @@ class Effect(Enum):
 class PolicyRule:
 
     def __init__(self, conds, effs):
-        self.conds = frozenset(conds)
+        self.conds = conds
         self.effs = frozenset({frozenset(eff) for eff in effs})
 
     def __eq__(self, other):
@@ -26,7 +26,7 @@ class PolicyRule:
 
     def __repr__(self):
         s_conds = set()
-        for feature, val in self.conds:
+        for feature, val in self.conds.items():
             if val == Cond.TRUE:
                 s_conds.add(f'{feature}')
             elif val == Cond.FALSE:
@@ -72,21 +72,21 @@ def generate_policy(solution):
     rules = set()
     features = solution['selected']
     for instance, state in solution['repr']:
-        conds = set()
+        conds = dict()
         for i, s, f, v in solution['bool_eval']:
             if i == instance and s == state:
                 if f.startswith('b_'):
                     if v == 1:
-                        conds.add((f, Cond.TRUE))
+                        conds[f] = Cond.TRUE
                     elif v == 0:
-                        conds.add((f, Cond.FALSE))
+                        conds[f] = Cond.FALSE
                     else:
                         raise ValueError(f'Unknown value {v}')
                 elif f.startswith('n_'):
                     if v == 1:
-                        conds.add((f, Cond.POSITIVE))
+                        conds[f] = Cond.POSITIVE
                     elif v == 0:
-                        conds.add((f, Cond.ZERO))
+                        conds[f] = Cond.ZERO
                     else:
                         raise ValueError(f'Unknown value {v}')
                 else:
@@ -116,5 +116,5 @@ def generate_policy(solution):
                 else:
                     raise ValueError(f'Unknown value {v}')
         if effs:
-            rules.add(PolicyRule(frozenset(conds), frozenset({frozenset(e) for e in effs.values()})))
+            rules.add(PolicyRule(conds, frozenset({frozenset(e) for e in effs.values()})))
     return Policy(features, rules)

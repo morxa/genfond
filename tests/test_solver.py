@@ -259,8 +259,16 @@ def test_solver_generate_policy(simple_program):
     policy = generate_policy(solver.solution)
     print(policy)
     assert policy.rules == {
-        PolicyRule([('n_f', Cond.POSITIVE), ('b_g', Cond.FALSE), ('b_h', Cond.FALSE)], [[('n_f', Effect.DECREASE)]]),
-        PolicyRule([('n_f', Cond.POSITIVE), ('b_g', Cond.FALSE), ('b_h', Cond.FALSE)], [[('b_h', Effect.SET)]])
+        PolicyRule({
+            'n_f': Cond.POSITIVE,
+            'b_g': Cond.FALSE,
+            'b_h': Cond.FALSE
+        }, [[('n_f', Effect.DECREASE)]]),
+        PolicyRule({
+            'n_f': Cond.POSITIVE,
+            'b_g': Cond.FALSE,
+            'b_h': Cond.FALSE
+        }, [[('b_h', Effect.SET)]])
     }
 
 
@@ -277,8 +285,16 @@ def test_solver_policy_nontriv_equiv(program_with_nontriv_equiv):
                                               (0, 3, 4, 'b_g', 0), (0, 5, 6, 'n_f', 1), (0, 5, 6, 'b_g', 0)}
     policy = generate_policy(solver.solution)
     assert policy.rules == {
-        PolicyRule([('n_f', Cond.POSITIVE), ('b_g', Cond.FALSE)],
-                   [[('n_f', Effect.DECREASE)], [('n_f', Effect.INCREASE)]]),
-        PolicyRule([('n_f', Cond.POSITIVE), ('b_g', Cond.FALSE)], [[('n_f', Effect.INCREASE)]]),
-        PolicyRule([('n_f', Cond.ZERO), ('b_g', Cond.FALSE)], [[], ([('n_f', Effect.INCREASE)])]),
+        PolicyRule({
+            'n_f': Cond.POSITIVE,
+            'b_g': Cond.FALSE
+        }, [[('n_f', Effect.DECREASE)], [('n_f', Effect.INCREASE)]]),
+        PolicyRule({
+            'n_f': Cond.POSITIVE,
+            'b_g': Cond.FALSE
+        }, [[('n_f', Effect.INCREASE)]]),
+        PolicyRule({
+            'n_f': Cond.ZERO,
+            'b_g': Cond.FALSE
+        }, [[], ([('n_f', Effect.INCREASE)])]),
     }
