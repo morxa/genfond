@@ -70,67 +70,19 @@ def main():
         solver = Solver(asp_instance)
         solver.solve()
         solution = solver.solution
-        if args.output:
-            pickle.dump(solution, open(args.output, 'wb'))
+        policy = solver.generate_policy()
+        if args.dump:
+            pickle.dump((solution, policy), open(args.dump, 'wb'))
     else:
-        solution = pickle.load(open(args.input, 'rb'))
+        solution, policy = pickle.load(open(args.input, 'rb'))
     if not solution:
         log.error('No solution found')
         sys.exit(1)
     log.debug(f'Solution:\n{solution}')
-    rules = set()
-    for instance, state in solution['bool_repr']:
-        conds = set()
-        for i, s, f, v in solution['bool_eval']:
-            if i == instance and s == state:
-                if v == 1:
-                    if f.startswith('b_'):
-                        conds.add(f)
-                    elif f.startswith('n_'):
-                        conds.add(f'{f} > 0')
-                    else:
-                        raise ValueError(f'Unknown feature type {f}')
-                elif v == 0:
-                    if f.startswith('b_'):
-                        conds.add(f'¬{f}')
-                    elif f.startswith('n_'):
-                        conds.add(f'{f} = 0')
-                    else:
-                        raise ValueError(f'Unknown feature type {f}')
-                else:
-                    raise ValueError(f'Unknown value {v}')
-        effs = dict()
-        for i, s1, s2, f, v in solution['good_trans_delta']:
-            if i == instance and s1 == state:
-                if v == 1:
-                    if f.startswith('b_'):
-                        eff = f
-                    elif f.startswith('n_'):
-                        eff = f'↑{f}'
-                    else:
-                        raise ValueError(f'Unknown feature type {f}')
-                elif v == -1:
-                    if f.startswith('b_'):
-                        eff = f'¬{f}'
-                    elif f.startswith('n_'):
-                        eff = f'↓{f}'
-                    else:
-                        raise ValueError(f'Unknown feature type {f}')
-                elif v == 0:
-                    continue
-                else:
-                    raise ValueError(f'Unknown value {v}')
-                effs.setdefault(s2, set()).add(eff)
-        if effs:
-            cond = ' ∧ '.join(conds)
-            eff_string = ' ; '.join({' ∧ '.join(eff) for _, eff in effs.items()})
-            rules.add(f'{{ {cond} }}  ⇒  {{ {eff_string} }}')
-    log.info('Policy:')
-    for rule in rules:
-        log.info(rule)
-    with open(args.output, 'w') as f:
-        for rule in rules:
-            f.write(f'{rule}\n')
+    log.info(f'Policy:\n{policy}')
+    if args.output:
+        with open(args.output, 'w') as f:
+            f.write(f'{policy}\n')
     if args.draw:
         draw_graph(feature_pool, solution, args.draw)
 

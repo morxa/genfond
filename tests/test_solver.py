@@ -1,4 +1,5 @@
 from genfond.solver import Solver
+from genfond.policy import Cond, Effect
 
 
 def test_solver_choose_good_trans():
@@ -167,73 +168,11 @@ def test_solver_equiv():
     assert solver.solution['trans_delta'] == {(0, 0, 1, 'f', 1), (1, 0, 1, 'f', 1)}
 
 
-def test_solver_equiv2():
-    program = """
-        feature(f).
-        feature_complexity(f, 1).
-        feature(g).
-        feature_complexity(g, 2).
-        feature(h).
-        feature_complexity(h, 3).
-        state(0, 0).
-        eval(0, 0, f, 0).
-        eval(0, 0, g, 0).
-        eval(0, 0, h, 0).
-
-        state(0, 1).
-        eval(0, 1, f, 1).
-        eval(0, 1, g, 0).
-        eval(0, 1, h, 0).
-
-        state(0, 2).
-        eval(0, 2, f, 1).
-        eval(0, 2, g, 1).
-        eval(0, 2, h, 0).
-
-        state(0, 3).
-        eval(0, 3, f, 5).
-        eval(0, 3, g, 0).
-        eval(0, 3, h, 0).
-
-        state(0, 5).
-        eval(0, 5, f, 5).
-        eval(0, 5, g, 0).
-        eval(0, 5, h, 1).
-
-        state(0, 4).
-        eval(0, 4, f, 8).
-        eval(0, 4, g, 0).
-        eval(0, 4, h, 0).
-        goal(0, 4).
-
-        state(0, 6).
-        eval(0, 6, f, 8).
-        eval(0, 6, g, 0).
-        eval(0, 6, h, 1).
-        goal(0, 6).
-
-        trans(0, 0, a, 1).
-        trans(0, 0, a, 0).
-        trans(0, 0, b, 1).
-        trans(0, 0, b, 2).
-        trans(0, 1, c, 3).
-        trans(0, 1, c, 5).
-        trans(0, 3, d, 1).
-        trans(0, 5, d, 1).
-        trans(0, 3, d, 4).
-        trans(0, 5, e, 6).
-    """
+def test_solver_equiv2(program_with_nontriv_equiv):
+    program = program_with_nontriv_equiv
     solver = Solver(program)
     assert solver.solve()
-    assert solver.solution['selected'] == {'f', 'g'}
-    assert solver.solution['good_trans'] == {(0, 0, 0), (0, 0, 1), (0, 1, 3), (0, 3, 1), (0, 3, 4), (0, 1, 5),
-                                             (0, 5, 1), (0, 5, 6)}
-    assert solver.solution['trans_delta'] == {(0, 0, 0, 'f', 0), (0, 0, 0, 'g', 0), (0, 0, 1, 'f', 1),
-                                              (0, 0, 1, 'g', 0), (0, 0, 2, 'f', 1), (0, 0, 2, 'g', 1),
-                                              (0, 1, 3, 'f', 1), (0, 1, 3, 'g', 0), (0, 1, 5, 'f', 1),
-                                              (0, 1, 5, 'g', 0), (0, 3, 1, 'f', -1), (0, 3, 1, 'g', 0),
-                                              (0, 5, 1, 'f', -1), (0, 5, 1, 'g', 0), (0, 3, 4, 'f', 1),
-                                              (0, 3, 4, 'g', 0), (0, 5, 6, 'f', 1), (0, 5, 6, 'g', 0)}
+    assert solver.solution['selected'] == {'n_f', 'b_g'}
 
 
 def test_solver_rank():
@@ -303,50 +242,44 @@ def test_bool_equiv():
     assert solver.solve() is False, f'Unexpected solution {solver.solution}'
 
 
-def test_bool_equiv2():
-    program = """
-        feature(f).
-        feature_complexity(f, 1).
-        feature(g).
-        feature_complexity(g, 2).
-        feature(h).
-        feature_complexity(h, 3).
-
-        state(0, 0).
-        eval(0, 0, f, 4).
-        eval(0, 0, g, 0).
-        eval(0, 0, h, 0).
-
-        state(0, 1).
-        eval(0, 1, f, 3).
-        eval(0, 1, g, 0).
-        eval(0, 1, h, 0).
-
-        state(0, 2).
-        eval(0, 2, f, 2).
-        eval(0, 2, g, 1).
-        eval(0, 2, h, 0).
-
-        state(0, 3).
-        eval(0, 3, f, 1).
-        eval(0, 3, g, 0).
-        eval(0, 3, h, 0).
-
-        state(0, 4).
-        eval(0, 4, f, 1).
-        eval(0, 4, g, 0).
-        eval(0, 4, h, 1).
-        goal(0, 4).
-
-        trans(0, 0, a, 1).
-        trans(0, 1, a, 2).
-        trans(0, 1, b, 3).
-        trans(0, 3, a, 4).
-    """
-    solver = Solver(program)
+def test_solver_bool_equiv2(simple_program):
+    solver = Solver(simple_program)
     assert solver.solve()
     # 'g' must also be chosen to bool-distinguish states 2 and 3.
-    assert solver.solution['selected'] == {'f', 'g', 'h'}
-    assert solver.solution['good_trans_delta'] == {(0, 0, 1, 'f', -1), (0, 0, 1, 'g', 0), (0, 0, 1, 'h', 0),
-                                                   (0, 1, 3, 'f', -1), (0, 1, 3, 'g', 0), (0, 1, 3, 'h', 0),
-                                                   (0, 3, 4, 'f', 0), (0, 3, 4, 'g', 0), (0, 3, 4, 'h', 1)}
+    assert solver.solution['selected'] == {'n_f', 'b_g', 'b_h'}
+    assert solver.solution['bool_repr'] == {(0, 0), (0, 2), (0, 4)}
+
+
+def test_solver_generate_policy(simple_program):
+    solver = Solver(simple_program)
+    assert solver.solve()
+    assert solver.solution['good_trans_delta'] == {(0, 0, 1, 'n_f', -1), (0, 0, 1, 'b_g', 0), (0, 0, 1, 'b_h', 0),
+                                                   (0, 1, 3, 'n_f', -1), (0, 1, 3, 'b_g', 0), (0, 1, 3, 'b_h', 0),
+                                                   (0, 3, 4, 'n_f', 0), (0, 3, 4, 'b_g', 0), (0, 3, 4, 'b_h', 1)}
+    policy = solver.generate_policy()
+    print(policy)
+    assert policy.rules == {(frozenset({('n_f', Cond.POSITIVE), ('b_g', Cond.FALSE),
+                                        ('b_h', Cond.FALSE)}), frozenset({frozenset({('n_f', Effect.DECREASE)})})),
+                            (frozenset({('n_f', Cond.POSITIVE), ('b_g', Cond.FALSE),
+                                        ('b_h', Cond.FALSE)}), frozenset({frozenset({('b_h', Effect.SET)})}))}
+
+
+def test_solver_policy_nontriv_equiv(program_with_nontriv_equiv):
+    solver = Solver(program_with_nontriv_equiv)
+    assert solver.solve()
+    assert solver.solution['good_trans'] == {(0, 0, 0), (0, 0, 1), (0, 1, 3), (0, 3, 1), (0, 3, 4), (0, 1, 5),
+                                             (0, 5, 1), (0, 5, 6)}
+    assert solver.solution['trans_delta'] == {(0, 0, 0, 'n_f', 0), (0, 0, 0, 'b_g', 0), (0, 0, 1, 'n_f', 1),
+                                              (0, 0, 1, 'b_g', 0), (0, 0, 2, 'n_f', 1), (0, 0, 2, 'b_g', 1),
+                                              (0, 1, 3, 'n_f', 1), (0, 1, 3, 'b_g', 0), (0, 1, 5, 'n_f', 1),
+                                              (0, 1, 5, 'b_g', 0), (0, 3, 1, 'n_f', -1), (0, 3, 1, 'b_g', 0),
+                                              (0, 5, 1, 'n_f', -1), (0, 5, 1, 'b_g', 0), (0, 3, 4, 'n_f', 1),
+                                              (0, 3, 4, 'b_g', 0), (0, 5, 6, 'n_f', 1), (0, 5, 6, 'b_g', 0)}
+    policy = solver.generate_policy()
+    assert policy.rules == {(frozenset({('n_f', Cond.ZERO), ('b_g', Cond.FALSE)}),
+                             frozenset({frozenset({}), frozenset({('n_f', Effect.INCREASE)})})),
+                            (frozenset({('n_f', Cond.POSITIVE),
+                                        ('b_g', Cond.FALSE)}), frozenset({frozenset({('n_f', Effect.INCREASE)})})),
+                            (frozenset({('n_f', Cond.POSITIVE), ('b_g', Cond.FALSE)}),
+                             frozenset({frozenset({('n_f', Effect.DECREASE)}),
+                                        frozenset({('n_f', Effect.INCREASE)})}))}

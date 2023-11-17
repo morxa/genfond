@@ -61,6 +61,6 @@ rank(I, S, N) :- equiv(I, S, I2, R), repr(I2, R), rank(I2, R, N).
 #show repr/2.
 #show equiv/4.
 #show bool_repr/2.
-#show bool_eval(I, S, F, V) : bool_repr(I, S), selected(F), bool_eval(I, S, F, V).
+#show bool_eval(I, S, F, V) : repr(I, S), selected(F), bool_eval(I, S, F, V).
 #show trans_delta/5.
 #show good_trans_delta/5.

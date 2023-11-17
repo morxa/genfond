@@ -1,6 +1,7 @@
 import clingo
 import os.path
 import os
+from .policy import Policy
 
 
 def convert_arg(symbol):
@@ -43,3 +44,6 @@ class Solver:
 
     def solve(self):
         return self.control.solve(on_model=self.on_model).satisfiable
+
+    def generate_policy(self):
+        return Policy(self.solution)
