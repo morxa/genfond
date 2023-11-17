@@ -1,5 +1,6 @@
 from genfond.solver import Solver
 from genfond.feature_generator import FeaturePool
+from genfond.policy import generate_policy
 import pddl
 import pygraphviz
 import pickle
@@ -70,9 +71,10 @@ def main():
         solver = Solver(asp_instance)
         solver.solve()
         solution = solver.solution
-        policy = solver.generate_policy()
+        policy = generate_policy(solution)
         if args.dump:
             pickle.dump((solution, policy), open(args.dump, 'wb'))
+            log.info(f'Saved solution and policy to {args.dump}')
     else:
         solution, policy = pickle.load(open(args.input, 'rb'))
     if not solution:

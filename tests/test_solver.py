@@ -1,5 +1,5 @@
 from genfond.solver import Solver
-from genfond.policy import Cond, Effect
+from genfond.policy import Cond, Effect, PolicyRule, generate_policy
 
 
 def test_solver_choose_good_trans():
@@ -256,12 +256,12 @@ def test_solver_generate_policy(simple_program):
     assert solver.solution['good_trans_delta'] == {(0, 0, 1, 'n_f', -1), (0, 0, 1, 'b_g', 0), (0, 0, 1, 'b_h', 0),
                                                    (0, 1, 3, 'n_f', -1), (0, 1, 3, 'b_g', 0), (0, 1, 3, 'b_h', 0),
                                                    (0, 3, 4, 'n_f', 0), (0, 3, 4, 'b_g', 0), (0, 3, 4, 'b_h', 1)}
-    policy = solver.generate_policy()
+    policy = generate_policy(solver.solution)
     print(policy)
-    assert policy.rules == {(frozenset({('n_f', Cond.POSITIVE), ('b_g', Cond.FALSE),
-                                        ('b_h', Cond.FALSE)}), frozenset({frozenset({('n_f', Effect.DECREASE)})})),
-                            (frozenset({('n_f', Cond.POSITIVE), ('b_g', Cond.FALSE),
-                                        ('b_h', Cond.FALSE)}), frozenset({frozenset({('b_h', Effect.SET)})}))}
+    assert policy.rules == {
+        PolicyRule([('n_f', Cond.POSITIVE), ('b_g', Cond.FALSE), ('b_h', Cond.FALSE)], [[('n_f', Effect.DECREASE)]]),
+        PolicyRule([('n_f', Cond.POSITIVE), ('b_g', Cond.FALSE), ('b_h', Cond.FALSE)], [[('b_h', Effect.SET)]])
+    }
 
 
 def test_solver_policy_nontriv_equiv(program_with_nontriv_equiv):
@@ -275,11 +275,10 @@ def test_solver_policy_nontriv_equiv(program_with_nontriv_equiv):
                                               (0, 1, 5, 'b_g', 0), (0, 3, 1, 'n_f', -1), (0, 3, 1, 'b_g', 0),
                                               (0, 5, 1, 'n_f', -1), (0, 5, 1, 'b_g', 0), (0, 3, 4, 'n_f', 1),
                                               (0, 3, 4, 'b_g', 0), (0, 5, 6, 'n_f', 1), (0, 5, 6, 'b_g', 0)}
-    policy = solver.generate_policy()
-    assert policy.rules == {(frozenset({('n_f', Cond.ZERO), ('b_g', Cond.FALSE)}),
-                             frozenset({frozenset({}), frozenset({('n_f', Effect.INCREASE)})})),
-                            (frozenset({('n_f', Cond.POSITIVE),
-                                        ('b_g', Cond.FALSE)}), frozenset({frozenset({('n_f', Effect.INCREASE)})})),
-                            (frozenset({('n_f', Cond.POSITIVE), ('b_g', Cond.FALSE)}),
-                             frozenset({frozenset({('n_f', Effect.DECREASE)}),
-                                        frozenset({('n_f', Effect.INCREASE)})}))}
+    policy = generate_policy(solver.solution)
+    assert policy.rules == {
+        PolicyRule([('n_f', Cond.POSITIVE), ('b_g', Cond.FALSE)],
+                   [[('n_f', Effect.DECREASE)], [('n_f', Effect.INCREASE)]]),
+        PolicyRule([('n_f', Cond.POSITIVE), ('b_g', Cond.FALSE)], [[('n_f', Effect.INCREASE)]]),
+        PolicyRule([('n_f', Cond.ZERO), ('b_g', Cond.FALSE)], [[], ([('n_f', Effect.INCREASE)])]),
+    }
