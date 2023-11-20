@@ -1,4 +1,4 @@
-(define (problem sussman-anomaly)       ; graphplan 3 steps
+(define (problem p01)       ; graphplan 3 steps
     (:domain blocks-world-domain)
   (:objects A B C)
   (:init (block A) (block B) (block C) (block Table)
