@@ -57,6 +57,7 @@ def main():
     parser.add_argument('--input', '-i', help='Input for a pickle dump of the solution')
     parser.add_argument('--draw', '-d', help='Output path for the resulting state graph')
     parser.add_argument('-v', '--verbose', action='store_true')
+    parser.add_argument('-c', '--complexity', type=int, default=5, help='max complexity of the used features')
     args = parser.parse_args()
     if args.verbose:
         loglevel = logging.DEBUG
@@ -67,7 +68,7 @@ def main():
     problems = []
     for problem_file in args.problem_file:
         problems.append(pddl.parse_problem(problem_file))
-    feature_pool = FeaturePool(domain, problems, 5)
+    feature_pool = FeaturePool(domain, problems, args.complexity)
     if not args.input:
         asp_instance = feature_pool.to_clingo()
         if args.program_file:
