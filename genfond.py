@@ -9,7 +9,6 @@ import sys
 import argparse
 import logging
 
-logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
 
 
@@ -57,7 +56,13 @@ def main():
     parser.add_argument('--output', '-o', help='Output file for the resulting policy (as text)')
     parser.add_argument('--input', '-i', help='Input for a pickle dump of the solution')
     parser.add_argument('--draw', '-d', help='Output path for the resulting state graph')
+    parser.add_argument('-v', '--verbose', action='store_true')
     args = parser.parse_args()
+    if args.verbose:
+        loglevel = logging.DEBUG
+    else:
+        loglevel = logging.INFO
+    logging.basicConfig(level=loglevel)
     domain = pddl.parse_domain(args.domain_file)
     problems = []
     for problem_file in args.problem_file:

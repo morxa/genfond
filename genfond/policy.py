@@ -1,4 +1,7 @@
 from enum import Enum
+import logging
+
+log = logging.getLogger(__name__)
 
 
 class Cond(Enum):
@@ -75,6 +78,7 @@ def generate_policy(solution):
         conds = dict()
         for i, s, f, v in solution['bool_eval']:
             if i == instance and s == state:
+                log.debug(f'Adding condition {f}={v}')
                 if f.startswith('b_'):
                     if v == 1:
                         conds[f] = Cond.TRUE
@@ -94,12 +98,15 @@ def generate_policy(solution):
         effs = dict()
         for i, s1, s2, f, v in solution['good_trans_delta']:
             if i == instance and s1 == state:
+                log.debug(f'Evaluating ({i}, {s1}, {s2}, {f}, {v}) for effects')
                 eff = effs.setdefault(s2, set())
                 if f.startswith('b_'):
                     if v == 1:
                         eff.add((f, Effect.SET))
+                        log.debug(f'Adding effect {f}={v}')
                     elif v == -1:
                         eff.add((f, Effect.UNSET))
+                        log.debug(f'Adding effect {f}={v}')
                     elif v == 0:
                         continue
                     else:
@@ -107,8 +114,10 @@ def generate_policy(solution):
                 elif f.startswith('n_'):
                     if v == 1:
                         eff.add((f, Effect.INCREASE))
+                        log.debug(f'Adding effect {f}={v}')
                     elif v == -1:
                         eff.add((f, Effect.DECREASE))
+                        log.debug(f'Adding effect {f}={v}')
                     elif v == 0:
                         continue
                     else:
@@ -116,5 +125,8 @@ def generate_policy(solution):
                 else:
                     raise ValueError(f'Unknown value {v}')
         if effs:
-            rules.add(PolicyRule(conds, frozenset({frozenset(e) for e in effs.values()})))
+            log.debug(f'Effects: {effs}')
+            rule = PolicyRule(conds, frozenset({frozenset(e) for e in effs.values()}))
+            log.debug(f'Adding rule {rule}')
+            rules.add(rule)
     return Policy(features, rules)
