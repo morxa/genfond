@@ -77,6 +77,9 @@ def main():
         solver = Solver(asp_instance)
         solver.solve()
         solution = solver.solution
+        if not solution:
+            log.error('No solution found')
+            sys.exit(1)
         policy = generate_policy(solution)
         if args.dump:
             pickle.dump((solution, policy), open(args.dump, 'wb'))
