@@ -9,6 +9,7 @@ pytest = "*"
 flake8 = "*"
 dlplan = {ref = "main", git = "https://github.com/morxa/dlplan"}
 clingo = "*"
+pygraphviz = "*"
 
 [dev-packages]
 
