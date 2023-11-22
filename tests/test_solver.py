@@ -275,26 +275,32 @@ def test_solver_generate_policy(simple_program):
 def test_solver_policy_nontriv_equiv(program_with_nontriv_equiv):
     solver = Solver(program_with_nontriv_equiv)
     assert solver.solve()
-    assert solver.solution['good_trans'] == {(0, 0, 0), (0, 0, 1), (0, 1, 3), (0, 3, 1), (0, 3, 4), (0, 1, 5),
-                                             (0, 5, 1), (0, 5, 6)}
-    assert solver.solution['trans_delta'] == {(0, 0, 0, 'n_f', 0), (0, 0, 0, 'b_g', 0), (0, 0, 1, 'n_f', 1),
-                                              (0, 0, 1, 'b_g', 0), (0, 0, 2, 'n_f', 1), (0, 0, 2, 'b_g', 1),
-                                              (0, 1, 3, 'n_f', 1), (0, 1, 3, 'b_g', 0), (0, 1, 5, 'n_f', 1),
-                                              (0, 1, 5, 'b_g', 0), (0, 3, 1, 'n_f', -1), (0, 3, 1, 'b_g', 0),
-                                              (0, 5, 1, 'n_f', -1), (0, 5, 1, 'b_g', 0), (0, 3, 4, 'n_f', 1),
-                                              (0, 3, 4, 'b_g', 0), (0, 5, 6, 'n_f', 1), (0, 5, 6, 'b_g', 0)}
+    assert solver.solution['good_trans'] == {(0, 0, 0), (0, 0, 1), (0, 0, 2), (0, 1, 'g1'), (0, 2, 'g2'), (0, 1, 0),
+                                             (0, 2, 0)}
+    assert solver.solution['trans_delta'] == {
+        (0, 0, 0, 'n_f', 0),
+        (0, 0, 0, 'b_g', 0),
+        (0, 0, 1, 'n_f', 1),
+        (0, 0, 1, 'b_g', 0),
+        (0, 0, 2, 'n_f', 1),
+        (0, 0, 2, 'b_g', 0),
+        (0, 1, 0, 'n_f', -1),
+        (0, 1, 0, 'b_g', 0),
+        (0, 2, 0, 'n_f', -1),
+        (0, 2, 0, 'b_g', 0),
+        (0, 1, 'g1', 'n_f', 0),
+        (0, 1, 'g1', 'b_g', 1),
+        (0, 2, 'g2', 'n_f', 0),
+        (0, 2, 'g2', 'b_g', 1),
+    }
     policy = generate_policy(solver.solution)
     assert policy.rules == {
         PolicyRule({
-            'n_f': Cond.POSITIVE,
-            'b_g': Cond.FALSE
-        }, [[('n_f', Effect.DECREASE)], [('n_f', Effect.INCREASE)]]),
-        PolicyRule({
-            'n_f': Cond.POSITIVE,
-            'b_g': Cond.FALSE
-        }, [[('n_f', Effect.INCREASE)]]),
-        PolicyRule({
             'n_f': Cond.ZERO,
             'b_g': Cond.FALSE
-        }, [[], ([('n_f', Effect.INCREASE)])]),
+        }, [[], [('n_f', Effect.INCREASE)]]),
+        PolicyRule({
+            'n_f': Cond.POSITIVE,
+            'b_g': Cond.FALSE
+        }, [[('n_f', Effect.DECREASE)], [('b_g', Effect.SET)]]),
     }
