@@ -58,6 +58,11 @@ def main():
     parser.add_argument('--draw', '-d', help='Output path for the resulting state graph')
     parser.add_argument('-v', '--verbose', action='store_true')
     parser.add_argument('-c', '--complexity', type=int, default=5, help='max complexity of the used features')
+    parser.add_argument('-n',
+                        '--num-threads',
+                        type=int,
+                        default=None,
+                        help='number of threads to use; "None" uses all available threads')
     args = parser.parse_args()
     if args.verbose:
         loglevel = logging.DEBUG
@@ -76,8 +81,8 @@ def main():
         if args.program_file:
             with open(args.program_file, 'w') as f:
                 f.write(asp_instance)
-        solver = Solver(asp_instance)
         log.info(f'Starting solver for domain {domain.name} and problems {", ".join([p.name for p in problems])}')
+        solver = Solver(asp_instance, args.num_threads)
         solver.solve()
         solution = solver.solution
         if args.dump:
