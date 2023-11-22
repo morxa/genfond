@@ -34,8 +34,7 @@ bool_repr(I1, S1) :- state(I1, S1), not bool_equiv(I1, S1, I2, S2) : state(I2, S
 % For two boolean-equivalent states, the outgoing good transitions must match and result in equal transition deltas.
 :- bool_equiv(I1, S11, I2, S21), good_trans(I1, S11, S12), trans(I2, S21, A, S22), not good_trans(I2, S21, S22), trans_delta(I2, S21, S22, F, C) : trans_delta(I1, S11, S12, F, C).
 % Equivalence must distinguish between goal and non-goal states.
-:- equiv(I1, S1, I2, S2), goal(I1, S1), not goal(I2, S2).
-
+:- bool_equiv(I1, S1, I2, S2), goal(I1, S1), not goal(I2, S2).
 
 % Count the number of states.
 num_states(I, N) :- state(I, _), N = #count { S : state(I, S) }.
