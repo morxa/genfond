@@ -28,34 +28,34 @@ class PolicyRule:
         return self.conds == other.conds and self.effs == other.effs
 
     def __repr__(self):
-        s_conds = set()
+        s_conds = []
         for feature, val in self.conds.items():
             if val == Cond.TRUE:
-                s_conds.add(f'{feature}')
+                s_conds.append(f'{feature}')
             elif val == Cond.FALSE:
-                s_conds.add(f'¬{feature}')
+                s_conds.append(f'¬{feature}')
             elif val == Cond.POSITIVE:
-                s_conds.add(f'{feature} > 0')
+                s_conds.append(f'{feature} > 0')
             elif val == Cond.ZERO:
-                s_conds.add(f'{feature} = 0')
+                s_conds.append(f'{feature} = 0')
             else:
                 raise ValueError(f'Unknown feature type {f}')
-        s_effs = set()
+        s_effs = []
         for eff in self.effs:
-            s_eff = set()
+            s_eff = []
             for feature, val in eff:
                 if val == Effect.SET:
-                    s_eff.add(f'{feature}')
+                    s_eff.append(f'{feature}')
                 elif val == Effect.UNSET:
-                    s_eff.add(f'¬{feature}')
+                    s_eff.append(f'¬{feature}')
                 elif val == Effect.INCREASE:
-                    s_eff.add(f'↑{feature}')
+                    s_eff.append(f'↑{feature}')
                 elif val == Effect.DECREASE:
-                    s_eff.add(f'↓{feature}')
+                    s_eff.append(f'↓{feature}')
                 else:
                     raise ValueError(f'Unknown feature type {f}')
-            s_effs.add(' ∧ '.join(s_eff))
-        return f'{{ {" ∧ ".join(s_conds)} }}  ⇒  {{ {" ; ".join(s_effs)} }}'
+            s_effs.append(' ∧ '.join(s_eff))
+        return f'{{ {" ∧ ".join(sorted(s_conds))} }}  ⇒  {{ {" ; ".join(sorted(s_effs))} }}'
 
     def __hash__(self):
         return hash(repr(self))
