@@ -39,7 +39,7 @@ class PolicyRule:
             elif val == Cond.ZERO:
                 s_conds.append(f'{feature} = 0')
             else:
-                raise ValueError(f'Unknown feature type {f}')
+                raise ValueError(f'Unknown feature type {feature}')
         s_effs = []
         for eff in self.effs:
             s_eff = []
@@ -53,7 +53,7 @@ class PolicyRule:
                 elif val == Effect.DECREASE:
                     s_eff.append(f'↓{feature}')
                 else:
-                    raise ValueError(f'Unknown feature type {f}')
+                    raise ValueError(f'Unknown feature type {feature}')
             s_effs.append(' ∧ '.join(s_eff))
         return f'{{ {" ∧ ".join(sorted(s_conds))} }}  ⇒  {{ {" ; ".join(sorted(s_effs))} }}'
 
