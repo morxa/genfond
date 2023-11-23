@@ -19,7 +19,7 @@ def main():
     domain = pddl.parse_domain(args.domain)
     problem = pddl.parse_problem(args.problem)
     with open(args.policy, 'rb') as f:
-        _, policy = pickle.load(f)
+        policy = pickle.load(f)
     execute_policy(domain, problem, policy)
 
 

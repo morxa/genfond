@@ -53,7 +53,7 @@ def main():
     parser.add_argument('problem_file', nargs='*')
     parser.add_argument('--program-file', '-p', help='Output file for the generated program')
     parser.add_argument('--dump', help='Output for a pickle dump of the solution')
-    parser.add_argument('--output', '-o', help='Output file for the resulting policy (as text)')
+    parser.add_argument('--output', '-o', help='Output file for the resulting policy (as pickle dump)')
     parser.add_argument('--input', '-i', help='Input for a pickle dump of the solution')
     parser.add_argument('--draw', '-d', help='Output path for the resulting state graph')
     parser.add_argument('-v', '--verbose', action='store_true')
@@ -69,31 +69,28 @@ def main():
     for problem_file in args.problem_file:
         problems.append(pddl.parse_problem(problem_file))
     feature_pool = FeaturePool(domain, problems, args.complexity)
-    if not args.input:
+    if args.input:
+        solution, policy = pickle.load(open(args.input, 'rb'))
+    else:
         asp_instance = feature_pool.to_clingo()
         if args.program_file:
             with open(args.program_file, 'w') as f:
                 f.write(asp_instance)
         solver = Solver(asp_instance)
+        log.info(f'Starting solver for domain {domain.name} and problems {", ".join([p.name for p in problems])}')
         solver.solve()
         solution = solver.solution
-        if not solution:
-            log.error('No solution found')
-            sys.exit(1)
-        policy = generate_policy(solution)
         if args.dump:
-            pickle.dump((solution, policy), open(args.dump, 'wb'))
-            log.info(f'Saved solution and policy to {args.dump}')
-    else:
-        solution, policy = pickle.load(open(args.input, 'rb'))
+            pickle.dump(solution, open(args.dump, 'wb'))
+            log.info(f'Saved (raw) solution to {args.dump}')
     if not solution:
         log.error('No solution found')
         sys.exit(1)
+    policy = generate_policy(solution)
     log.debug(f'Solution:\n{solution}')
     log.info(f'Policy:\n{policy}')
     if args.output:
-        with open(args.output, 'w') as f:
-            f.write(f'{policy}\n')
+        pickle.dump(policy, open(args.output, 'wb'))
     if args.draw:
         draw_graph(feature_pool, solution, args.draw)
 
