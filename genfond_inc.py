@@ -45,6 +45,7 @@ def main():
     logging.basicConfig(level=loglevel)
     log.debug('Parsing domain ...')
     domain = pddl.parse_domain(args.domain_file)
+    log.info('Starting policy generation for domain {}'.format(domain.name))
     log.debug('Parsing problems ...')
     problems = [pddl.parse_problem(f) for f in args.problem_file]
     policy = Policy({}, {})
@@ -58,19 +59,34 @@ def main():
             log.info('Policy does not solve {}'.format(problem.name))
             solver_problems.append(problem)
             for i in range(last_complexity, args.max_complexity):
-                policy = solve(domain, solver_problems, args.num_threads, i)
+                try:
+                    policy = solve(domain, solver_problems, args.num_threads, i)
+                except RuntimeError:
+                    log.error('Error during policy generation for {} with max complexity {}'.format(problem.name, i))
+                    break
                 if policy is not None:
                     last_complexity = i
                     break
             if policy is None:
                 log.error('No policy found for {} with max complexity {}'.format(problem.name, i))
-                sys.exit(1)
-    log.info('All problems solved!')
+                # Delete last element in solver_problems
+                solver_problems.pop()
+                continue
     log.info('Verifying policy ...')
+    succs = []
     for problem in problems:
-        execute_policy(domain, problem, policy)
-    log.info('Policy verified!')
+        try:
+            execute_policy(domain, problem, policy)
+            succs.append(problem)
+        except RuntimeError:
+            log.error('Policy does not solve {}'.format(problem.name))
+    log.info('Policy solves {} out of {} problems, unsolved: {}'.format(
+        len(succs), len(problems), ", ".join([p.name for p in problems if p not in succs])))
     log.info('Final policy: {}'.format(policy))
+    if len(succs) == len(problems):
+        sys.exit(0)
+    else:
+        sys.exit(1)
 
 
 if __name__ == '__main__':
