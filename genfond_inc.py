@@ -53,7 +53,7 @@ def main():
     last_complexity = args.min_complexity
     for problem in problems:
         try:
-            execute_policy(domain, problem, policy)
+            execute_policy(domain, problem, policy, 10000)
             log.info('Policy already solves {}'.format(problem.name))
         except RuntimeError:
             log.info('Policy does not solve {}'.format(problem.name))
@@ -76,7 +76,7 @@ def main():
     succs = []
     for problem in problems:
         try:
-            execute_policy(domain, problem, policy)
+            execute_policy(domain, problem, policy, 10000)
             succs.append(problem)
         except RuntimeError:
             log.error('Policy does not solve {}'.format(problem.name))

@@ -85,7 +85,7 @@ def state_string(state):
     return ",".join([str(p) for p in state])
 
 
-def execute_policy(domain, problem, policy):
+def execute_policy(domain, problem, policy, max_steps=None):
     log.info(
         f'Executing policy:\n{policy}\nin {domain.name} for problem {problem.name} with features {policy.features}')
     vocabulary = construct_vocabulary_info(domain)
@@ -105,7 +105,8 @@ def execute_policy(domain, problem, policy):
     grounded_actions = ground(domain, problem)
     log.debug("Grounding actions done.")
     state = problem.init
-    while not check_formula(state, problem.goal):
+    num_steps = 0
+    while not check_formula(state, problem.goal) and (max_steps is None or num_steps < max_steps):
         feature_eval = eval_state(instance, mapping, features, state, goal_state)
         bool_feature_eval = bool_eval_state(instance, mapping, features, state, goal_state)
         enabled_rules = {rule for rule in policy.rules if state_satisfies_rule_conds(bool_feature_eval, rule.conds)}
@@ -133,6 +134,7 @@ def execute_policy(domain, problem, policy):
                     log.debug(f'Found matching rule: {rule}')
                     log.info(f'Applying action {action_string(action)}')
                     state = get_next_state(succs, action)
+                    num_steps += 1
                     log.info(f'New state: {",".join([str(p) for p in state])}')
                     break
             if found_rule:
@@ -141,4 +143,7 @@ def execute_policy(domain, problem, policy):
             log.error(f'No matching rule found for diff {succs_diffs}!')
             log.error('Enabled rules:\n  {}'.format("\n  ".join([str(r) for r in enabled_rules])))
             raise RuntimeError('No matching rule found!')
+    if not check_formula(state, problem.goal):
+        log.error('Goal not reached!')
+        raise RuntimeError('Goal not reached!')
     log.info('Goal reached!')
