@@ -60,18 +60,21 @@ def main():
             solver_problems.append(problem)
             for i in range(last_complexity, args.max_complexity):
                 try:
-                    policy = solve(domain, solver_problems, args.num_threads, i)
+                    new_policy = solve(domain, solver_problems, args.num_threads, i)
                 except RuntimeError:
                     log.error('Error during policy generation for {} with max complexity {}'.format(problem.name, i))
                     break
-                if policy is not None:
+                if new_policy is not None:
+                    policy = new_policy
                     last_complexity = i
                     break
-            if policy is None:
+            if new_policy is None:
                 log.error('No policy found for {} with max complexity {}'.format(problem.name, i))
                 # Delete last element in solver_problems
                 solver_problems.pop()
                 continue
+            else:
+                policy = new_policy
     log.info('Verifying policy ...')
     succs = []
     for problem in problems:
