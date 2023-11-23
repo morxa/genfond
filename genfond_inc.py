@@ -10,11 +10,11 @@ import pddl
 log = logging.getLogger(__name__)
 
 
-def solve(domain, problems, complexity):
+def solve(domain, problems, num_threads, complexity):
     feature_pool = FeaturePool(domain, problems, complexity)
     asp_instance = feature_pool.to_clingo()
     log.info('Solving {} with complexity {}'.format(", ".join([p.name for p in problems]), complexity))
-    solver = Solver(asp_instance)
+    solver = Solver(asp_instance, num_threads)
     if not solver.solve():
         log.info('No solution found')
         return None
@@ -32,6 +32,11 @@ def main():
     parser.add_argument('-v', '--verbose', action='store_true')
     parser.add_argument('--min-complexity', type=int, default=2, help='start policy search with this max complexity')
     parser.add_argument('--max-complexity', type=int, default=9, help='stop policy search with this max complexity')
+    parser.add_argument('-n',
+                        '--num-threads',
+                        type=int,
+                        default=None,
+                        help='number of threads to use; "None" uses all available threads')
     args = parser.parse_args()
     if args.verbose:
         loglevel = logging.DEBUG
@@ -53,7 +58,7 @@ def main():
             log.info('Policy does not solve {}'.format(problem.name))
             solver_problems.append(problem)
             for i in range(last_complexity, args.max_complexity):
-                policy = solve(domain, solver_problems, i)
+                policy = solve(domain, solver_problems, args.num_threads, i)
                 if policy is not None:
                     last_complexity = i
                     break
