@@ -1,6 +1,9 @@
 import clingo
 import os.path
 import os
+import logging
+
+log = logging.getLogger(__name__)
 
 
 def convert_arg(symbol):
@@ -30,6 +33,8 @@ class Solver:
         self.cost = None
 
     def on_model(self, model):
+        if not self.solution:
+            log.info('Found first solution')
         self.solution = dict()
         for symbol in model.symbols(shown=True):
             args = [convert_arg(arg) for arg in symbol.arguments]
