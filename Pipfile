@@ -10,6 +10,7 @@ flake8 = "*"
 dlplan = {ref = "silent-logger", git = "https://github.com/morxa/dlplan"}
 clingo = "*"
 pygraphviz = "*"
+tqdm = "*"
 
 [dev-packages]
 

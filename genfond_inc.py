@@ -7,6 +7,7 @@ import logging
 import sys
 import pddl
 import resource
+import tqdm
 
 log = logging.getLogger(__name__)
 
@@ -33,6 +34,11 @@ def main():
     parser.add_argument('-v', '--verbose', action='store_true')
     parser.add_argument('--min-complexity', type=int, default=2, help='start policy search with this max complexity')
     parser.add_argument('--max-complexity', type=int, default=9, help='stop policy search with this max complexity')
+    parser.add_argument('-i',
+                        '--policy-iterations',
+                        type=int,
+                        default=100,
+                        help='number of policy iterations for testing')
     parser.add_argument('-n',
                         '--num-threads',
                         type=int,
@@ -59,8 +65,10 @@ def main():
     last_complexity = args.min_complexity
     for problem in problems:
         try:
-            log.info(f'Testing policy on {problem.name}')
-            execute_policy(domain, problem, policy, 10000)
+            log.info(f'Testing policy on {problem.name} {args.policy_iterations} times ...')
+            # Execute policy policy_iterations times
+            for _ in tqdm.trange(args.policy_iterations):
+                execute_policy(domain, problem, policy, 10000)
             log.info(f'Policy already solves {problem.name}')
             continue
         except RuntimeError:
@@ -87,9 +95,10 @@ def main():
             policy = new_policy
     log.info('Verifying policy ...')
     succs = []
-    for problem in problems:
+    for problem in tqdm.tqdm(problems):
         try:
-            execute_policy(domain, problem, policy, 10000)
+            for _ in tqdm.trange(args.policy_iterations, leave=False):
+                execute_policy(domain, problem, policy, 10000)
             succs.append(problem)
         except RuntimeError:
             log.error('Policy does not solve {}'.format(problem.name))
