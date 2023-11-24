@@ -71,7 +71,7 @@ def main():
         try:
             log.info(f'Testing policy on {problem.name} {args.policy_iterations} times ...')
             # Execute policy policy_iterations times
-            for _ in tqdm.trange(args.policy_iterations):
+            for _ in tqdm.trange(args.policy_iterations, disable=None):
                 execute_policy(domain, problem, policy, args.policy_steps)
             log.info(f'Policy already solves {problem.name}')
             continue
@@ -90,7 +90,7 @@ def main():
             if new_policy:
                 log.info('Verifying new policy on solved problems')
                 try:
-                    for problem in tqdm.tqdm(solver_problems):
+                    for problem in tqdm.tqdm(solver_problems, disable=None):
                         execute_policy(domain, problem, new_policy, args.policy_steps)
                 except RuntimeError:
                     log.critical('New policy does not solve {}'.format(problem.name))
@@ -107,9 +107,9 @@ def main():
             policy = new_policy
     log.info('Verifying policy ...')
     succs = []
-    for problem in tqdm.tqdm(problems):
+    for problem in tqdm.tqdm(problems, disable=None):
         try:
-            for _ in tqdm.trange(args.policy_iterations, leave=False):
+            for _ in tqdm.trange(args.policy_iterations, leave=False, disable=None):
                 execute_policy(domain, problem, policy, args.policy_steps)
             succs.append(problem)
         except RuntimeError:
