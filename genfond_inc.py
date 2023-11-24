@@ -67,6 +67,7 @@ def main():
             pass
         log.info('Policy does not solve {}'.format(problem.name))
         solver_problems.append(problem)
+        new_policy = None
         for i in range(last_complexity, args.max_complexity):
             try:
                 log.info(f'Starting solver for {", ".join([p.name for p in solver_problems])} with max complexity {i}')
@@ -74,11 +75,10 @@ def main():
             except (RuntimeError, MemoryError) as e:
                 log.warning(f'Error during policy generation for {problem.name} with max complexity {i}: {e}')
                 break
-            if new_policy is not None:
-                policy = new_policy
+            if new_policy:
                 last_complexity = i
                 break
-        if new_policy is None:
+        if not new_policy:
             log.error('No policy found for {} with max complexity {}'.format(problem.name, i))
             # Delete last element in solver_problems
             solver_problems.pop()
