@@ -1,0 +1,15 @@
+(define (domain typed-blocks)
+    (:requirements :strips :typing)
+    (:types block - moveable moveable - obj obj)
+    (:predicates (holding ?x - block)  (on ?x - block ?y - obj))
+    (:action pick
+        :parameters (?x - block ?y - obj)
+        :precondition (on ?x ?y)
+        :effect (and (holding ?x) (not (on ?x ?y)))
+    )
+     (:action put
+        :parameters (?x - block ?y - obj)
+        :precondition (holding ?x)
+        :effect (and (on ?x ?y) (not (holding ?x)))
+    )
+)

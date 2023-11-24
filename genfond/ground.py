@@ -32,12 +32,29 @@ def _ground_ops(op, mapping):
         raise TypeError("Unknown operator type: {}".format(optype))
 
 
+def _is_subtype(subtype, supertype, type_dict):
+    if subtype == supertype:
+        return True
+    if subtype in type_dict:
+        return _is_subtype(type_dict[subtype], supertype, type_dict)
+    return False
+
+
+def _check_types(constant, variable, type_dict):
+    if not type_dict:
+        # There are no types, so we assume everything is of the same type.
+        return True
+    return any(_is_subtype(constant.type_tag, v_type, type_dict) for v_type in variable.type_tags)
+
+
 def ground(domain, problem):
     constants = domain.constants | problem.objects
     operators = []
     for action in domain.actions:
         for grounding in itertools.product(constants, repeat=len(action.parameters)):
             mapping = dict(zip(action.parameters, grounding))
+            if not all(_check_types(c, v, domain.types) for v, c in mapping.items()):
+                continue
             parameters = grounding
             ground_precondition = _ground_ops(action.precondition, mapping)
             ground_effect = _ground_ops(action.effect, mapping)

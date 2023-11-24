@@ -30,6 +30,14 @@ def fond_blocks():
 
 
 @pytest.fixture
+def typed_blocks():
+    typed_blocks_path = os.path.join(os.path.dirname(__file__), 'fixtures', 'pddl_files', 'typed_blocks')
+    domain = pddl.parse_domain(os.path.join(typed_blocks_path, 'domain.pddl'))
+    problem = pddl.parse_problem(os.path.join(typed_blocks_path, 'p01.pddl'))
+    return domain, problem
+
+
+@pytest.fixture
 def program_with_nontriv_equiv():
     return """
         feature(n_f).
