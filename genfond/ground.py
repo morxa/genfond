@@ -69,6 +69,8 @@ def ground_domain_predicates(domain, problem):
     for predicate in domain.predicates:
         for grounding in itertools.product(constants, repeat=predicate.arity):
             mapping = dict(zip(predicate.terms, grounding))
+            if not all(_check_types(c, v, domain.types) for v, c in mapping.items()):
+                continue
             ground_predicate = _ground_ops(predicate, mapping)
             ground_predicates.add(ground_predicate)
     return ground_predicates

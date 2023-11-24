@@ -78,3 +78,20 @@ def test_ground_typed(typed_blocks):
     for action in ground_actions:
         assert action.parameters != (table, a)
     assert any(action.name == 'put' and action.parameters == (a, b) for action in ground_actions)
+
+
+def test_ground_typed_predicates(typed_blocks):
+    domain, problem = typed_blocks
+    a, b = constants('a b', 'block')
+    table = Constant('table', 'obj')
+    ground_predicates = ground_domain_predicates(domain, problem)
+    assert ground_predicates == {
+        Predicate('on', a, a),
+        Predicate('on', a, b),
+        Predicate('on', b, a),
+        Predicate('on', b, b),
+        Predicate('on', a, table),
+        Predicate('on', b, table),
+        Predicate('holding', a),
+        Predicate('holding', b),
+    }
