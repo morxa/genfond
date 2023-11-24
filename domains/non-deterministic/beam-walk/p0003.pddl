@@ -1,0 +1,7 @@
+(define (problem beam-walk-3)
+    (:domain beam-walk)
+    (:requirements :negative-preconditions :non-deterministic :strips :typing)
+    (:objects p0 p1 p2 - location)
+    (:init (ladder-at p0) (next-bwd p1 p0) (next-bwd p2 p1) (next-fwd p0 p1) (next-fwd p1 p2) (position p0) (up))
+    (:goal (and (up) (position p2)))
+)
