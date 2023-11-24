@@ -7,7 +7,7 @@ name = "pypi"
 pddl = "*"
 pytest = "*"
 flake8 = "*"
-dlplan = {ref = "main", git = "https://github.com/morxa/dlplan"}
+dlplan = {ref = "silent-logger", git = "https://github.com/morxa/dlplan"}
 clingo = "*"
 pygraphviz = "*"
 

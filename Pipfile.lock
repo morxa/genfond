@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "d3270a3be4f4138a4281046007d3d3b0ada867781f505bbdee03e78abb583de7"
+            "sha256": "ec6d90164de2f8011c67c8c7ae48bc0540cae0d170d83a420ca024332942c26a"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -183,7 +183,7 @@
         },
         "dlplan": {
             "git": "https://github.com/morxa/dlplan",
-            "ref": "7b1f7aff6ea1f1af8d85152793c4fd593f738d9c"
+            "ref": "23be156cf9822ff9d94bcff7bd00394fcd74b0e9"
         },
         "flake8": {
             "hashes": [
