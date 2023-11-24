@@ -88,6 +88,14 @@ def main():
                 log.warning(f'Error during policy generation for {problem.name} with max complexity {i}: {e}')
                 break
             if new_policy:
+                log.info('Verifying new policy on solved problems')
+                try:
+                    for problem in tqdm.tqdm(solver_problems):
+                        execute_policy(domain, problem, new_policy, args.policy_steps)
+                except RuntimeError:
+                    log.critical('New policy does not solve {}'.format(problem.name))
+                    new_policy = None
+                    continue
                 last_complexity = i
                 break
         if not new_policy:
