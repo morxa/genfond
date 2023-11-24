@@ -6,6 +6,7 @@ from genfond.execute_policy import execute_policy
 import logging
 import sys
 import pddl
+import resource
 
 log = logging.getLogger(__name__)
 
@@ -37,12 +38,16 @@ def main():
                         type=int,
                         default=None,
                         help='number of threads to use; "None" uses all available threads')
+    parser.add_argument('--max-memory', type=int, default=None, help='maximum memory to use in MB')
     args = parser.parse_args()
     if args.verbose:
         loglevel = logging.DEBUG
     else:
         loglevel = logging.INFO
     logging.basicConfig(level=loglevel)
+    if args.max_memory:
+        _, hard = resource.getrlimit(resource.RLIMIT_AS)
+        resource.setrlimit(resource.RLIMIT_AS, (args.max_memory * 1024 * 1024, hard))
     log.debug('Parsing domain ...')
     domain = pddl.parse_domain(args.domain_file)
     log.info('Starting policy generation for domain {}'.format(domain.name))
@@ -61,8 +66,8 @@ def main():
             for i in range(last_complexity, args.max_complexity):
                 try:
                     new_policy = solve(domain, solver_problems, args.num_threads, i)
-                except RuntimeError:
-                    log.error('Error during policy generation for {} with max complexity {}'.format(problem.name, i))
+                except (RuntimeError, MemoryError) as e:
+                    log.error(f'Error during policy generation for {problem.name} with max complexity {i}: {e}')
                     break
                 if new_policy is not None:
                     policy = new_policy
