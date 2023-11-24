@@ -45,6 +45,7 @@ def main():
     else:
         loglevel = logging.INFO
     logging.basicConfig(level=loglevel)
+    logging.getLogger('genfond').setLevel(logging.CRITICAL)
     if args.max_memory:
         _, hard = resource.getrlimit(resource.RLIMIT_AS)
         resource.setrlimit(resource.RLIMIT_AS, (args.max_memory * 1024 * 1024, hard))
@@ -58,28 +59,32 @@ def main():
     last_complexity = args.min_complexity
     for problem in problems:
         try:
+            log.info(f'Testing policy on {problem.name}')
             execute_policy(domain, problem, policy, 10000)
-            log.info('Policy already solves {}'.format(problem.name))
+            log.info(f'Policy already solves {problem.name}')
+            continue
         except RuntimeError:
-            log.info('Policy does not solve {}'.format(problem.name))
-            solver_problems.append(problem)
-            for i in range(last_complexity, args.max_complexity):
-                try:
-                    new_policy = solve(domain, solver_problems, args.num_threads, i)
-                except (RuntimeError, MemoryError) as e:
-                    log.error(f'Error during policy generation for {problem.name} with max complexity {i}: {e}')
-                    break
-                if new_policy is not None:
-                    policy = new_policy
-                    last_complexity = i
-                    break
-            if new_policy is None:
-                log.error('No policy found for {} with max complexity {}'.format(problem.name, i))
-                # Delete last element in solver_problems
-                solver_problems.pop()
-                continue
-            else:
+            pass
+        log.info('Policy does not solve {}'.format(problem.name))
+        solver_problems.append(problem)
+        for i in range(last_complexity, args.max_complexity):
+            try:
+                log.info(f'Starting solver for {", ".join([p.name for p in solver_problems])} with max complexity {i}')
+                new_policy = solve(domain, solver_problems, args.num_threads, i)
+            except (RuntimeError, MemoryError) as e:
+                log.warning(f'Error during policy generation for {problem.name} with max complexity {i}: {e}')
+                break
+            if new_policy is not None:
                 policy = new_policy
+                last_complexity = i
+                break
+        if new_policy is None:
+            log.error('No policy found for {} with max complexity {}'.format(problem.name, i))
+            # Delete last element in solver_problems
+            solver_problems.pop()
+            continue
+        else:
+            policy = new_policy
     log.info('Verifying policy ...')
     succs = []
     for problem in problems:
