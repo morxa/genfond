@@ -21,7 +21,10 @@ def construct_vocabulary_info(domain):
 
 
 def _get_state_from_goal(goal_formula):
-    state = apply_effects(set(), goal_formula)
+    states = apply_effects(set([frozenset()]), goal_formula)
+    assert len(states) == 1, \
+        f'Goal formula must define a unique goal state, found {len(states)} states: {states}'
+    state = next(iter(states))
     goal_state = {Predicate(f'{predicate.name}_G', *predicate.terms) for predicate in state}
     return goal_state
 

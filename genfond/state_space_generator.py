@@ -20,34 +20,44 @@ def check_formula(state, formula):
 
 
 def apply_action_effects(state, action):
-    if isinstance(action.effect, OneOf):
-        return {apply_effects(state, effect) for effect in action.effect.operands}
-    else:
-        return {apply_effects(state, action.effect)}
+    return apply_effects(frozenset({state}), action.effect)
 
 
-def apply_effects(state, effects):
+def apply_effects(states, effects):
+    new_states = set()
+    for state in states:
+        new_states |= apply_effects_to_state(state, effects)
+        assert all(isinstance(s, Collection) for s in new_states)
+        assert all(all(isinstance(f, Predicate) for f in s) for s in new_states)
+    return frozenset(new_states)
+
+
+def apply_effects_to_state(state, effects):
+    assert all(isinstance(f, Predicate) for f in state)
     if isinstance(effects, Collection):
+        states = {state}
         for effect in effects:
-            state = apply_effects(state, effect)
-        return state
-    elif isinstance(effects, And):
+            states = apply_effects(states, effect)
+        return states
+    elif isinstance(effects, And) or isinstance(effects, AndEffect):
+        states = {state}
         for effect in effects.operands:
-            state = apply_effects(state, effect)
-        return state
-    elif isinstance(effects, AndEffect):
-        for effect in effects.operands:
-            state = apply_effects(state, effect)
-        return state
+            states = apply_effects(states, effect)
+        return frozenset(states)
     elif isinstance(effects, Predicate):
-        return frozenset(state | {effects})
+        return frozenset({state | {effects}})
     elif isinstance(effects, Not):
-        return frozenset([f for f in state if f != effects.argument])
+        return frozenset({frozenset([f for f in state if f != effects.argument])})
     elif isinstance(effects, When):
         if check_formula(state, effects.condition):
-            return apply_effects(state, effects.effect)
+            return apply_effects({state}, effects.effect)
         else:
-            return state
+            return frozenset({state})
+    elif isinstance(effects, OneOf):
+        new_states = set()
+        for effect in effects.operands:
+            new_states |= apply_effects({state}, effect)
+        return frozenset(new_states)
     else:
         raise ValueError('Unknown effect type: {}'.format(type(effects)))
 
