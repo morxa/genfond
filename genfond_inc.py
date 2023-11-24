@@ -39,6 +39,10 @@ def main():
                         type=int,
                         default=100,
                         help='number of policy iterations for testing')
+    parser.add_argument('--policy-steps',
+                        type=int,
+                        default=10000,
+                        help='number of steps to execute policy for testing (0 for no limit)')
     parser.add_argument('-n',
                         '--num-threads',
                         type=int,
@@ -68,7 +72,7 @@ def main():
             log.info(f'Testing policy on {problem.name} {args.policy_iterations} times ...')
             # Execute policy policy_iterations times
             for _ in tqdm.trange(args.policy_iterations):
-                execute_policy(domain, problem, policy, 10000)
+                execute_policy(domain, problem, policy, args.policy_steps)
             log.info(f'Policy already solves {problem.name}')
             continue
         except RuntimeError:
@@ -98,7 +102,7 @@ def main():
     for problem in tqdm.tqdm(problems):
         try:
             for _ in tqdm.trange(args.policy_iterations, leave=False):
-                execute_policy(domain, problem, policy, 10000)
+                execute_policy(domain, problem, policy, args.policy_steps)
             succs.append(problem)
         except RuntimeError:
             log.error('Policy does not solve {}'.format(problem.name))
