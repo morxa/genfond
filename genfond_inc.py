@@ -80,7 +80,7 @@ def main():
         log.info('Policy does not solve {}'.format(problem.name))
         solver_problems.append(problem)
         new_policy = None
-        for i in range(last_complexity, args.max_complexity):
+        for i in range(last_complexity, args.max_complexity + 1):
             try:
                 log.info(f'Starting solver for {", ".join([p.name for p in solver_problems])} with max complexity {i}')
                 new_policy = solve(domain, solver_problems, args.num_threads, i)
