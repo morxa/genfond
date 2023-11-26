@@ -1,3 +1,4 @@
+import itertools
 from enum import Enum
 import logging
 
@@ -70,6 +71,24 @@ class Policy:
     def __repr__(self):
         return '\n'.join({repr(rule) for rule in self.rules})
 
+    def simplify(self):
+        new_rules = set()
+        pruned_rules = set()
+        for r1, r2 in itertools.combinations(self.rules, 2):
+            if r1.effs == r2.effs:
+                new_conds = {}
+                for k, v in r1.conds.items():
+                    if k in r2.conds and r2.conds[k] == v:
+                        new_conds[k] = v
+                new_rule = PolicyRule(new_conds, r1.effs)
+                log.debug(f'Pruning rule {r1} and {r2} to {new_rule}')
+                new_rules.add(new_rule)
+                pruned_rules |= {r1, r2}
+        new_rules |= self.rules - pruned_rules
+        if new_rules != self.rules:
+            self.rules = new_rules
+            self.simplify()
+
 
 def generate_policy(solution):
     rules = set()
@@ -129,4 +148,8 @@ def generate_policy(solution):
             rule = PolicyRule(conds, frozenset({frozenset(e) for e in effs.values()}))
             log.debug(f'Adding rule {rule}')
             rules.add(rule)
-    return Policy(features, rules)
+    policy = Policy(features, rules)
+    before_pruning = len(policy.rules)
+    policy.simplify()
+    log.info(f'Pruned {before_pruning - len(policy.rules)} rules')
+    return policy
