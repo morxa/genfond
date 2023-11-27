@@ -76,7 +76,27 @@ class Policy:
         pruned_rules = set()
         for r1, r2 in itertools.combinations(self.rules, 2):
             if r1.effs == r2.effs:
-                new_conds = {}
+                if r1.conds.keys() < r2.conds.keys():
+                    # One condition is a subset of the other, keep the less restrictive one
+                    pruned_rules.add(r2)
+                    continue
+                elif r1.conds.keys() > r2.conds.keys():
+                    # One condition is a subset of the other, keep the less restrictive one
+                    pruned_rules.add(r1)
+                    continue
+                if r1.conds.keys() ^ r2.conds.keys():
+                    # The conditions have different keys but neither is a subset of the other,
+                    # this can not be simplified.
+                    continue
+                diff = set()
+                for k in r1.conds:
+                    if r1.conds[k] != r2.conds[k]:
+                        diff.add(k)
+                if len(diff) != 1:
+                    continue
+                # The conditions have the same keys and only one is different,
+                # merge by dropping the condition with the different value
+                new_conds = dict()
                 for k, v in r1.conds.items():
                     if k in r2.conds and r2.conds[k] == v:
                         new_conds[k] = v
