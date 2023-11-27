@@ -8,7 +8,7 @@ good_trans_delta(I, S1, S2, F, D) :- good_trans(I, S1, S2), trans_delta(I, S1, S
 
 % Select good actions among the possible transition.
 % Select at least one for each alive non-goal state.
-{ good_action(I, S, A) : trans(I, S, A, _) } = 1 :- alive(I, S), not goal(I, S).
+1 { good_action(I, S, A) : trans(I, S, A, _) } :- alive(I, S), not goal(I, S).
 % Any transition resulting from a good action is good.
 good_trans(I, S1, A, S2) :- good_action(I, S1, A), trans(I, S1, A, S2).
 good_trans(I, S1, S2) :- good_trans(I, S1, _, S2).
@@ -50,7 +50,7 @@ rank(I, S, N) :- equiv(I, S, I2, R), repr(I2, R), rank(I2, R, N).
 % Goals must have rank 0.
 :- goal(I, S), rank(I, S, N), N > 0.
 % For every alive state, there must be one good transition that decreases the rank.
-:- state(I, S), alive(I, S), not goal(I, S), rank(I, S, N), N <= N2 : good_trans(I, S, S2), rank(I, S2, N2).
+:- state(I, S), alive(I, S), not goal(I, S), rank(I, S, N), good_action(I, S, A), N <= N2 : good_trans(I, S, A, S2), rank(I, S2, N2).
 
 #minimize { C@3,F : selected(F), feature_complexity(F, C) }.
 #minimize { 1@2,I,S1,S2 : good_trans(I, S1, S2) }.
