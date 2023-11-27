@@ -56,6 +56,7 @@ def main():
         loglevel = logging.INFO
     logging.basicConfig(level=loglevel)
     logging.getLogger('genfond').setLevel(logging.CRITICAL)
+    logging.getLogger('genfond.policy').setLevel(logging.INFO)
     if args.max_memory:
         _, hard = resource.getrlimit(resource.RLIMIT_AS)
         resource.setrlimit(resource.RLIMIT_AS, (args.max_memory * 1024 * 1024, hard))
