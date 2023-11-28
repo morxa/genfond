@@ -1,0 +1,7 @@
+(define (problem acrobatics-6-down)
+    (:domain acrobatics)
+    (:requirements :negative-preconditions :non-deterministic :strips :typing)
+    (:objects p0 p1 p2 p3 p4 p5 - location)
+    (:init (ladder-at p0) (next-bwd p1 p0) (next-bwd p2 p1) (next-bwd p3 p2) (next-bwd p4 p3) (next-bwd p5 p4) (next-fwd p0 p1) (next-fwd p1 p2) (next-fwd p2 p3) (next-fwd p3 p4) (next-fwd p4 p5) (position p0))
+    (:goal (and (up) (position p5)))
+)
