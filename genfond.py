@@ -12,11 +12,11 @@ import tqdm
 log = logging.getLogger(__name__)
 
 
-def solve(domain, problems, num_threads, complexity):
+def solve(domain, problems, num_threads, complexity, use_new_solver=False):
     feature_pool = FeaturePool(domain, problems, complexity)
     asp_instance = feature_pool.to_clingo()
     log.info('Solving {} with complexity {}'.format(", ".join([p.name for p in problems]), complexity))
-    solver = Solver(asp_instance, num_threads)
+    solver = Solver(asp_instance, num_threads, solve_prog='solve_new.lp' if use_new_solver else 'solve.lp')
     if not solver.solve():
         log.info('No solution found')
         return None
@@ -49,6 +49,7 @@ def main():
                         default=None,
                         help='number of threads to use; "None" uses all available threads')
     parser.add_argument('--max-memory', type=int, default=None, help='maximum memory to use in MB')
+    parser.add_argument('--new-solver', action='store_true', help='use new solver')
     args = parser.parse_args()
     if args.verbose:
         loglevel = logging.DEBUG
@@ -84,7 +85,7 @@ def main():
         for i in range(last_complexity, args.max_complexity + 1):
             try:
                 log.info(f'Starting solver for {", ".join([p.name for p in solver_problems])} with max complexity {i}')
-                new_policy = solve(domain, solver_problems, args.num_threads, i)
+                new_policy = solve(domain, solver_problems, args.num_threads, i, args.new_solver)
             except (RuntimeError, MemoryError) as e:
                 log.warning(f'Error during policy generation for {problem.name} with max complexity {i}: {e}')
                 break

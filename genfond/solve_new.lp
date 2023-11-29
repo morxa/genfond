@@ -1,0 +1,56 @@
+% A state is alive it it is a goal or has a path to a goal.
+alive(I, S) :- goal(I, S).
+% TODO this may still allow deadends
+alive(I, S2) :- alive(I, S1), trans(I, S2, _, S1).
+
+% Rule 1
+1 { good_action(I, S, A) : trans(I, S, A, _) } :- alive(I, S), not goal(I, S).
+% Any transition resulting from a good action is good.
+good_trans(I, S1, A, S2) :- good_action(I, S1, A), trans(I, S1, A, S2).
+good_trans(I, S1, S2) :- good_trans(I, S1, _, S2).
+
+{ selected(F) } :- feature(F).
+
+% Count the number of states.
+num_states(I, N) :- state(I, _), N = #count { S : state(I, S) }.
+
+#const delta = 2.
+% Rule 2
+% Assign a rank to each state between 0 and delta*<num_states>.
+{ rank(I, S, N) :  N=M..delta*M } = 1 :- goal_distance(I, S, M).
+
+% Rule 3
+% For every alive state, there must be one good transition that decreases the rank.
+% DET version
+:- state(I, S), alive(I, S), not goal(I, S), rank(I, S, N), good_trans(I, S, A, S2), rank(I, S2, N2), N <= N2.
+%:- state(I, S), alive(I, S), not goal(I, S), rank(I, S, N), good_action(I, S, A), N <= N2 : good_trans(I, S, A, S2), rank(I, S2, N2).
+
+trans_delta(I, S1, S2, F, D) :- trans(I, S1, _, S2), selected(F), eval(I, S1, F, V1), eval(I, S2, F, V2), D=(-1;0;1), D = -1 : V2 < V1; D = 0 : V2 = V1; D = 1 : V2 > V1.
+good_trans_delta(I, S1, S2, F, D) :- good_trans(I, S1, S2), trans_delta(I, S1, S2, F, D).
+:- alive(I1, S11), alive(I2, S21), trans(I1, S11, _, S12),  trans(I2, S21, _, S22), not good_trans(I1, S11, _, S12), good_trans(I2, S21, _, S22), trans_delta(I, S11, S12, F, D) :  trans_delta(I, S21, S22, F, D), selected(F).
+:- goal(I, S1), alive(I, S2), not goal(I, S2), bool_eval(I, S1, F, V) : bool_eval(I, S2, F, V), selected(F).
+
+% Compute boolean evaluations
+bool_eval(I, S, F, 1) :- eval(I, S, F, V), V > 0.
+bool_eval(I, S, F, 0) :- eval(I, S, F, V), V = 0.
+
+% Two states are equivalent if they have the same valuation for all selected features.
+equiv(I1, S1, I2, S2) :- state(I1, S1), state(I2, S2), eval(I1, S1, F, V) : eval(I2, S2, F, V), selected(F).
+bool_equiv(I1, S1, I2, S2) :- state(I1, S1), state(I2, S2), bool_eval(I1, S1, F, V) : bool_eval(I2, S2, F, V), selected(F).
+% A state is a representative if it is the smallest state in its equivalence class.
+repr(I1, S1) :- state(I1, S1), not equiv(I1, S1, I2, S2) : state(I2, S2), (I2, S2) < (I1, S1).
+bool_repr(I1, S1) :- state(I1, S1), not bool_equiv(I1, S1, I2, S2) : state(I2, S2), (I2, S2) < (I1, S1).
+
+#minimize { C@3,F : selected(F), feature_complexity(F, C) }.
+#minimize { 1@2,I,S1,S2 : good_trans(I, S1, S2) }.
+
+#show good_trans/3.
+#show selected/1.
+#show repr/2.
+#show equiv/4.
+#show bool_repr/2.
+#show bool_eval(I, S, F, V) : repr(I, S), selected(F), bool_eval(I, S, F, V).
+#show trans_delta/5.
+#show good_trans_delta/5.
+#show rank/3.
+#show goal_distance/3.

@@ -19,12 +19,12 @@ def convert_arg(symbol):
 
 class Solver:
 
-    def __init__(self, asp_code, num_threads=None):
+    def __init__(self, asp_code, num_threads=None, solve_prog='solve.lp'):
         self.asp_code = asp_code
         self.control = clingo.Control()
         s = clingo.Symbol
         s.type
-        progfile = open(os.path.dirname(__file__) + '/solve.lp', 'r')
+        progfile = open(os.path.join(os.path.dirname(__file__), solve_prog), 'r')
         self.prog = progfile.read() + '\n' + asp_code
         self.control.add("base", [], self.prog)
         self.control.ground([("base", [])])
