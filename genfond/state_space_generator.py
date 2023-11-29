@@ -68,6 +68,7 @@ class StateSpaceNode:
         self.state = state
         self.id = id
         self.children = dict()
+        self.distance = None
 
     def __str__(self):
         return ','.join([f'{p.name}({",".join([str(p) for p in p.terms])})' for p in self.state])
@@ -100,6 +101,27 @@ class StateSpaceGraph:
                     new_node = self.add_node(succ, state, action)
                     if new_node:
                         queue.append(new_node)
+        self.compute_distances()
+
+    def compute_distances(self):
+        parents = {node: set() for node in self.nodes.values()}
+        for node in self.nodes.values():
+            for action, children in node.children.items():
+                for child in children:
+                    parents[child].add(node)
+        for node in self.nodes.values():
+            node.distance = len(self.nodes)
+        goal_nodes = [node for node in self.nodes.values() if check_formula(node.state, self.problem.goal)]
+        for node in goal_nodes:
+            node.distance = 0
+        queue = goal_nodes
+        while queue:
+            node = queue.pop()
+            for parent in parents[node]:
+                if parent.distance is None or parent.distance > node.distance + 1:
+                    parent.distance = node.distance + 1
+                    queue.append(parent)
+        assert all(node.distance is not None for node in self.nodes.values())
 
     def add_node(self, state, parent_state, action):
         parent = self.nodes[parent_state]

@@ -101,6 +101,7 @@ class FeaturePool:
             problem_id = self.problem_name_to_id[problem]
             for node in state_graph.nodes.values():
                 clingo_program += f'state({problem_id}, {node.id}).\n'
+                clingo_program += f'goal_distance({problem_id}, {node.id}, {node.distance}).\n'
                 if check_formula(node.state, state_graph.problem.goal):
                     clingo_program += f'goal({problem_id}, {node.id}).\n'
                 for feature_str, feature in self.features.items():
