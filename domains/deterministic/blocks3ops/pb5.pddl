@@ -1,0 +1,12 @@
+(define (problem pb5)
+   (:domain blocks2)
+   (:objects a b c d e)
+   (:init (ontable a) (ontable b) (ontable c) (ontable d) (ontable e)  
+          (clear a)  (clear b) (clear c) (clear d) (clear e)
+          (neq a b) (neq a c) (neq a d) (neq a e)
+          (neq b a) (neq b c) (neq b d) (neq b e)
+          (neq c a) (neq c b) (neq c d) (neq c e)
+          (neq d a) (neq d b) (neq d c) (neq d e)
+          (neq e a) (neq e b) (neq e c) (neq e d))
+   (:goal (and (on a b) (on b c) (on c d) (on d e))))
+
