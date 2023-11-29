@@ -69,9 +69,10 @@ class Policy:
         self.rules = frozenset(rules)
 
     def __repr__(self):
-        return '{} rules with {} features\n{}'.format(len(self.rules), len(self.features),
-                                                      '\n'.join(sorted({repr(rule)
-                                                                        for rule in self.rules})))
+        return '{} rules with {} features: {}\n{}'.format(len(self.rules), len(self.features),
+                                                          ", ".join(sorted(self.features)),
+                                                          '\n'.join(sorted({repr(rule)
+                                                                            for rule in self.rules})))
 
     def simplify(self):
         new_rules = set()

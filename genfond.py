@@ -22,7 +22,7 @@ def solve(domain, problems, num_threads, complexity, use_new_solver=False):
         return None
     solution = solver.solution
     policy = generate_policy(solution)
-    log.info('Found policy: {}'.format(policy))
+    log.info('Found policy with cost {}: {}'.format(solver.cost, policy))
     return policy
 
 
