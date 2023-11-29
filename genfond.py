@@ -51,13 +51,10 @@ def main():
     parser.add_argument('--max-memory', type=int, default=None, help='maximum memory to use in MB')
     parser.add_argument('--new-solver', action='store_true', help='use new solver')
     args = parser.parse_args()
-    if args.verbose:
-        loglevel = logging.DEBUG
-    else:
-        loglevel = logging.INFO
-    logging.basicConfig(level=loglevel)
-    logging.getLogger('genfond').setLevel(logging.CRITICAL)
-    logging.getLogger('genfond.policy').setLevel(logging.INFO)
+    logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
+    if not args.verbose:
+        logging.getLogger('genfond').setLevel(logging.CRITICAL)
+        logging.getLogger('genfond.policy').setLevel(logging.INFO)
     if args.max_memory:
         _, hard = resource.getrlimit(resource.RLIMIT_AS)
         resource.setrlimit(resource.RLIMIT_AS, (args.max_memory * 1024 * 1024, hard))
