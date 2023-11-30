@@ -40,15 +40,7 @@ bool_repr(I1, S1) :- state(I1, S1), not bool_equiv(I1, S1, I2, S2) : state(I2, S
 num_states(I, N) :- state(I, _), N = #count { S : state(I, S) }.
 
 #const delta = 2.
-% Assign a rank to each state between 0 and delta*<num_states>.
-{ rank(I, S, N) :  N=0..delta*M } = 1 :- num_states(I, M), repr(I, S), not goal(I, S), alive(I, S).
-rank(I, S, 0) :- goal(I, S).
-rank(I, S, delta*M+1) :- state(I, S), not alive(I, S), num_states(I, M).
-
-% Infer the rank for the other states.
-rank(I, S, N) :- equiv(I, S, I2, R), repr(I2, R), rank(I2, R, N).
-% Goals must have rank 0.
-:- goal(I, S), rank(I, S, N), N > 0.
+{ rank(I, S, N) :  N=M..delta*M } = 1 :- goal_distance(I, S, M).
 % For every alive state, there must be one good transition that decreases the rank.
 :- state(I, S), alive(I, S), not goal(I, S), rank(I, S, N), good_action(I, S, A), N <= N2 : good_trans(I, S, A, S2), rank(I, S2, N2).
 
