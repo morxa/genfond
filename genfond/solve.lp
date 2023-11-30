@@ -45,8 +45,6 @@ num_states(I, N) :- state(I, _), N = #count { S : state(I, S) }.
 :- state(I, S), alive(I, S), not goal(I, S), rank(I, S, N), good_action(I, S, A), N <= N2 : good_trans(I, S, A, S2), rank(I, S2, N2).
 
 #minimize { C@3,F : selected(F), feature_complexity(F, C) }.
-#minimize { 1@2,I,S1,S2 : good_trans(I, S1, S2) }.
-
 
 #show good_trans/3.
 #show selected/1.
