@@ -22,7 +22,6 @@ def solve(domain, problems, num_threads, complexity, use_new_solver=False):
         return None
     solution = solver.solution
     policy = generate_policy(solution)
-    log.info('Found policy with cost {}: {}'.format(solver.cost, policy))
     return policy
 
 
@@ -82,26 +81,35 @@ def main():
         for i in range(last_complexity, args.max_complexity + 1):
             try:
                 log.info(f'Starting solver for {", ".join([p.name for p in solver_problems])} with max complexity {i}')
-                new_policy = solve(domain, solver_problems, args.num_threads, i, args.new_solver)
+                i_policy = solve(domain, solver_problems, args.num_threads, i, args.new_solver)
             except (RuntimeError, MemoryError) as e:
                 log.warning(f'Error during policy generation for {problem.name} with max complexity {i}: {e}')
                 break
-            if new_policy:
+            if i_policy:
+                if new_policy and new_policy.cost <= i_policy.cost:
+                    log.info('Found new policy, but not better than old policy')
+                    continue
+                if new_policy and new_policy.cost > i_policy.cost:
+                    log.info(
+                        f'Found another policy with lower cost ({i_policy.cost}) than old policy ({new_policy.cost})')
+                else:
+                    log.info(f'Found first policy for {problem.name} with max complexity {i}')
+                log.info(f'New policy: {i_policy}')
                 log.info('Verifying new policy on solved problems')
                 try:
                     for problem in tqdm.tqdm(solver_problems, disable=None):
-                        execute_policy(domain, problem, new_policy, args.policy_steps)
+                        execute_policy(domain, problem, i_policy, args.policy_steps)
                 except RuntimeError:
                     log.critical('New policy does not solve {}'.format(problem.name))
-                    new_policy = None
                     continue
                 last_complexity = i
-                break
+                new_policy = i_policy
         if not new_policy:
             log.error('No policy found for {} with max complexity {}'.format(problem.name, i))
             # Delete last element in solver_problems
             solver_problems.pop()
             continue
+            policy = new_policy
         else:
             policy = new_policy
     log.info('Verifying policy ...')

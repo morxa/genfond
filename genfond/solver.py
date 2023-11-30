@@ -44,6 +44,7 @@ class Solver:
                 self.solution.setdefault(symbol.name, set()).add(args[0])
             else:
                 self.solution.setdefault(symbol.name, set()).add(tuple([convert_arg(arg) for arg in symbol.arguments]))
+        self.solution['cost'] = model.cost
         self.cost = model.cost
 
     def solve(self):

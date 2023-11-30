@@ -64,9 +64,10 @@ class PolicyRule:
 
 class Policy:
 
-    def __init__(self, features, rules):
+    def __init__(self, features, rules, cost=None):
         self.features = frozenset(features)
         self.rules = frozenset(rules)
+        self.cost = cost
 
     def __repr__(self):
         return '{} rules with {} features: {}\n{}'.format(len(self.rules), len(self.features),
@@ -171,7 +172,7 @@ def generate_policy(solution):
             rule = PolicyRule(conds, frozenset({frozenset(e) for e in effs.values()}))
             log.debug(f'Adding rule {rule}')
             rules.add(rule)
-    policy = Policy(features, rules)
+    policy = Policy(features, rules, solution['cost'])
     before_pruning = len(policy.rules)
     policy.simplify()
     log.info(f'Pruned {before_pruning - len(policy.rules)} rules')
