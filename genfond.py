@@ -8,6 +8,7 @@ import sys
 import pddl
 import resource
 import tqdm
+import pickle
 
 log = logging.getLogger(__name__)
 
@@ -49,6 +50,7 @@ def main():
                         help='number of threads to use; "None" uses all available threads')
     parser.add_argument('--max-memory', type=int, default=None, help='maximum memory to use in MB')
     parser.add_argument('--new-solver', action='store_true', help='use new solver')
+    parser.add_argument('--dump-failed-policies', action='store_true', help='dump failed policies to file')
     args = parser.parse_args()
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
     if not args.verbose:
@@ -101,6 +103,11 @@ def main():
                         execute_policy(domain, problem, i_policy, args.policy_steps)
                 except RuntimeError:
                     log.critical('New policy does not solve {}'.format(problem.name))
+                    if args.dump_failed_policies:
+                        h = hash(i_policy)
+                        with open(f'failed_policy-{h}.pickle', 'wb') as f:
+                            pickle.dump(i_policy, f)
+                        log.critical(f'Dumped failed policy to failed_policy-{h}.pickle')
                     continue
                 last_complexity = i
                 new_policy = i_policy
