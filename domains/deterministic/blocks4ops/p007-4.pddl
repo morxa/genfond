@@ -1,0 +1,7 @@
+(define (problem blocks-007-4)
+    (:domain blocksworld)
+    (:requirements :strips :typing)
+    (:objects b0 b1 b2 b3 b4 b5 b6)
+    (:init (clear b1) (clear b2) (clear b3) (clear b4) (handempty) (on b3 b6) (on b4 b5) (on b5 b0) (ontable b0) (ontable b1) (ontable b2) (ontable b6))
+    (:goal (and (on b2 b1)))
+)
