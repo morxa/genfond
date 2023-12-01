@@ -1,7 +1,0 @@
-(define (problem blocks-017-3)
-    (:domain blocksworld)
-    (:requirements :strips :typing)
-    (:objects b0 b1 b10 b11 b12 b13 b14 b15 b16 b2 b3 b4 b5 b6 b7 b8 b9)
-    (:init (clear b1) (clear b4) (clear b9) (handempty) (on b0 b5) (on b1 b6) (on b10 b2) (on b11 b12) (on b12 b3) (on b13 b7) (on b15 b16) (on b2 b15) (on b3 b13) (on b4 b8) (on b5 b11) (on b6 b0) (on b7 b10) (on b8 b14) (ontable b14) (ontable b16) (ontable b9))
-    (:goal (on b0 b15))
-)

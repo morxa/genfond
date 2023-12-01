@@ -48,13 +48,13 @@ def main():
                         '--repetitions',
                         help='number of problems for each number of blocks',
                         type=int,
-                        default=5)
+                        default=10)
     parser.add_argument('-s', '--seed', help='random seed', type=int, default=0)
     args = parser.parse_args()
     random.seed(args.seed)
     for num_blocks in trange(args.min_num_blocks, args.max_num_blocks + 1):
         for i in range(args.repetitions):
-            index = f'{num_blocks:03}-{i+1}'
+            index = f'{num_blocks:03}-{i+1:02}'
             problem = generate_problem(f'{args.base_name}-{index}', num_blocks)
             with open(f'p{index}.pddl', 'w') as f:
                 f.write(problem_to_string(problem))
