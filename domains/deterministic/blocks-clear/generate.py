@@ -45,13 +45,13 @@ def generate_problem(name, num_blocks):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--base-name', type=str, default='blocks')
-    parser.add_argument('min_num_blocks', type=int)
-    parser.add_argument('max_num_blocks', type=int)
+    parser.add_argument('--min-num-blocks', type=int, default=2)
+    parser.add_argument('--max-num-blocks', type=int, default=20)
     parser.add_argument('-r',
                         '--repetitions',
                         help='number of problems for each number of blocks',
                         type=int,
-                        default=1)
+                        default=5)
     parser.add_argument('-s', '--seed', help='random seed', type=int, default=0)
     args = parser.parse_args()
     random.seed(args.seed)
