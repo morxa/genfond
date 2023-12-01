@@ -2,7 +2,7 @@
 ;;; 4 Op-blocks world
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define (domain blocksworld)
+(define (domain blocks4ops-fond)
   (:requirements :strips :typing :non-deterministic)
   (:predicates (on ?x ?y)
 	       (ontable ?x)
