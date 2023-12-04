@@ -22,12 +22,9 @@ class Solver:
     def __init__(self, asp_code, num_threads=None, solve_prog='solve.lp'):
         self.asp_code = asp_code
         self.control = clingo.Control()
-        s = clingo.Symbol
-        s.type
-        progfile = open(os.path.join(os.path.dirname(__file__), solve_prog), 'r')
-        self.prog = progfile.read() + '\n' + asp_code
-        self.control.add("base", [], self.prog)
-        self.control.ground([("base", [])])
+        self.control.load(os.path.join(os.path.dirname(__file__), solve_prog))
+        self.control.add("instances", [], asp_code)
+        self.control.ground([("base", []), ("instances", [])])
         self.control.configuration.solve.parallel_mode = num_threads or os.cpu_count()
         self.solution = None
         self.cost = None
