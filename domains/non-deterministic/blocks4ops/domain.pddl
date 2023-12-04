@@ -1,0 +1,1 @@
+../blocks-clear/domain.pddl

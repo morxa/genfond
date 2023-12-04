@@ -1,0 +1,1 @@
+../../deterministic/blocks4ops/p004-3.pddl
