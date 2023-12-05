@@ -10,8 +10,8 @@
                (not-flattire)
                (loaded ?t - tire)
                (not-hasspare)
-               (initial-location ?loc)
-               (free ?loc))
+               (initial-location ?loc - location)
+               (free ?loc - location))
 
 
   (:action move-car-spiky
