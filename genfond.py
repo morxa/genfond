@@ -9,6 +9,7 @@ import pddl
 import resource
 import tqdm
 import pickle
+import time
 
 log = logging.getLogger(__name__)
 
@@ -64,6 +65,9 @@ def main():
         _, hard = resource.getrlimit(resource.RLIMIT_AS)
         resource.setrlimit(resource.RLIMIT_AS, (args.max_memory * 1024 * 1024, hard))
     log.debug('Parsing domain ...')
+    total_wall_time_start = time.perf_counter()
+    total_cpu_time_start = time.process_time()
+    total_solve_time = 0
     domain = pddl.parse_domain(args.domain_file)
     log.info('Starting policy generation for domain {}'.format(domain.name))
     log.debug('Parsing problems ...')
@@ -89,10 +93,16 @@ def main():
                 break
             try:
                 log.info(f'Starting solver for {", ".join([p.name for p in solver_problems])} with max complexity {i}')
+                solve_wall_time_start = time.perf_counter()
+                solve_cpu_time_start = time.process_time()
                 i_policy = solve(domain, solver_problems, args.num_threads, i, args.new_solver)
+                solve_wall_time_end = time.perf_counter()
+                solve_cpu_time_end = time.process_time()
             except (RuntimeError, MemoryError) as e:
                 log.warning(f'Error during policy generation for {problem.name} with max complexity {i}: {e}')
                 break
+            finally:
+                total_solve_time += time.process_time() - solve_cpu_time_start
             if i_policy:
                 if new_policy and new_policy.cost <= i_policy.cost:
                     log.info('Found new policy, but not better than old policy')
@@ -117,6 +127,10 @@ def main():
                     continue
                 last_complexity = i
                 new_policy = i_policy
+                solve_wall_time = solve_wall_time_end - solve_wall_time_start
+                solve_cpu_time = solve_cpu_time_end - solve_cpu_time_start
+                log.info('Solver wall time: {:.2f}s'.format(solve_wall_time))
+                log.info('Solver CPU time: {:.2f}s'.format(solve_cpu_time))
         if not new_policy:
             log.error('No policy found for {} with max complexity {}'.format(problem.name, i))
             # Delete last element in solver_problems
@@ -125,7 +139,6 @@ def main():
             policy = new_policy
         else:
             policy = new_policy
-    log.info('Verifying policy ...')
     succs = []
     for problem in tqdm.tqdm(problems, disable=None):
         try:
@@ -137,6 +150,13 @@ def main():
     log.info('Policy solves {} out of {} problems, unsolved: {}'.format(
         len(succs), len(problems), ", ".join([p.name for p in problems if p not in succs])))
     log.info('Final policy: {}'.format(policy))
+    total_wall_time_end = time.perf_counter()
+    total_cpu_time_end = time.process_time()
+    log.info('Total wall time: {:.2f}s'.format(total_wall_time_end - total_wall_time_start))
+    log.info('Best policy solver CPU time: {:.2f}s'.format(solve_cpu_time))
+    log.info('Total solver CPU time: {:.2f}s'.format(total_solve_time))
+    log.info('Total CPU time: {:.2f}s'.format(total_cpu_time_end - total_cpu_time_start))
+    log.info('Verifying policy ...')
     if len(succs) == len(problems):
         sys.exit(0)
     else:
