@@ -65,7 +65,7 @@ class FeaturePool:
         factory = SyntacticElementFactory(vocabulary)
         str_features = dlplan_gen.generate_features(
             factory, [state for state in self.states[problem.name].values() for problem in problems],
-            *5 * [max_complexity])
+            *5 * [max_complexity], 3600, 10000, *30 * [True])
         self.features = {}
         for str_feature in str_features:
             if str_feature.startswith("b_"):
