@@ -75,7 +75,6 @@ class StateSpaceNode:
         self.state = state
         self.id = id
         self.children = dict()
-        self.distance = None
         self.alive = Alive.UNKNOWN
         self.parents = set()
 
