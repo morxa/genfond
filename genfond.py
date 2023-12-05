@@ -17,7 +17,10 @@ log = logging.getLogger(__name__)
 def solve(domain, problems, num_threads, complexity, use_new_solver=False):
     feature_pool = FeaturePool(domain, problems, complexity)
     asp_instance = feature_pool.to_clingo()
-    log.info('Solving {} with complexity {}'.format(", ".join([p.name for p in problems]), complexity))
+    sg_sizes = [len(sg.nodes) for sg in feature_pool.state_graphs.values()]
+    log.info('Solving {} with {} features up to complexity {} and {} = {} states'.format(
+        ", ".join([p.name for p in problems]), len(feature_pool.features), complexity,
+        " + ".join([str(s) for s in sg_sizes]), sum(sg_sizes)))
     solver = Solver(asp_instance, num_threads, solve_prog='solve_new.lp' if use_new_solver else 'solve.lp')
     if not solver.solve():
         log.info('No solution found')
