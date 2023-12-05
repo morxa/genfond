@@ -1,6 +1,3 @@
-% A state is alive it it is a goal or has a path to a goal.
-alive(I, S) :- goal(I, S).
-alive(I, S2) :- alive(I, S1), trans(I, S2, _, S1).
 
 trans_delta(I, S1, S2, F, D) :- trans(I, S1, _, S2), selected(F), eval(I, S1, F, V1), eval(I, S2, F, V2), D=(-1;0;1), D = -1 : V2 < V1; D = 0 : V2 = V1; D = 1 : V2 > V1.
 

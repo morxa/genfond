@@ -4,6 +4,7 @@ from pddl.logic.predicates import EqualTo
 from collections.abc import Collection
 from pddl.logic.effects import AndEffect, When
 from .ground import ground
+from enum import Enum
 
 
 def check_formula(state, formula):
@@ -62,6 +63,12 @@ def apply_effects_to_state(state, effects):
         raise ValueError('Unknown effect type: {}'.format(type(effects)))
 
 
+class Alive(Enum):
+    ALIVE = 0
+    DEAD = 1
+    UNKNOWN = 2
+
+
 class StateSpaceNode:
 
     def __init__(self, state, id):
@@ -69,6 +76,8 @@ class StateSpaceNode:
         self.id = id
         self.children = dict()
         self.distance = None
+        self.alive = Alive.UNKNOWN
+        self.parents = set()
 
     def __str__(self):
         return ','.join([f'{p.name}({",".join([str(p) for p in p.terms])})' for p in self.state])
@@ -100,8 +109,11 @@ class StateSpaceGraph:
                 for succ in apply_action_effects(node.state, action):
                     new_node = self.add_node(succ, state, action)
                     if new_node:
+                        if check_formula(new_node.state, problem.goal):
+                            new_node.alive = Alive.ALIVE
                         queue.append(new_node)
         self.compute_distances()
+        compute_alive(self.nodes.values())
 
     def compute_distances(self):
         parents = {node: set() for node in self.nodes.values()}
@@ -127,14 +139,76 @@ class StateSpaceGraph:
         parent = self.nodes[parent_state]
         try:
             parent.add_child(action, self.nodes[state])
+            self.nodes[state].parents.add(parent)
             return None
         except KeyError:
             node = StateSpaceNode(state, self.next_id)
             self.next_id += 1
             self.nodes[state] = node
             parent.add_child(action, node)
+            node.parents.add(parent)
             return node
 
 
 def generate_state_space(domain, problem):
     return StateSpaceGraph(domain, problem)
+
+
+def can_reach_goal(node, goal_nodes, seen=None):
+    if not seen:
+        seen = []
+    if node in goal_nodes:
+        return True
+    if node.alive == Alive.DEAD:
+        return False
+    if node.alive == Alive.ALIVE:
+        return True
+    if node in seen:
+        return False
+    seen.append(node)
+    for children in node.children.values():
+        if any(child.alive == Alive.DEAD for child in children):
+            continue
+        for child in children:
+            if can_reach_goal(child, goal_nodes, seen):
+                return True
+    return False
+
+
+def find_nodes_leading_to_dead(nodes):
+    queue = [node for node in nodes if node.alive == Alive.UNKNOWN]
+    changed = False
+    while queue:
+        node = queue.pop()
+        if all(any(child.alive == Alive.DEAD for child in children) for children in node.children.values()):
+            node.alive = Alive.DEAD
+            changed = True
+            for parent in node.parents:
+                if parent.alive == Alive.UNKNOWN:
+                    queue.append(parent)
+    return changed
+
+
+def find_node_not_reaching_goal(nodes):
+    queue = [node for node in nodes if node.alive == Alive.UNKNOWN]
+    goal_nodes = [node for node in nodes if node.alive == Alive.ALIVE]
+    changed = False
+    while queue:
+        node = queue.pop()
+        if not can_reach_goal(node, goal_nodes):
+            node.alive = Alive.DEAD
+            changed = True
+            for parent in node.parents:
+                if parent.alive == Alive.UNKNOWN:
+                    queue.append(parent)
+    return changed
+
+
+def compute_alive(nodes):
+    changed = True
+    while changed:
+        changed = find_nodes_leading_to_dead(nodes)
+        changed = find_node_not_reaching_goal(nodes) or changed
+    for node in nodes:
+        if node.alive == Alive.UNKNOWN:
+            node.alive = Alive.ALIVE

@@ -3,8 +3,7 @@ from dlplan.core import VocabularyInfo, InstanceInfo, State, \
 import dlplan.generator as dlplan_gen
 from pddl.logic import Predicate
 from .ground import ground_domain_predicates
-from .state_space_generator import apply_effects, generate_state_space, \
-        check_formula
+from .state_space_generator import apply_effects, generate_state_space, check_formula, Alive
 
 
 def construct_vocabulary_info(domain):
@@ -101,6 +100,8 @@ class FeaturePool:
             problem_id = self.problem_name_to_id[problem]
             for node in state_graph.nodes.values():
                 clingo_program += f'state({problem_id}, {node.id}).\n'
+                if node.alive == Alive.ALIVE:
+                    clingo_program += f'alive({problem_id}, {node.id}).\n'
                 clingo_program += f'goal_distance({problem_id}, {node.id}, {node.distance}).\n'
                 if check_formula(node.state, state_graph.problem.goal):
                     clingo_program += f'goal({problem_id}, {node.id}).\n'

@@ -48,27 +48,32 @@ def program_with_nontriv_equiv():
         feature_complexity(b_h, 3).
 
         state(0, 0).
+        alive(0, 0).
         eval(0, 0, n_f, 0).
         eval(0, 0, b_g, 0).
         eval(0, 0, b_h, 0).
 
         state(0, 1).
+        alive(0, 1).
         eval(0, 1, n_f, 1).
         eval(0, 1, b_g, 0).
         eval(0, 1, b_h, 0).
 
         state(0, 2).
+        alive(0, 2).
         eval(0, 2, n_f, 1).
         eval(0, 2, b_g, 0).
         eval(0, 2, b_h, 1).
 
         state(0, g1).
+        alive(0, g1).
         eval(0, g1, n_f, 1).
         eval(0, g1, b_g, 1).
         eval(0, g1, b_h, 0).
         goal(0, g1).
 
         state(0, g2).
+        alive(0, g2).
         eval(0, g2, n_f, 1).
         eval(0, g2, b_g, 1).
         eval(0, g2, b_h, 1).
@@ -96,11 +101,13 @@ def simple_program():
         feature_complexity(b_h, 3).
 
         state(0, 0).
+        alive(0, 0).
         eval(0, 0, n_f, 4).
         eval(0, 0, b_g, 0).
         eval(0, 0, b_h, 0).
 
         state(0, 1).
+        alive(0, 1).
         eval(0, 1, n_f, 3).
         eval(0, 1, b_g, 0).
         eval(0, 1, b_h, 0).
@@ -111,11 +118,13 @@ def simple_program():
         eval(0, 2, b_h, 0).
 
         state(0, 3).
+        alive(0, 3).
         eval(0, 3, n_f, 1).
         eval(0, 3, b_g, 0).
         eval(0, 3, b_h, 0).
 
         state(0, 4).
+        alive(0, 4).
         eval(0, 4, n_f, 1).
         eval(0, 4, b_g, 0).
         eval(0, 4, b_h, 1).
