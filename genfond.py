@@ -72,6 +72,7 @@ def main():
     log.info('Starting policy generation for domain {}'.format(domain.name))
     log.debug('Parsing problems ...')
     problems = [pddl.parse_problem(f) for f in args.problem_file]
+    problems.sort(key=lambda p: len(p.objects))
     policy = Policy({}, {})
     solver_problems = []
     last_complexity = args.min_complexity
