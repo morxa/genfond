@@ -3,22 +3,31 @@
 (:objects 
 	L11 - location
 	L12 - location
+	L13 - location
 	L21 - location
 	L22 - location
+	L23 - location
 	L31 - location
 	L32 - location
+	L33 - location
 	L41 - location
 	L42 - location
+	L43 - location
 	L51 - location
 	L52 - location
+	L53 - location
 	L61 - location
 	L62 - location
+	L63 - location
 	L71 - location
 	L72 - location
+	L73 - location
 	L81 - location
 	L82 - location
+	L83 - location
 	L91 - location
 	L92 - location
+	L93 - location
 
 	r1 - rock
 	r2 - rock

@@ -6,86 +6,103 @@
 	L13 - location
 	L14 - location
 	L15 - location
+	L16 - location
 	L21 - location
 	L22 - location
 	L23 - location
 	L24 - location
 	L25 - location
+	L26 - location
 	L31 - location
 	L32 - location
 	L33 - location
 	L34 - location
 	L35 - location
+	L36 - location
 	L41 - location
 	L42 - location
 	L43 - location
 	L44 - location
 	L45 - location
+	L46 - location
 	L51 - location
 	L52 - location
 	L53 - location
 	L54 - location
 	L55 - location
+	L56 - location
 	L61 - location
 	L62 - location
 	L63 - location
 	L64 - location
 	L65 - location
+	L66 - location
 	L71 - location
 	L72 - location
 	L73 - location
 	L74 - location
 	L75 - location
+	L76 - location
 	L81 - location
 	L82 - location
 	L83 - location
 	L84 - location
 	L85 - location
+	L86 - location
 	L91 - location
 	L92 - location
 	L93 - location
 	L94 - location
 	L95 - location
+	L96 - location
 	L101 - location
 	L102 - location
 	L103 - location
 	L104 - location
 	L105 - location
+	L106 - location
 	L111 - location
 	L112 - location
 	L113 - location
 	L114 - location
 	L115 - location
+	L116 - location
 	L121 - location
 	L122 - location
 	L123 - location
 	L124 - location
 	L125 - location
+	L126 - location
 	L131 - location
 	L132 - location
 	L133 - location
 	L134 - location
 	L135 - location
+	L136 - location
 	L141 - location
 	L142 - location
 	L143 - location
 	L144 - location
 	L145 - location
+	L146 - location
 	L151 - location
 	L152 - location
 	L153 - location
 	L154 - location
 	L155 - location
+	L156 - location
 	L161 - location
 	L162 - location
 	L163 - location
 	L164 - location
 	L165 - location
+	L166 - location
 	L171 - location
 	L172 - location
 	L173 - location
 	L174 - location
 	L175 - location
+	L176 - location
 
 	r1 - rock
 	r2 - rock

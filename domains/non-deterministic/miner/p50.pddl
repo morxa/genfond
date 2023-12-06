@@ -8,6 +8,7 @@
 	L15 - location
 	L16 - location
 	L17 - location
+	L18 - location
 	L21 - location
 	L22 - location
 	L23 - location
@@ -15,6 +16,7 @@
 	L25 - location
 	L26 - location
 	L27 - location
+	L28 - location
 	L31 - location
 	L32 - location
 	L33 - location
@@ -22,6 +24,7 @@
 	L35 - location
 	L36 - location
 	L37 - location
+	L38 - location
 	L41 - location
 	L42 - location
 	L43 - location
@@ -29,6 +32,7 @@
 	L45 - location
 	L46 - location
 	L47 - location
+	L48 - location
 	L51 - location
 	L52 - location
 	L53 - location
@@ -36,6 +40,7 @@
 	L55 - location
 	L56 - location
 	L57 - location
+	L58 - location
 	L61 - location
 	L62 - location
 	L63 - location
@@ -43,6 +48,7 @@
 	L65 - location
 	L66 - location
 	L67 - location
+	L68 - location
 	L71 - location
 	L72 - location
 	L73 - location
@@ -50,6 +56,7 @@
 	L75 - location
 	L76 - location
 	L77 - location
+	L78 - location
 	L81 - location
 	L82 - location
 	L83 - location
@@ -57,6 +64,7 @@
 	L85 - location
 	L86 - location
 	L87 - location
+	L88 - location
 	L91 - location
 	L92 - location
 	L93 - location
@@ -64,6 +72,7 @@
 	L95 - location
 	L96 - location
 	L97 - location
+	L98 - location
 	L101 - location
 	L102 - location
 	L103 - location
@@ -71,6 +80,7 @@
 	L105 - location
 	L106 - location
 	L107 - location
+	L108 - location
 	L111 - location
 	L112 - location
 	L113 - location
@@ -78,6 +88,7 @@
 	L115 - location
 	L116 - location
 	L117 - location
+	L118 - location
 	L121 - location
 	L122 - location
 	L123 - location
@@ -85,6 +96,7 @@
 	L125 - location
 	L126 - location
 	L127 - location
+	L128 - location
 	L131 - location
 	L132 - location
 	L133 - location
@@ -92,6 +104,7 @@
 	L135 - location
 	L136 - location
 	L137 - location
+	L138 - location
 	L141 - location
 	L142 - location
 	L143 - location
@@ -99,6 +112,7 @@
 	L145 - location
 	L146 - location
 	L147 - location
+	L148 - location
 	L151 - location
 	L152 - location
 	L153 - location
@@ -106,6 +120,7 @@
 	L155 - location
 	L156 - location
 	L157 - location
+	L158 - location
 
 	r1 - rock
 	r2 - rock
