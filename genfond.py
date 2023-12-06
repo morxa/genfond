@@ -59,6 +59,7 @@ def main():
     parser.add_argument('--max-memory', type=int, default=None, help='maximum memory to use in MB')
     parser.add_argument('--new-solver', action='store_true', help='use new solver')
     parser.add_argument('--dump-failed-policies', action='store_true', help='dump failed policies to file')
+    parser.add_argument('--keep-going', action='store_true', help='keep going after one training problem failed')
     args = parser.parse_args()
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
     if not args.verbose:
@@ -71,6 +72,7 @@ def main():
     total_wall_time_start = time.perf_counter()
     total_cpu_time_start = time.process_time()
     total_solve_time = 0
+    solve_cpu_time = 0
     domain = pddl.parse_domain(args.domain_file)
     log.info('Starting policy generation for domain {}'.format(domain.name))
     log.debug('Parsing problems ...')
@@ -137,10 +139,11 @@ def main():
                 log.info('Solver CPU time: {:.2f}s'.format(solve_cpu_time))
         if not new_policy:
             log.error('No policy found for {} with max complexity {}'.format(problem.name, i))
+            if not args.keep_going:
+                break
             # Delete last element in solver_problems
             solver_problems.pop()
             continue
-            policy = new_policy
         else:
             policy = new_policy
     succs = []
