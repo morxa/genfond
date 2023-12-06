@@ -2,7 +2,7 @@
   (:domain tire-truck)
   (:objects n0 ng - location
             n1 n2 n3 - location
-            t1 t2 t3 t4 t5 t6 t7 t8 t9 t10 t11 t12 - tire)
+            t1 t2 t3 t4 - tire)
             
   (:init (initial-location n0)
   		 (car-at n0)
