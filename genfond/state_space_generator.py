@@ -114,7 +114,7 @@ class StateSpaceGraph:
         self.compute_distances()
         compute_alive(self.nodes.values())
         assert all(node.alive != Alive.UNKNOWN for node in self.nodes.values())
-        assert self.root.alive == Alive.ALIVE
+        assert self.root.alive == Alive.ALIVE, 'Problem {} is unsolvable'.format(problem.name)
 
     def compute_distances(self):
         parents = {node: set() for node in self.nodes.values()}
