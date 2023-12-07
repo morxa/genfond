@@ -5,9 +5,11 @@ import pddl
 import pygraphviz
 import pickle
 import sys
+import os.path
 
 import argparse
 import logging
+from genfond.state_space_generator import Alive
 
 log = logging.getLogger(__name__)
 
@@ -20,7 +22,20 @@ def _get_repr(reprs, equiv, i, s):
 
 
 def _state_to_str(state):
-    return ','.join([f'{p.name}({",".join([str(p) for p in p.terms])})' for p in state])
+    return ','.join([f'{p.name}({",".join([str(p) for p in p.terms])})' for p in sorted(state)])
+
+
+def draw_state_graph(state_graph, filename):
+    graph = pygraphviz.AGraph(directed=True)
+    graph.node_attr['shape'] = 'box'
+    for node in state_graph.nodes.values():
+        graph.add_node(node.id, label=_state_to_str(node.state), color='green' if node.alive == Alive.ALIVE else 'red')
+        for action, children in node.children.items():
+            action_str = f'{action.name}({",".join([str(p) for p in action.parameters])})'
+            for child in children:
+                graph.add_edge(node.id, child.id, label=action_str)
+    graph.layout(prog='dot')
+    graph.draw(filename)
 
 
 def draw_graph(feature_gen, solution, filename):
@@ -56,6 +71,7 @@ def main():
     parser.add_argument('--output', '-o', help='Output file for the resulting policy (as pickle dump)')
     parser.add_argument('--input', '-i', help='Input for a pickle dump of the solution')
     parser.add_argument('--draw', '-d', help='Output path for the resulting state graph')
+    parser.add_argument('--draw-input', help='Output path for drawing the input state graph')
     parser.add_argument('-v', '--verbose', action='store_true')
     parser.add_argument('-c', '--complexity', type=int, default=5, help='max complexity of the used features')
     parser.add_argument('-n',
@@ -74,6 +90,10 @@ def main():
     for problem_file in args.problem_file:
         problems.append(pddl.parse_problem(problem_file))
     feature_pool = FeaturePool(domain, problems, args.complexity)
+    if args.draw_input:
+        for p, g in feature_pool.state_graphs.items():
+            base, suffix = os.path.splitext(args.draw_input)
+            draw_state_graph(g, f'{base}_{p}{suffix}')
     if args.input:
         solution, policy = pickle.load(open(args.input, 'rb'))
     else:
