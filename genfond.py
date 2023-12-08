@@ -130,6 +130,7 @@ def main():
                         with open(f'failed_policy-{h}.pickle', 'wb') as f:
                             pickle.dump(i_policy, f)
                         log.critical(f'Dumped failed policy to failed_policy-{h}.pickle')
+                    sys.exit(1)
                     continue
                 last_complexity = i
                 new_policy = i_policy
