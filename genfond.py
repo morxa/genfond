@@ -30,6 +30,10 @@ def solve(domain, problems, num_threads, complexity, use_new_solver=False):
     return policy
 
 
+def pnames(problems):
+    return ", ".join([p.name for p in problems])
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('domain_file')
@@ -102,7 +106,7 @@ def main():
             if new_policy and (not args.continue_steps or i > last_complexity + args.continue_steps):
                 break
             try:
-                log.info(f'Starting solver for {", ".join([p.name for p in solver_problems])} with max complexity {i}')
+                log.info(f'Starting solver for {pnames(solver_problems)} with max complexity {i}')
                 solve_wall_time_start = time.perf_counter()
                 solve_cpu_time_start = time.process_time()
                 i_policy = solve(domain, solver_problems, args.num_threads, i, args.new_solver)
@@ -111,7 +115,8 @@ def main():
                 log.info('Solver wall time: {:.2f}s'.format(solve_wall_time))
                 log.info('Solver CPU time: {:.2f}s'.format(solve_cpu_time))
             except (RuntimeError, MemoryError) as e:
-                log.warning(f'Error during policy generation for {problem.name} with max complexity {i}: {e}')
+                log.warning(
+                    f'Error during policy generation for {pnames(solver_problems)} with max complexity {i}: {e}')
                 break
             finally:
                 total_solve_cpu_time += solve_cpu_time
@@ -123,7 +128,8 @@ def main():
                     log.info(
                         f'Found another policy with lower cost ({i_policy.cost}) than old policy ({new_policy.cost})')
                 else:
-                    log.info(f'Found first policy for {problem.name} with max complexity {i}')
+                    log.info(f'Found first policy with cost {i_policy.cost} for'
+                             f' {pnames(solver_problems)} with max complexity {i}')
                 log.info(f'New policy: {i_policy}')
                 log.info('Verifying new policy on solved problems')
                 try:
@@ -163,7 +169,7 @@ def main():
         except RuntimeError:
             log.error('Policy does not solve {}'.format(problem.name))
     log.info('Policy solves {} out of {} problems, unsolved: {}'.format(
-        len(succs), len(problems), ", ".join([p.name for p in problems if p not in succs])))
+        len(succs), len(problems), pnames([p for p in problems if p not in succs])))
     log.info('Final policy: {}'.format(policy))
     total_wall_time_end = time.perf_counter()
     total_cpu_time_end = time.process_time()
