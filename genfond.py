@@ -77,17 +77,20 @@ def main():
     log.info('Starting policy generation for domain {}'.format(domain.name))
     log.debug('Parsing problems ...')
     problems = [pddl.parse_problem(f) for f in args.problem_file]
-    problems.sort(key=lambda p: len(p.objects))
     policy = Policy({}, {})
     solver_problems = []
     last_complexity = args.min_complexity
-    for problem in problems:
+    verified = []
+    queue = problems
+    queue.sort(key=lambda p: len(p.objects))
+    for problem in queue:
         try:
             log.info(f'Testing policy on {problem.name} {args.policy_iterations} times ...')
             # Execute policy policy_iterations times
             for _ in tqdm.trange(args.policy_iterations, disable=None):
                 execute_policy(domain, problem, policy, args.policy_steps)
             log.info(f'Policy already solves {problem.name}')
+            verified.append(problem)
             continue
         except RuntimeError:
             pass
@@ -147,8 +150,11 @@ def main():
             continue
         else:
             policy = new_policy
-    succs = []
-    for problem in tqdm.tqdm(problems, disable=None):
+            # Re-add previously verified problems  to queue if not part of the solver set
+            queue += [p for p in verified if p not in solver_problems]
+            verified = solver_problems
+    succs = verified
+    for problem in tqdm.tqdm([p for p in problems if p not in verified], disable=None):
         try:
             for _ in tqdm.trange(args.policy_iterations, leave=False, disable=None):
                 execute_policy(domain, problem, policy, args.policy_steps)
