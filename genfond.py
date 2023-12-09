@@ -10,6 +10,8 @@ import resource
 import tqdm
 import pickle
 import time
+import signal
+import os
 
 log = logging.getLogger(__name__)
 
@@ -32,6 +34,11 @@ def solve(domain, problems, num_threads, complexity, use_new_solver=False):
 
 def pnames(problems):
     return ", ".join([p.name for p in problems])
+
+
+def signal_handler(sig, frame):
+    log.info(f'Received {signal.Signals(sig).name}, exiting ...')
+    os.kill(os.getpid(), signal.SIGTERM)
 
 
 def main():
@@ -69,6 +76,7 @@ def main():
     if not args.verbose:
         logging.getLogger('genfond').setLevel(logging.CRITICAL)
         logging.getLogger('genfond.policy').setLevel(logging.INFO)
+    signal.signal(signal.SIGINT, signal_handler)
     if args.max_memory:
         _, hard = resource.getrlimit(resource.RLIMIT_AS)
         resource.setrlimit(resource.RLIMIT_AS, (args.max_memory * 1024 * 1024, hard))
