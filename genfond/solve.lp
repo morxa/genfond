@@ -52,3 +52,6 @@ rank(I, S, delta*M+1) :- state(I, S), not alive(I, S), num_states(I, M).
 #show trans_delta/5.
 #show good_trans_delta/5.
 #show rank/3.
+
+#program limit_feature_cost(c).
+:- #sum { C,F : selected(F), feature_complexity(F, C) } > c.

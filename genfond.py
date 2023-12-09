@@ -16,14 +16,17 @@ import os
 log = logging.getLogger(__name__)
 
 
-def solve(domain, problems, num_threads, complexity, use_new_solver=False):
+def solve(domain, problems, num_threads, complexity, use_new_solver=False, max_cost=None):
     feature_pool = FeaturePool(domain, problems, complexity)
     asp_instance = feature_pool.to_clingo()
     sg_sizes = [len(sg.nodes) for sg in feature_pool.state_graphs.values()]
     log.info('Solving {} with {} features up to complexity {} and {} = {} states'.format(
         ", ".join([p.name for p in problems]), len(feature_pool.features), complexity,
         " + ".join([str(s) for s in sg_sizes]), sum(sg_sizes)))
-    solver = Solver(asp_instance, num_threads, solve_prog='solve_new.lp' if use_new_solver else 'solve.lp')
+    solver = Solver(asp_instance,
+                    num_threads,
+                    max_cost=max_cost,
+                    solve_prog='solve_new.lp' if use_new_solver else 'solve.lp')
     if not solver.solve():
         log.info('No solution found')
         return None
@@ -117,7 +120,12 @@ def main():
                 log.info(f'Starting solver for {pnames(solver_problems)} with max complexity {i}')
                 solve_wall_time_start = time.perf_counter()
                 solve_cpu_time_start = time.process_time()
-                i_policy = solve(domain, solver_problems, args.num_threads, i, args.new_solver)
+                i_policy = solve(domain,
+                                 solver_problems,
+                                 args.num_threads,
+                                 i,
+                                 args.new_solver,
+                                 max_cost=new_policy.cost[0] - 1 if new_policy else None)
                 solve_wall_time = time.perf_counter() - solve_wall_time_start
                 solve_cpu_time = time.process_time() - solve_cpu_time_start
                 log.info('Solver wall time: {:.2f}s'.format(solve_wall_time))
