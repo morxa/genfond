@@ -71,9 +71,9 @@ def main():
     log.debug('Parsing domain ...')
     total_wall_time_start = time.perf_counter()
     total_cpu_time_start = time.process_time()
-    total_solve_time = 0
-    solve_cpu_time = 0
-    solve_wall_time = 0
+    total_solve_cpu_time = 0
+    best_solve_cpu_time = 0
+    best_solve_wall_time = 0
     domain = pddl.parse_domain(args.domain_file)
     log.info('Starting policy generation for domain {}'.format(domain.name))
     log.debug('Parsing problems ...')
@@ -106,13 +106,15 @@ def main():
                 solve_wall_time_start = time.perf_counter()
                 solve_cpu_time_start = time.process_time()
                 i_policy = solve(domain, solver_problems, args.num_threads, i, args.new_solver)
-                solve_wall_time_end = time.perf_counter()
-                solve_cpu_time_end = time.process_time()
+                solve_wall_time = time.perf_counter() - solve_wall_time_start
+                solve_cpu_time = time.process_time() - solve_cpu_time_start
+                log.info('Solver wall time: {:.2f}s'.format(solve_wall_time))
+                log.info('Solver CPU time: {:.2f}s'.format(solve_cpu_time))
             except (RuntimeError, MemoryError) as e:
                 log.warning(f'Error during policy generation for {problem.name} with max complexity {i}: {e}')
                 break
             finally:
-                total_solve_time += time.process_time() - solve_cpu_time_start
+                total_solve_cpu_time += solve_cpu_time
             if i_policy:
                 if new_policy and new_policy.cost <= i_policy.cost:
                     log.info('Found new policy, but not better than old policy')
@@ -138,10 +140,8 @@ def main():
                     continue
                 last_complexity = i
                 new_policy = i_policy
-                solve_wall_time = solve_wall_time_end - solve_wall_time_start
-                solve_cpu_time = solve_cpu_time_end - solve_cpu_time_start
-                log.info('Solver wall time: {:.2f}s'.format(solve_wall_time))
-                log.info('Solver CPU time: {:.2f}s'.format(solve_cpu_time))
+                best_solve_wall_time = solve_wall_time
+                best_solve_cpu_time = solve_cpu_time
         if new_policy:
             policy = new_policy
             # Re-add previously verified problems  to queue if not part of the solver set
@@ -168,9 +168,9 @@ def main():
     total_wall_time_end = time.perf_counter()
     total_cpu_time_end = time.process_time()
     log.info('Total wall time: {:.2f}s'.format(total_wall_time_end - total_wall_time_start))
-    log.info('Best policy solver CPU time: {:.2f}s'.format(solve_cpu_time))
-    log.info('Best policy solver wall time: {:.2f}s'.format(solver_wall_time))
-    log.info('Total solver CPU time: {:.2f}s'.format(total_solve_time))
+    log.info('Best policy solver CPU time: {:.2f}s'.format(best_solve_cpu_time))
+    log.info('Best policy solver wall time: {:.2f}s'.format(best_solve_wall_time))
+    log.info('Total solver CPU time: {:.2f}s'.format(total_solve_cpu_time))
     log.info('Total CPU time: {:.2f}s'.format(total_cpu_time_end - total_cpu_time_start))
     log.info('Verifying policy ...')
     if len(succs) == len(problems):
