@@ -33,7 +33,7 @@ bool_repr(I1, S1) :- state(I1, S1), not bool_equiv(I1, S1, I2, S2) : state(I2, S
 % Count the number of states.
 num_states(I, N) :- state(I, _), N = #count { S : state(I, S) }.
 
-#const delta = 2.
+#const delta = 1.
 % Assign a rank to each state between 0 and delta*<num_states>.
 { rank(I, S, N) :  N=0..delta*M } = 1 :- num_states(I, M), state(I, S), not goal(I, S), alive(I, S).
 rank(I, S, 0) :- goal(I, S).
