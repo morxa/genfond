@@ -117,7 +117,7 @@ class Policy:
 def generate_policy(solution):
     rules = set()
     features = solution['selected']
-    for instance, state in solution['repr']:
+    for instance, state in solution['state']:
         conds = dict()
         for i, s, f, v in solution['bool_eval']:
             if i == instance and s == state:
