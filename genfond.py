@@ -142,18 +142,18 @@ def main():
                 solve_cpu_time = solve_cpu_time_end - solve_cpu_time_start
                 log.info('Solver wall time: {:.2f}s'.format(solve_wall_time))
                 log.info('Solver CPU time: {:.2f}s'.format(solve_cpu_time))
-        if not new_policy:
+        if new_policy:
+            policy = new_policy
+            # Re-add previously verified problems  to queue if not part of the solver set
+            queue += [p for p in verified if p not in solver_problems]
+            verified = solver_problems
+        else:
             log.error('No policy found for {} with max complexity {}'.format(problem.name, i))
             if not args.keep_going:
                 break
             # Delete last element in solver_problems
             solver_problems.pop()
             continue
-        else:
-            policy = new_policy
-            # Re-add previously verified problems  to queue if not part of the solver set
-            queue += [p for p in verified if p not in solver_problems]
-            verified = solver_problems
     succs = verified
     for problem in tqdm.tqdm([p for p in problems if p not in verified], disable=None):
         try:
