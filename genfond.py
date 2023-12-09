@@ -73,6 +73,7 @@ def main():
     total_cpu_time_start = time.process_time()
     total_solve_time = 0
     solve_cpu_time = 0
+    solve_wall_time = 0
     domain = pddl.parse_domain(args.domain_file)
     log.info('Starting policy generation for domain {}'.format(domain.name))
     log.debug('Parsing problems ...')
@@ -168,6 +169,7 @@ def main():
     total_cpu_time_end = time.process_time()
     log.info('Total wall time: {:.2f}s'.format(total_wall_time_end - total_wall_time_start))
     log.info('Best policy solver CPU time: {:.2f}s'.format(solve_cpu_time))
+    log.info('Best policy solver wall time: {:.2f}s'.format(solver_wall_time))
     log.info('Total solver CPU time: {:.2f}s'.format(total_solve_time))
     log.info('Total CPU time: {:.2f}s'.format(total_cpu_time_end - total_cpu_time_start))
     log.info('Verifying policy ...')
