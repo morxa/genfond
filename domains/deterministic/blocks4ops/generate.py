@@ -39,7 +39,11 @@ def generate_problem(name, num_blocks):
     goal = []
     for b1, b2 in pairwise(goal_blocks):
         goal.append(on(b1, b2))
-    problem = Problem(name, domain=domain, objects=blocks, init=init, goal=AndEffect(*goal))
+    problem = Problem(name,
+                      domain=domain,
+                      objects=blocks,
+                      init=init,
+                      goal=AndEffect(clear(goal_blocks[0]), *goal, ontable(goal_blocks[-1])))
     return problem
 
 

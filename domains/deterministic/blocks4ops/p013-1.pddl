@@ -3,5 +3,5 @@
     (:requirements :strips :typing)
     (:objects b0 b1 b10 b11 b12 b2 b3 b4 b5 b6 b7 b8 b9)
     (:init (clear b10) (clear b4) (clear b7) (handempty) (on b0 b2) (on b1 b12) (on b10 b9) (on b11 b1) (on b12 b8) (on b3 b11) (on b4 b0) (on b5 b6) (on b7 b5) (on b9 b3) (ontable b2) (ontable b6) (ontable b8))
-    (:goal (and (on b3 b10)))
+    (:goal (and (clear b3) (on b3 b10) (ontable b10)))
 )
