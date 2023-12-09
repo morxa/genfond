@@ -82,7 +82,7 @@ def main():
     solver_problems = []
     last_complexity = args.min_complexity
     verified = []
-    queue = problems
+    queue = problems.copy()
     queue.sort(key=lambda p: len(p.objects))
     for problem in queue:
         try:
@@ -146,7 +146,7 @@ def main():
             policy = new_policy
             # Re-add previously verified problems  to queue if not part of the solver set
             queue += [p for p in verified if p not in solver_problems]
-            verified = solver_problems
+            verified = solver_problems.copy()
         else:
             log.error('No policy found for {} with max complexity {}'.format(problem.name, i))
             if not args.keep_going:
