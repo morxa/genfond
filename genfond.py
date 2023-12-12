@@ -75,7 +75,8 @@ def main():
     parser.add_argument('--dump-failed-policies', action='store_true', help='dump failed policies to file')
     parser.add_argument('--keep-going', action='store_true', help='keep going after one training problem failed')
     args = parser.parse_args()
-    logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
+    logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO,
+                        format='%(asctime)s %(levelname)-8s %(message)s')
     if not args.verbose:
         logging.getLogger('genfond').setLevel(logging.CRITICAL)
         logging.getLogger('genfond.policy').setLevel(logging.INFO)
