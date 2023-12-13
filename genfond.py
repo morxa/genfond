@@ -80,6 +80,7 @@ def main():
     if not args.verbose:
         logging.getLogger('genfond').setLevel(logging.CRITICAL)
         logging.getLogger('genfond.policy').setLevel(logging.INFO)
+        logging.getLogger('genfond.solver').setLevel(logging.INFO)
     signal.signal(signal.SIGINT, signal_handler)
     if args.max_memory:
         _, hard = resource.getrlimit(resource.RLIMIT_AS)
