@@ -127,15 +127,15 @@ def main():
                                  i,
                                  args.new_solver,
                                  max_cost=new_policy.cost[0] - 1 if new_policy else None)
-                solve_wall_time = time.perf_counter() - solve_wall_time_start
-                solve_cpu_time = time.process_time() - solve_cpu_time_start
-                log.info('Solver wall time: {:.2f}s'.format(solve_wall_time))
-                log.info('Solver CPU time: {:.2f}s'.format(solve_cpu_time))
             except (RuntimeError, MemoryError) as e:
                 log.warning(
                     f'Error during policy generation for {pnames(solver_problems)} with max complexity {i}: {e}')
                 break
             finally:
+                solve_wall_time = time.perf_counter() - solve_wall_time_start
+                solve_cpu_time = time.process_time() - solve_cpu_time_start
+                log.info('Solver wall time: {:.2f}s'.format(solve_wall_time))
+                log.info('Solver CPU time: {:.2f}s'.format(solve_cpu_time))
                 total_solve_cpu_time += solve_cpu_time
             if i_policy:
                 if new_policy and new_policy.cost <= i_policy.cost:
