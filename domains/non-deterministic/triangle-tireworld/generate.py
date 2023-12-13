@@ -55,6 +55,7 @@ def generate_problem(name, size, draw_problem):
     spare_in = Predicate('spare-in', x)
     vehicle_at = Predicate('vehicle-at', x)
     road = Predicate('road', x, y)
+    not_flattire = Predicate('not-flattire')
     grid = dict()
     locations = []
     for x in range(0, 2 * size + 1):
@@ -65,7 +66,7 @@ def generate_problem(name, size, draw_problem):
                 locations.append(l)
                 grid[x][y] = l
     start_location = grid[0][0]
-    init = [vehicle_at(start_location)]
+    init = [vehicle_at(start_location), not_flattire]
     goal_location = grid[0][4 * size]
     for x, xs in grid.items():
         for y, location in xs.items():

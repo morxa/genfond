@@ -2,6 +2,6 @@
     (:domain triangle-tire)
     (:requirements :non-deterministic :strips :typing)
     (:objects l0_0 l0_2 l0_4 l1_1 l1_3 l2_2 - location)
-    (:init (road l0_0 l0_2) (road l0_0 l1_1) (road l0_2 l0_4) (road l0_2 l1_3) (road l1_1 l0_2) (road l1_1 l2_2) (road l1_3 l0_4) (road l2_2 l1_3) (spare-in l1_1) (spare-in l1_3) (spare-in l2_2) (vehicle-at l0_0))
+    (:init (not-flattire) (road l0_0 l0_2) (road l0_0 l1_1) (road l0_2 l0_4) (road l0_2 l1_3) (road l1_1 l0_2) (road l1_1 l2_2) (road l1_3 l0_4) (road l2_2 l1_3) (spare-in l1_1) (spare-in l1_3) (spare-in l2_2) (vehicle-at l0_0))
     (:goal (vehicle-at l0_4))
 )
