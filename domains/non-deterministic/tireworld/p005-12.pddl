@@ -1,0 +1,7 @@
+(define (problem tireworld-005-12)
+    (:domain tire-adl)
+    (:requirements :negative-preconditions :non-deterministic :strips :typing)
+    (:objects l0 l1 l2 l3 l4 - location)
+    (:init (road l1 l2) (road l1 l3) (road l1 l4) (road l2 l1) (road l2 l3) (road l3 l1) (road l3 l2) (road l3 l4) (road l4 l1) (road l4 l3) (spare-in l1) (spare-in l3) (vehicle-at l2))
+    (:goal (vehicle-at l4))
+)
