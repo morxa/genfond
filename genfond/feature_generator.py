@@ -42,7 +42,7 @@ def construct_instance_info(vocabulary, domain, problem):
 
 class FeaturePool:
 
-    def __init__(self, domain, problems, max_complexity=9):
+    def __init__(self, domain, problems, max_complexity=9, all_generators=True):
         assert len({problem.name for problem in problems}) == len(problems), \
             "Problem names must be unique."
         self.problem_name_to_id = {problem.name: i for i, problem in enumerate(problems)}
@@ -65,7 +65,7 @@ class FeaturePool:
         factory = SyntacticElementFactory(vocabulary)
         str_features = dlplan_gen.generate_features(
             factory, [state for state in self.states[problem.name].values() for problem in problems],
-            *5 * [max_complexity], 3600, 10000, *30 * [True])
+            *5 * [max_complexity], 3600, 10000, *30 * [True] if all_generators else [])
         self.features = {}
         for str_feature in str_features:
             if str_feature.startswith("b_"):

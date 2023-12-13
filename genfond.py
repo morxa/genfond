@@ -12,17 +12,19 @@ import pickle
 import time
 import signal
 import os
+import itertools
 
 log = logging.getLogger(__name__)
 
 
-def solve(domain, problems, num_threads, complexity, use_new_solver=False, max_cost=None):
-    feature_pool = FeaturePool(domain, problems, complexity)
+def solve(domain, problems, num_threads, complexity, use_new_solver=False, max_cost=None, all_generators=True):
+    feature_pool = FeaturePool(domain, problems, complexity, all_generators=all_generators)
     asp_instance = feature_pool.to_clingo()
     sg_sizes = [len(sg.nodes) for sg in feature_pool.state_graphs.values()]
-    log.info('Solving {} with {} features up to complexity {} and {} = {} states'.format(
-        ", ".join([p.name for p in problems]), len(feature_pool.features), complexity,
-        " + ".join([str(s) for s in sg_sizes]), sum(sg_sizes)))
+    log.info('Solving {} with {} {} features up to complexity {} and {} = {} states'.format(
+        ", ".join([p.name for p in problems]), len(feature_pool.features),
+        'unrestricted' if all_generators else 'restricted', complexity, " + ".join([str(s) for s in sg_sizes]),
+        sum(sg_sizes)))
     solver = Solver(asp_instance,
                     num_threads,
                     max_cost=max_cost,
@@ -117,7 +119,7 @@ def main():
         log.info('Policy does not solve {}'.format(problem.name))
         solver_problems.append(problem)
         new_policy = None
-        for i in range(last_complexity, args.max_complexity + 1):
+        for i, all_generators in itertools.product(range(last_complexity, args.max_complexity + 1), [False, True]):
             if new_policy and (not args.continue_steps or i > last_complexity + args.continue_steps):
                 break
             try:
@@ -129,6 +131,7 @@ def main():
                                  args.num_threads,
                                  i,
                                  args.new_solver,
+                                 all_generators=all_generators,
                                  max_cost=new_policy.cost[0] - 1 if new_policy else None)
             except (RuntimeError, MemoryError) as e:
                 log.warning(
