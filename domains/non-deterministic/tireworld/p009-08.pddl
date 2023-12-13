@@ -2,6 +2,6 @@
     (:domain tire-adl)
     (:requirements :negative-preconditions :non-deterministic :strips :typing)
     (:objects l0 l1 l2 l3 l4 l5 l6 l7 l8 - location)
-    (:init (road l0 l1) (road l1 l0) (road l1 l2) (road l2 l1) (road l2 l3) (road l3 l2) (road l4 l5) (road l4 l6) (road l5 l4) (road l5 l6) (road l6 l4) (road l6 l5) (road l6 l7) (road l7 l6) (road l7 l8) (road l8 l7) (vehicle-at l4))
-    (:goal (vehicle-at l6))
+    (:init (road l0 l1) (road l0 l2) (road l0 l3) (road l0 l6) (road l0 l8) (road l1 l0) (road l1 l4) (road l2 l0) (road l2 l4) (road l3 l0) (road l3 l6) (road l4 l1) (road l4 l2) (road l5 l7) (road l5 l8) (road l6 l0) (road l6 l3) (road l6 l7) (road l7 l5) (road l7 l6) (road l8 l0) (road l8 l5) (spare-in l0) (spare-in l1) (spare-in l5) (spare-in l7) (vehicle-at l6))
+    (:goal (vehicle-at l4))
 )

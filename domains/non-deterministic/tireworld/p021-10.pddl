@@ -1,0 +1,7 @@
+(define (problem tireworld-021-10)
+    (:domain tire-adl)
+    (:requirements :negative-preconditions :non-deterministic :strips :typing)
+    (:objects l0 l1 l10 l11 l12 l13 l14 l15 l16 l17 l18 l19 l2 l20 l3 l4 l5 l6 l7 l8 l9 - location)
+    (:init (road l0 l11) (road l0 l15) (road l1 l15) (road l10 l16) (road l10 l2) (road l11 l0) (road l11 l19) (road l11 l6) (road l12 l18) (road l12 l7) (road l13 l17) (road l13 l5) (road l13 l9) (road l14 l8) (road l14 l9) (road l15 l0) (road l15 l1) (road l16 l10) (road l16 l8) (road l17 l13) (road l17 l5) (road l17 l6) (road l18 l12) (road l19 l11) (road l19 l4) (road l2 l10) (road l2 l4) (road l20 l3) (road l20 l8) (road l3 l20) (road l3 l7) (road l4 l19) (road l4 l2) (road l5 l13) (road l5 l17) (road l6 l11) (road l6 l17) (road l7 l12) (road l7 l3) (road l8 l14) (road l8 l16) (road l8 l20) (road l8 l9) (road l9 l13) (road l9 l14) (road l9 l8) (spare-in l0) (spare-in l10) (spare-in l11) (spare-in l12) (spare-in l15) (spare-in l16) (spare-in l19) (spare-in l2) (spare-in l20) (spare-in l3) (spare-in l4) (spare-in l7) (spare-in l8) (vehicle-at l18))
+    (:goal (vehicle-at l1))
+)
