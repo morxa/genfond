@@ -85,16 +85,18 @@ def main():
     if args.max_memory:
         _, hard = resource.getrlimit(resource.RLIMIT_AS)
         resource.setrlimit(resource.RLIMIT_AS, (args.max_memory * 1024 * 1024, hard))
-    log.debug('Parsing domain ...')
     total_wall_time_start = time.perf_counter()
     total_cpu_time_start = time.process_time()
     total_solve_cpu_time = 0
     best_solve_cpu_time = 0
     best_solve_wall_time = 0
+    log.info('Parsing domain ...')
     domain = pddl.parse_domain(args.domain_file)
+    log.info('Parsing problems ...')
+    problems = []
+    for f in tqdm.tqdm(args.problem_file, disable=None):
+        problems.append(pddl.parse_problem(f))
     log.info('Starting policy generation for domain {}'.format(domain.name))
-    log.debug('Parsing problems ...')
-    problems = [pddl.parse_problem(f) for f in args.problem_file]
     policy = Policy({}, {})
     solver_problems = []
     last_complexity = args.min_complexity
