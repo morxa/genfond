@@ -209,6 +209,8 @@ def main():
     log.info('Policy solves {} out of {} problems, unsolved: {}'.format(
         len(succs), len(problems), pnames([p for p in problems if p not in succs])))
     log.info('Final policy: {}'.format(policy))
+    with open(args.output, 'wb') as f:
+        pickle.dump(policy, f)
     total_wall_time_end = time.perf_counter()
     total_cpu_time_end = time.process_time()
     log.info('Total wall time: {:.2f}s'.format(total_wall_time_end - total_wall_time_start))
