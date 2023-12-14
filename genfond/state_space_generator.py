@@ -111,30 +111,9 @@ class StateSpaceGraph:
                         if check_formula(new_node.state, problem.goal):
                             new_node.alive = Alive.ALIVE
                         queue.append(new_node)
-        self.compute_distances()
         compute_alive(self.nodes.values())
         assert all(node.alive != Alive.UNKNOWN for node in self.nodes.values())
         assert self.root.alive == Alive.ALIVE, 'Problem {} is unsolvable'.format(problem.name)
-
-    def compute_distances(self):
-        parents = {node: set() for node in self.nodes.values()}
-        for node in self.nodes.values():
-            for action, children in node.children.items():
-                for child in children:
-                    parents[child].add(node)
-        for node in self.nodes.values():
-            node.distance = len(self.nodes)
-        goal_nodes = [node for node in self.nodes.values() if check_formula(node.state, self.problem.goal)]
-        for node in goal_nodes:
-            node.distance = 0
-        queue = goal_nodes
-        while queue:
-            node = queue.pop()
-            for parent in parents[node]:
-                if parent.distance is None or parent.distance > node.distance + 1:
-                    parent.distance = node.distance + 1
-                    queue.append(parent)
-        assert all(node.distance is not None for node in self.nodes.values())
 
     def add_node(self, state, parent_state, action):
         parent = self.nodes[parent_state]
