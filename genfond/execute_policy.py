@@ -27,7 +27,11 @@ def _feature_eval_to_cond(feature_str, feature_eval):
 
 
 def eval_state(instance, mapping, features, state, goal_state):
-    fstate = State(instance, [mapping[predicate] for predicate in state | goal_state])
+    try:
+        fstate = State(instance, [mapping[predicate] for predicate in state | goal_state])
+    except KeyError as e:
+        log.critical(f'Cannot find predicate in mapping {mapping}: {e}')
+        raise
     feature_eval = dict()
     for fstring, feature in features.items():
         feature_eval[fstring] = feature.evaluate(fstate)
@@ -107,6 +111,7 @@ def execute_policy(domain, problem, policy, max_steps=0):
     state = problem.init
     num_steps = 0
     while not check_formula(state, problem.goal) and (max_steps <= 0 or num_steps < max_steps):
+        log.info(f'New state: {",".join([str(p) for p in state])}')
         feature_eval = eval_state(instance, mapping, features, state, goal_state)
         bool_feature_eval = bool_eval_state(instance, mapping, features, state, goal_state)
         enabled_rules = {rule for rule in policy.rules if state_satisfies_rule_conds(bool_feature_eval, rule.conds)}
@@ -126,16 +131,15 @@ def execute_policy(domain, problem, policy, max_steps=0):
             succs_evals = [eval_state(instance, mapping, features, succ, goal_state) for succ in succs]
             log.debug(f'succs_evals: {succs_evals}')
             succs_diffs = {eval_state_diff(feature_eval, succ_eval) for succ_eval in succs_evals}
-            log.debug(f'succs_diffs: {succs_diffs}')
+            log.debug(f'succs_diffs:\n{"\n".join([", ".join([str(d) for d in ds]) for ds in succs_diffs])}')
             for rule in enabled_rules:
                 log.debug(f'Checking rule {rule}')
                 if rule.effs == succs_diffs:
                     found_rule = True
-                    log.debug(f'Found matching rule: {rule}')
+                    log.info(f'Found matching rule:\n{rule}')
                     log.info(f'Applying action {action_string(action)}')
                     state = get_next_state(succs, action)
                     num_steps += 1
-                    log.info(f'New state: {",".join([str(p) for p in state])}')
                     break
             if found_rule:
                 break
