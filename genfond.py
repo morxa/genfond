@@ -93,9 +93,7 @@ def main():
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO,
                         format='%(asctime)s %(levelname)-8s %(message)s')
     if not args.verbose:
-        logging.getLogger('genfond').setLevel(logging.CRITICAL)
-        logging.getLogger('genfond.policy').setLevel(logging.INFO)
-        logging.getLogger('genfond.solver').setLevel(logging.INFO)
+        logging.getLogger('genfond.execute_policy').setLevel(logging.CRITICAL)
     signal.signal(signal.SIGINT, signal_handler)
     if args.max_memory:
         _, hard = resource.getrlimit(resource.RLIMIT_AS)
@@ -200,6 +198,7 @@ def main():
             solver_problems.pop()
             continue
     succs = verified
+    log.info('Verifying policy ...')
     for problem in tqdm.tqdm([p for p in problems if p not in verified], disable=None):
         try:
             for _ in tqdm.trange(args.policy_iterations, leave=False, disable=None):
@@ -217,7 +216,6 @@ def main():
     log.info('Best policy solver wall time: {:.2f}s'.format(best_solve_wall_time))
     log.info('Total solver CPU time: {:.2f}s'.format(total_solve_cpu_time))
     log.info('Total CPU time: {:.2f}s'.format(total_cpu_time_end - total_cpu_time_start))
-    log.info('Verifying policy ...')
     if len(succs) == len(problems):
         sys.exit(0)
     else:
