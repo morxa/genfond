@@ -11,6 +11,7 @@ dlplan = {ref = "silent-logger", git = "https://github.com/morxa/dlplan"}
 clingo = "*"
 pygraphviz = "*"
 tqdm = "*"
+setuptools = "*"
 
 [dev-packages]
 

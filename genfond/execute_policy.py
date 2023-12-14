@@ -28,7 +28,7 @@ def _feature_eval_to_cond(feature_str, feature_eval):
 
 def eval_state(instance, mapping, features, state, goal_state):
     try:
-        fstate = State(instance, [mapping[predicate] for predicate in state | goal_state])
+        fstate = State(-1, instance, [mapping[predicate] for predicate in state | goal_state])
     except KeyError as e:
         log.critical(f'Cannot find predicate in mapping {mapping}: {e}')
         raise
@@ -94,7 +94,7 @@ def execute_policy(domain, problem, policy, max_steps=0):
         f'Executing policy:\n{policy}\nin {domain.name} for problem {problem.name} with features {policy.features}')
     vocabulary = construct_vocabulary_info(domain)
     factory = SyntacticElementFactory(vocabulary)
-    instance, mapping = construct_instance_info(vocabulary, domain, problem)
+    instance, mapping = construct_instance_info(vocabulary, domain, problem, 0)
     features = dict()
     for feature in policy.features:
         if feature.startswith("b_"):

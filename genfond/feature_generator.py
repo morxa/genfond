@@ -28,8 +28,8 @@ def _get_state_from_goal(goal_formula):
     return goal_state
 
 
-def construct_instance_info(vocabulary, domain, problem):
-    instance = InstanceInfo(vocabulary)
+def construct_instance_info(vocabulary, domain, problem, problem_id):
+    instance = InstanceInfo(problem_id, vocabulary)
     map = dict()
     for object in problem.objects:
         instance.add_object(object.name)
@@ -51,7 +51,8 @@ class FeaturePool:
         self.state_graphs = dict()
         self.goal_states = dict()
         for problem in problems:
-            instance, mapping = construct_instance_info(vocabulary, domain, problem)
+            instance, mapping = construct_instance_info(vocabulary, domain, problem,
+                                                        self.problem_name_to_id[problem.name])
             self.state_graphs[problem.name] = generate_state_space(domain, problem)
             self.goal_states[problem.name] = _get_state_from_goal(problem.goal)
             pddl_states = {
@@ -59,7 +60,7 @@ class FeaturePool:
                 for node in self.state_graphs[problem.name].nodes.values()
             }
             self.states[problem.name] = {
-                state: State(instance, [mapping[predicate] for predicate in state])
+                state: State(-1, instance, [mapping[predicate] for predicate in state])
                 for state in pddl_states
             }
         factory = SyntacticElementFactory(vocabulary)
@@ -74,7 +75,7 @@ class FeaturePool:
                 feature = factory.parse_numerical(str_feature)
             else:
                 continue
-            self.features[feature.compute_repr()] = feature
+            self.features[str(feature)] = feature
 
     def evaluate_feature(self, feature, state):
         # Try to guess which problem the state belongs to.
