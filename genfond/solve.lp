@@ -55,3 +55,6 @@ rank(I, S, delta*M+1) :- state(I, S), not alive(I, S), num_states(I, M).
 
 #program limit_feature_cost(c).
 :- #sum { C,F : selected(F), feature_complexity(F, C) } > c.
+
+#program min_feature_complexity(c).
+:- C < c : selected(F), feature_complexity(F, C).

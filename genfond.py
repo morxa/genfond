@@ -17,7 +17,14 @@ import itertools
 log = logging.getLogger(__name__)
 
 
-def solve(domain, problems, num_threads, complexity, use_new_solver=False, max_cost=None, all_generators=True):
+def solve(domain,
+          problems,
+          num_threads,
+          complexity,
+          use_new_solver=False,
+          max_cost=None,
+          all_generators=True,
+          min_feature_complexity=None):
     feature_pool = FeaturePool(domain, problems, complexity, all_generators=all_generators)
     asp_instance = feature_pool.to_clingo()
     sg_sizes = [len(sg.nodes) for sg in feature_pool.state_graphs.values()]
@@ -28,6 +35,7 @@ def solve(domain, problems, num_threads, complexity, use_new_solver=False, max_c
     solver = Solver(asp_instance,
                     num_threads,
                     max_cost=max_cost,
+                    min_feature_complexity=min_feature_complexity,
                     solve_prog='solve_new.lp' if use_new_solver else 'solve.lp')
     if not solver.solve():
         log.info('No solution found')
@@ -132,7 +140,8 @@ def main():
                                  i,
                                  args.new_solver,
                                  all_generators=all_generators,
-                                 max_cost=new_policy.cost[0] - 1 if new_policy else None)
+                                 max_cost=new_policy.cost[0] - 1 if new_policy else None,
+                                 min_feature_complexity=i if new_policy else None)
             except (RuntimeError, MemoryError) as e:
                 log.warning(
                     f'Error during policy generation for {pnames(solver_problems)} with max complexity {i}: {e}')

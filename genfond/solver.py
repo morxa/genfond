@@ -19,7 +19,7 @@ def convert_arg(symbol):
 
 class Solver:
 
-    def __init__(self, asp_code, num_threads=None, solve_prog='solve.lp', max_cost=None):
+    def __init__(self, asp_code, num_threads=None, solve_prog='solve.lp', max_cost=None, min_feature_complexity=None):
         self.asp_code = asp_code
         self.control = clingo.Control()
         self.control.load(os.path.join(os.path.dirname(__file__), solve_prog))
@@ -27,6 +27,8 @@ class Solver:
         parts = [("base", []), ("instances", [])]
         if max_cost:
             parts.append(("limit_feature_cost", [clingo.Number(max_cost)]))
+        if min_feature_complexity:
+            parts.append(("min_feature_complexity", [clingo.Number(min_feature_complexity)]))
         self.control.ground(parts)
         self.control.configuration.solve.parallel_mode = num_threads or os.cpu_count()
         self.solution = None
