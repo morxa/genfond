@@ -117,7 +117,7 @@ def execute_policy(domain, problem, policy, max_steps=0):
         found_rule = False
         log.debug('Enabled actions: {}'.format(", ".join(
             [action_string(a) for a in grounded_actions if check_formula(state, a.precondition)])))
-        for action in grounded_actions:
+        for action in sorted(grounded_actions, key=lambda _: random.random()):
             if not check_formula(state, action.precondition):
                 continue
             succs = apply_action_effects(state, action)
