@@ -13,6 +13,7 @@ import time
 import signal
 import os
 import itertools
+import resource
 
 log = logging.getLogger(__name__)
 
@@ -222,6 +223,8 @@ def main():
     log.info('Best policy solver wall time: {:.2f}s'.format(best_solve_wall_time))
     log.info('Total solver CPU time: {:.2f}s'.format(total_solve_cpu_time))
     log.info('Total CPU time: {:.2f}s'.format(total_cpu_time_end - total_cpu_time_start))
+    mem_usage = (resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * resource.getpagesize()) / 1024**2
+    log.info('Total memory usage: {:.2f}MB'.format(mem_usage))
     if len(succs) == len(problems):
         sys.exit(0)
     else:
