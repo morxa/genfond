@@ -1,8 +1,8 @@
 
-trans_delta(I, S1, A, S2, F, D) :- trans(I, S1, A, S2), selected(F), eval(I, S1, F, V1), eval(I, S2, F, V2), D=(-1;0;1), D = -1 : V2 < V1; D = 0 : V2 = V1; D = 1 : V2 > V1.
+trans_delta(I, S1, A, S2, F, D) :- trans(I, S1, A, S2), eval(I, S1, F, V1), eval(I, S2, F, V2), D=(-1;0;1), D = -1 : V2 < V1; D = 0 : V2 = V1; D = 1 : V2 > V1.
 trans_delta(I, S1, S2, F, D) :- trans_delta(I, S1, _, S2, F, D).
 
-good_trans_delta(I, S1, S2, F, D) :- good_trans(I, S1, S2), trans_delta(I, S1, S2, F, D).
+good_trans_delta(I, S1, S2, F, D) :- good_trans(I, S1, S2), selected(F), trans_delta(I, S1, S2, F, D).
 
 % Select good actions among the possible transition.
 % Select at least one for each alive non-goal state.
@@ -26,7 +26,7 @@ bool_equiv(I1, S1, I2, S2) :- state(I1, S1), state(I2, S2), bool_eval(I1, S1, F,
 %repr(I1, S1) :- state(I1, S1), not equiv(I1, S1, I2, S2) : state(I2, S2), (I2, S2) < (I1, S1).
 bool_repr(I1, S1) :- state(I1, S1), not bool_equiv(I1, S1, I2, S2) : state(I2, S2), (I2, S2) < (I1, S1).
 % For two alive and boolean-equivalent states S11 and S21, if A1 is a good action in S11 but A2 is not good in S21, then there must be a transition that distinguishes the two actions.
-:- alive(I1, S11), alive(I2, S21), bool_equiv(I1, S11, I2, S21), good_action(I1, S11, A1), trans(I2, S21,  A2, _), not good_action(I2, S21, A2), trans_delta(I1, S11, A1, S12, F, C) : trans_delta(I2, S21, A2, S22, F, C); trans_delta(I2, S21, A2, S22, F, C) : trans_delta(I1, S11, A1, S12, F, C).
+:- alive(I1, S11), alive(I2, S21), bool_equiv(I1, S11, I2, S21), good_action(I1, S11, A1), trans(I2, S21,  A2, _), not good_action(I2, S21, A2), trans_delta(I1, S11, A1, S12, F, C) : trans_delta(I2, S21, A2, S22, F, C), selected(F); trans_delta(I2, S21, A2, S22, F, C) : trans_delta(I1, S11, A1, S12, F, C), selected(F).
 % Equivalence must distinguish between goal and non-goal states.
 :- bool_equiv(I1, S1, I2, S2), goal(I1, S1), not goal(I2, S2).
 
@@ -49,7 +49,7 @@ rank(I, S, delta*M+1) :- state(I, S), not alive(I, S), num_states(I, M).
 #show selected/1.
 #show state/2.
 #show bool_eval(I, S, F, V) : bool_eval(I, S, F, V), selected(F).
-#show trans_delta/5.
+%#show trans_delta/5.
 #show good_trans_delta/5.
 #show rank/3.
 
