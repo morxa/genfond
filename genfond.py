@@ -187,6 +187,9 @@ def main():
                 best_solve_cpu_time = solve_cpu_time
         if new_policy:
             policy = new_policy
+            if args.output:
+                with open(args.output, 'wb') as f:
+                    pickle.dump(policy, f)
             # Re-add previously verified problems  to queue if not part of the solver set
             queue += [p for p in verified if p not in solver_problems]
             verified = solver_problems.copy()
