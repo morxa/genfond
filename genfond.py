@@ -90,6 +90,7 @@ def main():
     parser.add_argument('--new-solver', action='store_true', help='use new solver')
     parser.add_argument('--dump-failed-policies', action='store_true', help='dump failed policies to file')
     parser.add_argument('--keep-going', action='store_true', help='keep going after one training problem failed')
+    parser.add_argument('--continue-after-error', action='store_true', help='continue after error in policy execution')
     args = parser.parse_args()
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO,
                         format='%(asctime)s %(levelname)-8s %(message)s')
@@ -180,7 +181,8 @@ def main():
                         with open(f'failed_policy-{h}.pickle', 'wb') as f:
                             pickle.dump(i_policy, f)
                         log.critical(f'Dumped failed policy to failed_policy-{h}.pickle')
-                    sys.exit(1)
+                    if not args.continue_after_error:
+                        sys.exit(1)
                     continue
                 last_complexity = i
                 new_policy = i_policy
