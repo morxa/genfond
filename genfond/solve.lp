@@ -30,18 +30,10 @@ bool_repr(I1, S1) :- state(I1, S1), not bool_equiv(I1, S1, I2, S2) : state(I2, S
 % Equivalence must distinguish between goal and non-goal states.
 :- bool_equiv(I1, S1, I2, S2), goal(I1, S1), not goal(I2, S2).
 
-% Count the number of states.
-num_states(I, N) :- state(I, _), N = #count { S : state(I, S) }.
-
-#const delta = 1.
-% Assign a rank to each state between 0 and delta*<num_states>.
-{ rank(I, S, N) :  N=0..delta*M } = 1 :- num_states(I, M), state(I, S), not goal(I, S), alive(I, S).
-rank(I, S, 0) :- goal(I, S).
-rank(I, S, delta*M+1) :- state(I, S), not alive(I, S), num_states(I, M).
-% Goals must have rank 0.
-:- goal(I, S), rank(I, S, N), N > 0.
-% For every alive state, there must be one good transition that decreases the rank.
-:- state(I, S), alive(I, S), not goal(I, S), rank(I, S, N), good_action(I, S, A), N <= N2 : good_trans(I, S, A, S2), rank(I, S2, N2).
+safe_state(I, S) :- goal(I, S).
+safe_action(I, S, A) :- trans(I, S, A, S2), safe_state(I, S2).
+safe_state(I, S) :- alive(I, S), safe_action(I, S, A) : good_action(I, S, A).
+:- alive(I, S), not safe_state(I, S).
 
 #minimize { C@3,F : selected(F), feature_complexity(F, C) }.
 
@@ -51,7 +43,7 @@ rank(I, S, delta*M+1) :- state(I, S), not alive(I, S), num_states(I, M).
 #show bool_eval(I, S, F, V) : bool_eval(I, S, F, V), selected(F).
 %#show trans_delta/5.
 #show good_trans_delta/5.
-#show rank/3.
+%#show rank/3.
 
 #program limit_feature_cost(c).
 :- #sum { C,F : selected(F), feature_complexity(F, C) } > c.
