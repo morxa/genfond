@@ -5,6 +5,9 @@ from pddl.action import Action
 from pddl.core import Domain, Problem
 from pddl.requirements import Requirements
 from pddl.logic import Predicate, constants, variables
+import logging
+
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)-8s %(message)s')
 
 
 @pytest.fixture

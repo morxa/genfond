@@ -3,6 +3,7 @@ trans_delta(I, S1, A, S2, F, D) :- trans(I, S1, A, S2), eval(I, S1, F, V1), eval
 trans_delta(I, S1, S2, F, D) :- trans_delta(I, S1, _, S2, F, D).
 
 good_trans_delta(I, S1, S2, F, D) :- good_trans(I, S1, S2), selected(F), trans_delta(I, S1, S2, F, D).
+bad_trans_delta(I, S1, S2, F, D) :- bad_trans(I, S1, S2), selected(F), trans_delta(I, S1, S2, F, D).
 
 % Select good actions among the possible transition.
 % Select at least one for each alive non-goal state.
@@ -48,6 +49,7 @@ bad_trans(I, S1, S2) :- bad_trans(I, S1, _, S2).
 #show bool_eval(I, S, F, V) : bool_eval(I, S, F, V), selected(F).
 #show trans_delta(I, S1, S2, F, D) : trans_delta(I, S1, A, S2, F, D), selected(F).
 #show good_trans_delta/5.
+#show bad_trans_delta/5.
 %#show rank/3.
 
 #program limit_feature_cost(c).
