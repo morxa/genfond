@@ -41,9 +41,9 @@ safe_state(I, S) :- alive(I, S), safe_action(I, S, A) : good_action(I, S, A).
 #show selected/1.
 #show state/2.
 #show bool_eval(I, S, F, V) : bool_eval(I, S, F, V), selected(F).
-%#show trans_delta/5.
+#show bool_repr/2.
+#show trans_delta(I, S1, S2, F, D) : trans_delta(I, S1, A, S2, F, D), selected(F).
 #show good_trans_delta/5.
-%#show rank/3.
 
 #program limit_feature_cost(c).
 :- #sum { C,F : selected(F), feature_complexity(F, C) } > c.
