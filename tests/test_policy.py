@@ -35,7 +35,7 @@ def test_policy_simplify_two_different_conditions():
     assert policy.rules == orig_policy.rules
 
 
-def test_policy_simplify_subset2():
+def test_policy_simplify_subset():
     policy = Policy({'b_f', 'b_g', 'n_h'}, {
         PolicyRule({
             'b_f': Cond.TRUE,
