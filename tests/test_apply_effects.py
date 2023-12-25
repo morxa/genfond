@@ -41,5 +41,5 @@ def test_apply_effects_fond_blocks(fond_blocks):
 def test_apply_effects_goal_state(simple_blocks):
     domain, problem = simple_blocks
     goal_states = apply_effects(set([frozenset()]), problem.goal)
-    a, b = constants('a b')
-    assert goal_states == {frozenset([Predicate('on', b, a)])}
+    a, b, c = constants('a b c')
+    assert goal_states == {frozenset([Predicate('on', a, c)])}

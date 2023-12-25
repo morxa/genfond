@@ -16,8 +16,13 @@ def simple_blocks():
     pick = Action('pick', parameters=[x, y], precondition=on(x, y), effect=holding(x) & ~on(x, y))
     put = Action('put', parameters=[x, y], precondition=holding(x), effect=on(x, y) & ~holding(x))
     domain = Domain('simple-blocks', requirements=requirements, predicates=[on, holding], actions=[pick, put])
-    a, b = constants('a b')
-    problem = Problem('p1', domain=domain, requirements=requirements, objects=[a, b], init=[on(a, b)], goal=on(b, a))
+    a, b, c = constants('a b c')
+    problem = Problem('p1',
+                      domain=domain,
+                      requirements=requirements,
+                      objects=[a, b, c],
+                      init=[on(a, b)],
+                      goal=on(a, c))
     return domain, problem
 
 

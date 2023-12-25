@@ -12,19 +12,32 @@ from helpers import get_action
 
 def test_ground_simple(simple_blocks):
     domain, problem = simple_blocks
-    a, b = constants('a b')
+    a, b, c = constants('a b c')
     x, y = variables('x y')
     on = Predicate('on', x, y)
     holding = Predicate('holding', x)
     ground_actions = ground(domain, problem)
-    assert len(ground_actions) == 8
+    assert len(ground_actions) == 18
     assert all(isinstance(action, Action) for action in ground_actions)
     assert all(action.name in ('pick', 'put') for action in ground_actions)
     assert all(len(action.parameters) == 2 for action in ground_actions)
     assert any(action.parameters == (a, a) for action in ground_actions)
-    assert all(all(p in (a, b) for p in action.parameters) for action in ground_actions)
-    assert all(action.precondition in (on(a, a), on(a, b), on(b, a), on(b, b), holding(a), holding(b))
-               for action in ground_actions)
+    assert all(all(p in (a, b, c) for p in action.parameters) for action in ground_actions)
+    assert {action.precondition
+            for action in ground_actions} == {
+                on(a, a),
+                on(a, b),
+                on(a, c),
+                on(b, a),
+                on(b, b),
+                on(b, c),
+                on(c, a),
+                on(c, b),
+                on(c, c),
+                holding(a),
+                holding(b),
+                holding(c)
+            }
     ab_pick = get_action(ground_actions, 'pick', (a, b))
     assert ab_pick.precondition == on(a, b)
     assert ab_pick.effect == holding(a) & ~on(a, b)
@@ -56,15 +69,21 @@ def test_ground_blocksworld(fond_blocks):
 def test_ground_predicates(simple_blocks):
     domain, problem = simple_blocks
     ground_predicates = ground_domain_predicates(domain, problem)
-    assert len(ground_predicates) == 6
-    a, b = constants('a b')
+    assert len(ground_predicates) == 12
+    a, b, c = constants('a b c')
     assert ground_predicates == {
         Predicate('on', a, a),
         Predicate('on', a, b),
+        Predicate('on', a, c),
         Predicate('on', b, a),
         Predicate('on', b, b),
+        Predicate('on', b, c),
+        Predicate('on', c, a),
+        Predicate('on', c, b),
+        Predicate('on', c, c),
         Predicate('holding', a),
-        Predicate('holding', b)
+        Predicate('holding', b),
+        Predicate('holding', c),
     }
 
 
