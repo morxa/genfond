@@ -1,4 +1,4 @@
-from .policy import Cond, Effect
+from .policy import Cond, Effect, PolicyType
 from .feature_generator import construct_vocabulary_info, construct_instance_info, _get_state_from_goal
 from .ground import ground
 from dlplan.core import SyntacticElementFactory, State
@@ -116,6 +116,11 @@ def execute_policy(domain, problem, policy, max_steps=0):
         bool_feature_eval = bool_eval_state(instance, mapping, features, state, goal_state)
         enabled_rules = {rule for rule in policy.rules if state_satisfies_rule_conds(bool_feature_eval, rule.conds)}
         log.debug('Enabled rules: {}'.format(",  ".join([str(r) for r in enabled_rules])))
+        enabled_constraints = {
+            constraint
+            for constraint in policy.constraints if state_satisfies_rule_conds(bool_feature_eval, constraint.conds)
+        }
+        log.debug('Enabled constraints: {}'.format(",  ".join([str(c) for c in enabled_constraints])))
         if not enabled_rules:
             log.error("No rule enabled!")
             raise RuntimeError("No rule enabled!")
@@ -132,9 +137,17 @@ def execute_policy(domain, problem, policy, max_steps=0):
             log.debug(f'succs_evals: {succs_evals}')
             succs_diffs = {eval_state_diff(feature_eval, succ_eval) for succ_eval in succs_evals}
             log.debug(f'succs_diffs:\n{"\n".join([", ".join([str(d) for d in ds]) for ds in succs_diffs])}')
+            ok = True
+            for constraint in enabled_constraints:
+                if constraint.effs in succs_diffs:
+                    log.info(f'Constraint {constraint} violated!')
+                    ok = False
+                    break
+            if not ok:
+                continue
             for rule in enabled_rules:
                 log.debug(f'Checking rule {rule}')
-                if rule.effs == succs_diffs:
+                if rule.effs == succs_diffs or policy.type == PolicyType.CONSTRAINED and rule.effs <= succs_diffs:
                     found_rule = True
                     log.info(f'Found matching rule:\n{rule}')
                     log.info(f'Applying action {action_string(action)}')
