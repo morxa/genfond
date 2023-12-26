@@ -74,6 +74,7 @@ def main():
     parser.add_argument('--draw-input', help='Output path for drawing the input state graph')
     parser.add_argument('-v', '--verbose', action='store_true')
     parser.add_argument('-c', '--complexity', type=int, default=5, help='max complexity of the used features')
+    parser.add_argument('--relax', action='store_true', help='use solver based on deterministic relaxation')
     parser.add_argument('-n',
                         '--num-threads',
                         type=int,
@@ -102,7 +103,7 @@ def main():
             with open(args.program_file, 'w') as f:
                 f.write(asp_instance)
         log.info(f'Starting solver for domain {domain.name} and problems {", ".join([p.name for p in problems])}')
-        solver = Solver(asp_instance, args.num_threads)
+        solver = Solver(asp_instance, args.num_threads, solve_prog='solve_relax.lp' if args.relax else 'solve.lp')
         solver.solve()
         solution = solver.solution
         if args.dump:
