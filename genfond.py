@@ -1,7 +1,7 @@
 import argparse
 from genfond.feature_generator import FeaturePool
 from genfond.solver import Solver
-from genfond.policy import Policy, generate_policy
+from genfond.policy import Policy, generate_policy, PolicyType
 from genfond.execute_policy import execute_policy
 import logging
 import sys
@@ -22,7 +22,7 @@ def solve(domain,
           problems,
           num_threads,
           complexity,
-          use_new_solver=False,
+          use_relax_solver=False,
           max_cost=None,
           all_generators=True,
           enforce_highest_complexity=False):
@@ -42,12 +42,12 @@ def solve(domain,
                     num_threads,
                     max_cost=max_cost,
                     min_feature_complexity=complexity if enforce_highest_complexity else None,
-                    solve_prog='solve_new.lp' if use_new_solver else 'solve.lp')
+                    solve_prog='solve_relax.lp' if use_relax_solver else 'solve.lp')
     if not solver.solve():
         log.info('No solution found')
         return None
     solution = solver.solution
-    policy = generate_policy(solution)
+    policy = generate_policy(solution, policy_type=PolicyType.CONSTRAINED if use_relax_solver else PolicyType.EXACT)
     return policy
 
 
@@ -87,7 +87,7 @@ def main():
                         default=None,
                         help='number of threads to use; "None" uses all available threads')
     parser.add_argument('--max-memory', type=int, default=None, help='maximum memory to use in MB')
-    parser.add_argument('--new-solver', action='store_true', help='use new solver')
+    parser.add_argument('--relax', action='store_true', help='use solver based on deterministic relaxation')
     parser.add_argument('--dump-failed-policies', action='store_true', help='dump failed policies to file')
     parser.add_argument('--keep-going', action='store_true', help='keep going after one training problem failed')
     parser.add_argument('--continue-after-error', action='store_true', help='continue after error in policy execution')
@@ -144,7 +144,7 @@ def main():
                     solver_problems,
                     args.num_threads,
                     i,
-                    args.new_solver,
+                    args.relax,
                     all_generators=all_generators,
                     max_cost=new_policy.cost[0] - 1 if new_policy else None,
                     enforce_highest_complexity=True if i > last_complexity else False,
