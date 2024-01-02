@@ -126,11 +126,11 @@ class Policy:
         pruned_rules = set()
         for r1, r2 in itertools.combinations(self.rules, 2):
             if r1.effs == r2.effs:
-                if r1.conds.keys() < r2.conds.keys():
+                if r1.conds.keys() < r2.conds.keys() and all([r2.conds[k] == v for k, v in r1.conds.items()]):
                     # One condition is a subset of the other, keep the less restrictive one
                     pruned_rules.add(r2)
                     continue
-                elif r1.conds.keys() > r2.conds.keys():
+                elif r1.conds.keys() > r2.conds.keys() and all([r1.conds[k] == v for k, v in r2.conds.items()]):
                     # One condition is a subset of the other, keep the less restrictive one
                     pruned_rules.add(r1)
                     continue

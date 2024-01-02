@@ -63,6 +63,28 @@ def test_policy_simplify_subset2():
     assert policy.rules == {PolicyRule({'b_f': Cond.TRUE}, [[('n_h', Effect.INCREASE)]])}
 
 
+def test_policy_simplify_mismatching_subset():
+    policy = Policy({'b_f', 'b_g', 'n_h'}, {
+        PolicyRule({
+            'b_f': Cond.TRUE,
+            'b_g': Cond.TRUE,
+        }, [[('n_h', Effect.INCREASE)]]),
+        PolicyRule({
+            'b_f': Cond.FALSE,
+        }, [[('n_h', Effect.INCREASE)]])
+    })
+    policy.simplify()
+    assert policy.rules == {
+        PolicyRule({
+            'b_f': Cond.TRUE,
+            'b_g': Cond.TRUE,
+        }, [[('n_h', Effect.INCREASE)]]),
+        PolicyRule({
+            'b_f': Cond.FALSE,
+        }, [[('n_h', Effect.INCREASE)]])
+    }
+
+
 def test_policy_simplify_mismatching_keys():
     policy = Policy({'b_f', 'b_g', 'n_h'}, {
         PolicyRule({
