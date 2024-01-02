@@ -14,6 +14,8 @@ import signal
 import os
 import itertools
 import resource
+from filelock import FileLock
+import csv
 
 log = logging.getLogger(__name__)
 
@@ -64,6 +66,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('domain_file')
     parser.add_argument('problem_file', nargs='*')
+    parser.add_argument('--name', help='Name of the problem set (default: domain name)')
     parser.add_argument('--output', '-o', help='Output file for the resulting policy (as pickle dump)')
     parser.add_argument('-v', '--verbose', action='store_true')
     parser.add_argument('--min-complexity', type=int, default=2, help='start policy search with this max complexity')
@@ -91,6 +94,7 @@ def main():
     parser.add_argument('--dump-failed-policies', action='store_true', help='dump failed policies to file')
     parser.add_argument('--keep-going', action='store_true', help='keep going after one training problem failed')
     parser.add_argument('--continue-after-error', action='store_true', help='continue after error in policy execution')
+    parser.add_argument('--stats', help='file to dump stats to')
     args = parser.parse_args()
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO,
                         format='%(asctime)s %(levelname)-8s %(message)s')
@@ -111,7 +115,8 @@ def main():
     problems = []
     for f in tqdm.tqdm(args.problem_file, disable=None):
         problems.append(pddl.parse_problem(f))
-    log.info('Starting policy generation for domain {}'.format(domain.name))
+    name = args.name if args.name else domain.name
+    log.info('Starting policy generation for domain {}'.format(name))
     policy = Policy({}, {})
     solver_problems = []
     last_complexity = args.min_complexity
@@ -218,15 +223,41 @@ def main():
     if args.output:
         with open(args.output, 'wb') as f:
             pickle.dump(policy, f)
-    total_wall_time_end = time.perf_counter()
-    total_cpu_time_end = time.process_time()
-    log.info('Total wall time: {:.2f}s'.format(total_wall_time_end - total_wall_time_start))
+    total_wall_time = time.perf_counter() - total_wall_time_start
+    total_cpu_time = time.process_time() - total_cpu_time_start
     mem_usage = (resource.getrusage(resource.RUSAGE_SELF).ru_maxrss) / 1024
+    stats = {
+        'domain': name,
+        'total_wall_time': total_wall_time,
+        'total_cpu_time': total_cpu_time,
+        'best_solve_cpu_time': best_solve_cpu_time,
+        'best_solve_wall_time': best_solve_wall_time,
+        'total_solve_cpu_time': total_solve_cpu_time,
+        'problems': len(problems),
+        'solved': len(succs),
+        'train_problems': len(solver_problems),
+        'max_train_problem_size': max(len(p.objects) for p in solver_problems),
+        'max_problem_size': max(len(p.objects) for p in problems),
+        'mem_usage': mem_usage,
+        'num_features': len(policy.features),
+        'max_feature_complexity': last_complexity,
+    }
+
+    log.info('Total wall time: {:.2f}s'.format(total_wall_time))
     log.info('Best policy solver CPU time: {:.2f}s'.format(best_solve_cpu_time))
     log.info('Best policy solver wall time: {:.2f}s'.format(best_solve_wall_time))
     log.info('Total solver CPU time: {:.2f}s'.format(total_solve_cpu_time))
-    log.info('Total CPU time: {:.2f}s'.format(total_cpu_time_end - total_cpu_time_start))
+    log.info('Total CPU time: {:.2f}s'.format(total_cpu_time))
     log.info('Total memory usage: {:.2f}MB'.format(mem_usage))
+    if args.stats:
+        lock = FileLock(args.stats + '.lock')
+        with lock:
+            file_exists = os.path.isfile(args.stats)
+            with open(args.stats, 'a') as f:
+                writer = csv.DictWriter(f, fieldnames=stats.keys())
+                if not file_exists:
+                    writer.writeheader()
+                writer.writerow(stats)
     if len(succs) == len(problems):
         sys.exit(0)
     else:

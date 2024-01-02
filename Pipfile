@@ -12,6 +12,7 @@ clingo = "*"
 pygraphviz = "*"
 tqdm = "*"
 setuptools = "*"
+filelock = "*"
 
 [dev-packages]
 
