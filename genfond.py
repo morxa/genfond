@@ -221,11 +221,11 @@ def main():
     total_wall_time_end = time.perf_counter()
     total_cpu_time_end = time.process_time()
     log.info('Total wall time: {:.2f}s'.format(total_wall_time_end - total_wall_time_start))
+    mem_usage = (resource.getrusage(resource.RUSAGE_SELF).ru_maxrss) / 1024
     log.info('Best policy solver CPU time: {:.2f}s'.format(best_solve_cpu_time))
     log.info('Best policy solver wall time: {:.2f}s'.format(best_solve_wall_time))
     log.info('Total solver CPU time: {:.2f}s'.format(total_solve_cpu_time))
     log.info('Total CPU time: {:.2f}s'.format(total_cpu_time_end - total_cpu_time_start))
-    mem_usage = (resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * resource.getpagesize()) / 1024**2
     log.info('Total memory usage: {:.2f}MB'.format(mem_usage))
     if len(succs) == len(problems):
         sys.exit(0)
