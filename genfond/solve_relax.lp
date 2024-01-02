@@ -40,7 +40,7 @@ safe_state(I, S1) :- alive(I, S1), safe_state(I, S2) : good_trans(I, S1, S2).
 %:- alive(I1, S11), alive(I2, S21), bool_equiv(I1, S11, I2, S21), bad_trans(I, S11, S12), trans(I, S21, _, S22), not bad_trans(I, S21, S22), trans_delta(I, S11, S12, F, D) : trans_delta(I, S21, S22, F, D), selected(F).
 
 crit_state(I, S2) :- alive(I, S1), trans(I, S1, _, S2), not alive(I, S2).
-:- alive(I, S1), crit_state(I, S2), bool_equiv(I, S1, I, S2).
+:- alive(I1, S1), crit_state(I2, S2), bool_equiv(I1, S1, I2, S2).
 
 
 #minimize { C@3,F : selected(F), feature_complexity(F, C) }.
