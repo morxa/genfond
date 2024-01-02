@@ -147,7 +147,7 @@ def execute_policy(domain, problem, policy, max_steps=0):
                 continue
             for rule in enabled_rules:
                 log.debug(f'Checking rule {rule}')
-                if rule.effs == succs_diffs or policy.type == PolicyType.CONSTRAINED and rule.effs <= succs_diffs:
+                if rule.effs == succs_diffs or policy.type == PolicyType.CONSTRAINED and rule.effs & succs_diffs:
                     found_rule = True
                     log.info(f'Found matching rule:\n{rule}')
                     log.info(f'Applying action {action_string(action)}')
