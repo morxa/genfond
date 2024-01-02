@@ -122,6 +122,10 @@ class Policy:
                                                                                 for rule in self.rules})))
 
     def simplify(self):
+        self.simplify_rules()
+        self.simplify_state_constraints()
+
+    def simplify_rules(self):
         new_rules = set()
         pruned_rules = set()
         for r1, r2 in itertools.combinations(self.rules, 2):
@@ -157,7 +161,43 @@ class Policy:
         new_rules |= self.rules - pruned_rules
         if new_rules != self.rules:
             self.rules = new_rules
-            self.simplify()
+            self.simplify_rules()
+
+    def simplify_state_constraints(self):
+        new_constraints = set()
+        pruned_constraints = set()
+        for sc1, sc2 in itertools.combinations(self.state_constraints, 2):
+            c1 = sc1.conds
+            c2 = sc2.conds
+            if c1.keys() < c2.keys() and all([c2[k] == v for k, v in c1.items()]):
+                # One condition is a subset of the other, keep the less restrictive one
+                pruned_constraints.add(sc2)
+                continue
+            elif c1.keys() > c2.keys() and all([c1[k] == v for k, v in c2.items()]):
+                # One condition is a subset of the other, keep the less restrictive one
+                pruned_constraints.add(sc1)
+                continue
+            if c1.keys() ^ c2.keys():
+                # The conditions have different keys but neither is a subset of the other,
+                # this can not be simplified.
+                continue
+            diff = set()
+            for k in c1:
+                if c1[k] != c2[k]:
+                    diff.add(k)
+            if len(diff) != 1:
+                continue
+            # The conditions have the same keys and only one is different,
+            # merge by dropping the condition with the different value
+            new_conds = dict()
+            for k, v in c1.items():
+                if k in c2 and c2[k] == v:
+                    new_conds[k] = v
+            new_constraints.add(StateConstraint(new_conds))
+        updated_state_constraints = self.state_constraints - pruned_constraints | new_constraints
+        if updated_state_constraints != self.state_constraints:
+            self.state_constraints = updated_state_constraints
+            self.simplify_state_constraints()
 
 
 def trans_deltas_to_effects(instance, state, trans_deltas):
@@ -265,7 +305,9 @@ def generate_policy(solution, policy_type=PolicyType.EXACT):
                     cost=solution['cost'],
                     constraints=constraints,
                     state_constraints=state_constraints)
-    before_pruning = len(policy.rules)
+    before_pruning_rules = len(policy.rules)
+    before_pruning_state_constraints = len(policy.state_constraints)
     policy.simplify()
-    log.info(f'Pruned {before_pruning - len(policy.rules)} rules')
+    log.info(f'Pruned {before_pruning_rules - len(policy.rules)} rules and '
+             f'{before_pruning_state_constraints - len(policy.state_constraints)} state constraints')
     return policy
