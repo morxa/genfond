@@ -3,7 +3,7 @@ trans_delta(I, S1, A, S2, F, D) :- trans(I, S1, A, S2), eval(I, S1, F, V1), eval
 trans_delta(I, S1, S2, F, D) :- trans_delta(I, S1, _, S2, F, D).
 
 good_trans_delta(I, S1, S2, F, D) :- good_trans(I, S1, S2), selected(F), trans_delta(I, S1, S2, F, D).
-bad_trans_delta(I, S1, S2, F, D) :- bad_trans(I, S1, S2), selected(F), trans_delta(I, S1, S2, F, D).
+%bad_trans_delta(I, S1, S2, F, D) :- bad_trans(I, S1, S2), selected(F), trans_delta(I, S1, S2, F, D).
 
 % Select good actions among the possible transition.
 % Select at least one for each alive non-goal state.
@@ -34,22 +34,26 @@ safe_state(I, S) :- goal(I, S).
 safe_state(I, S1) :- alive(I, S1), safe_state(I, S2) : good_trans(I, S1, S2).
 :- alive(I, S), not safe_state(I, S).
 
-bad_trans(I, S1, A, S2) :- alive(I, S1), trans(I, S1, A, S2), not alive(I, S2).
-bad_trans(I, S1, S2) :- bad_trans(I, S1, _, S2).
-:- good_trans(I, S1, A, _), bad_trans(I, S1, A, _).
-:- alive(I1, S11), alive(I2, S21), bool_equiv(I1, S11, I2, S21), bad_trans(I, S11, S12), trans(I, S21, _, S22), not bad_trans(I, S21, S22), trans_delta(I, S11, S12, F, D) : trans_delta(I, S21, S22, F, D), selected(F).
+%bad_trans(I, S1, A, S2) :- alive(I, S1), trans(I, S1, A, S2), not alive(I, S2).
+%bad_trans(I, S1, S2) :- bad_trans(I, S1, _, S2).
+%:- good_trans(I, S1, A, _), bad_trans(I, S1, A, _).
+%:- alive(I1, S11), alive(I2, S21), bool_equiv(I1, S11, I2, S21), bad_trans(I, S11, S12), trans(I, S21, _, S22), not bad_trans(I, S21, S22), trans_delta(I, S11, S12, F, D) : trans_delta(I, S21, S22, F, D), selected(F).
+
+crit_state(I, S2) :- alive(I, S1), trans(I, S1, _, S2), not alive(I, S2).
+:- alive(I, S1), crit_state(I, S2), bool_equiv(I, S1, I, S2).
 
 
 #minimize { C@3,F : selected(F), feature_complexity(F, C) }.
 
 #show good_trans/3.
-#show bad_trans/3.
+%#show bad_trans/3.
 #show selected/1.
 #show state/2.
+#show crit_state/2.
 #show bool_eval(I, S, F, V) : bool_eval(I, S, F, V), selected(F).
 #show trans_delta(I, S1, S2, F, D) : trans_delta(I, S1, A, S2, F, D), selected(F).
 #show good_trans_delta/5.
-#show bad_trans_delta/5.
+%#show bad_trans_delta/5.
 %#show rank/3.
 
 #program limit_feature_cost(c).

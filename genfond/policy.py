@@ -67,22 +67,52 @@ class PolicyRule:
         return hash(repr(self))
 
 
+class StateConstraint:
+
+    def __init__(self, conds):
+        self.conds = conds
+
+    def __eq__(self, other):
+        return self.conds == other.conds
+
+    def __repr__(self):
+        s_conds = []
+        for feature, val in self.conds.items():
+            if val == Cond.TRUE:
+                s_conds.append(f'{feature}')
+            elif val == Cond.FALSE:
+                s_conds.append(f'¬{feature}')
+            elif val == Cond.POSITIVE:
+                s_conds.append(f'{feature} > 0')
+            elif val == Cond.ZERO:
+                s_conds.append(f'{feature} = 0')
+            else:
+                raise ValueError(f'Unknown feature type {feature}')
+        return f'{{ {" ∧ ".join(sorted(s_conds))} }}'
+
+    def __hash__(self):
+        return hash(repr(self))
+
+
 class Policy:
 
-    def __init__(self, features, rules, cost=None, constraints=None, type=PolicyType.EXACT):
+    def __init__(self, features, rules, cost=None, constraints=None, state_constraints=None, type=PolicyType.EXACT):
         self.type = type
         self.features = frozenset(features)
         self.rules = frozenset(rules)
         self.constraints = constraints or set()
+        self.state_constraints = state_constraints or set()
         self.cost = cost
         assert not constraints or type == PolicyType.CONSTRAINED
 
     def __repr__(self):
         if self.type == PolicyType.CONSTRAINED:
-            return '{} rules and {} constraints with {} features: {}\nRules:\n{}\nConstraints:\n{}'.format(
-                len(self.rules), len(self.constraints), len(self.features), ", ".join(sorted(self.features)),
-                '\n'.join(sorted({repr(rule)
-                                  for rule in self.rules})),
+            return '{} rules, {} constraints, {} state constraints with {} features: {}' \
+            '\nRules:\n{}\nState Constraints:\n{}\nConstraints:\n{}'.format(
+                len(self.rules), len(self.constraints), len(self.state_constraints), len(self.features),
+                ", ".join(sorted(self.features)), '\n'.join(sorted({repr(rule)
+                                                                    for rule in self.rules})),
+                '\n'.join(sorted([repr(c) for c in self.state_constraints])),
                 '\n'.join(sorted({repr(constraint)
                                   for constraint in self.constraints})))
         else:
@@ -163,9 +193,35 @@ def trans_deltas_to_effects(instance, state, trans_deltas):
     return effs
 
 
+def feature_eval_to_cond(feature_str, feature_eval):
+    log.debug(f'eval to cond: {feature_str} -> {feature_eval}')
+    if feature_str.startswith("b_"):
+        if feature_eval:
+            return Cond.TRUE
+        else:
+            return Cond.FALSE
+    elif feature_str.startswith("n_"):
+        if feature_eval > 0:
+            return Cond.POSITIVE
+        else:
+            return Cond.ZERO
+    else:
+        raise ValueError(f'Unknown feature type: {feature_str}')
+
+
+def crit_states_to_constraints(crit_states, bool_eval):
+    constraints = dict()
+    for i, s, f, v in bool_eval:
+        if (i, s) in crit_states:
+            log.debug(f'Adding state constraint {f}={v}')
+            constraints.setdefault((i, s), dict())[f] = feature_eval_to_cond(f, v)
+    return {StateConstraint(conds) for conds in constraints.values()}
+
+
 def generate_policy(solution, policy_type=PolicyType.EXACT):
     rules = set()
     constraints = set()
+    state_constraints = set()
     features = solution['selected']
     for instance, state in solution['state']:
         conds = dict()
@@ -201,8 +257,14 @@ def generate_policy(solution, policy_type=PolicyType.EXACT):
             constraint = PolicyRule(conds, frozenset({frozenset(e) for e in bad_effs.values()}))
             log.debug(f'Adding constraint {constraint}')
             constraints.add(constraint)
-
-    policy = Policy(features, rules, type=policy_type, cost=solution['cost'], constraints=constraints)
+    log.debug(f'Crit states: {solution.get("crit_state", [])}')
+    state_constraints = crit_states_to_constraints(solution.get('crit_state', []), solution['bool_eval'])
+    policy = Policy(features,
+                    rules,
+                    type=policy_type,
+                    cost=solution['cost'],
+                    constraints=constraints,
+                    state_constraints=state_constraints)
     before_pruning = len(policy.rules)
     policy.simplify()
     log.info(f'Pruned {before_pruning - len(policy.rules)} rules')

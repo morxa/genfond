@@ -1,4 +1,4 @@
-from .policy import Cond, Effect, PolicyType
+from .policy import Cond, Effect, PolicyType, feature_eval_to_cond
 from .feature_generator import construct_vocabulary_info, construct_instance_info, _get_state_from_goal
 from .ground import ground
 from dlplan.core import SyntacticElementFactory, State
@@ -8,22 +8,6 @@ import random
 import logging
 
 log = logging.getLogger(__name__)
-
-
-def _feature_eval_to_cond(feature_str, feature_eval):
-    log.debug(f'eval to cond: {feature_str} -> {feature_eval}')
-    if feature_str.startswith("b_"):
-        if feature_eval:
-            return Cond.TRUE
-        else:
-            return Cond.FALSE
-    elif feature_str.startswith("n_"):
-        if feature_eval > 0:
-            return Cond.POSITIVE
-        else:
-            return Cond.ZERO
-    else:
-        raise ValueError(f'Unknown feature type: {feature_str}')
 
 
 def eval_state(instance, mapping, features, state, goal_state):
@@ -43,7 +27,7 @@ def bool_eval_state(instance, mapping, features, state, goal_state):
     log.debug(f'feature eval: {feature_eval}')
     bool_feature_eval = dict()
     for feature, eval in feature_eval.items():
-        bool_feature_eval[feature] = _feature_eval_to_cond(feature, eval)
+        bool_feature_eval[feature] = feature_eval_to_cond(feature, eval)
     return bool_feature_eval
 
 
@@ -144,6 +128,20 @@ def execute_policy(domain, problem, policy, max_steps=0):
                 if constraint.effs in succs_diffs:
                     log.info(f'Constraint {constraint} violated!')
                     ok = False
+                    break
+            bool_succs_evals = [bool_eval_state(instance, mapping, features, succ, goal_state) for succ in succs]
+            for bool_succs_eval in bool_succs_evals:
+                for state_constraint in policy.state_constraints:
+                    violated = True
+                    for feature, cond in state_constraint.conds.items():
+                        if cond != bool_succs_eval[feature]:
+                            violated = False
+                            break
+                    if violated:
+                        log.info(f'State constraint {state_constraint} violated!')
+                        ok = False
+                        break
+                if not ok:
                     break
             if not ok:
                 continue
