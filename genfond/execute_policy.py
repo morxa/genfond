@@ -67,6 +67,8 @@ def eval_state_diff(state, succ):
                 diff.add((feature, Effect.DECREASE))
             else:
                 raise RuntimeError(f'Inconsistent state transition: {state} -> {succ}')
+        else:
+            raise ValueError(f'Unknown feature type: {feature}')
     return frozenset(diff)
 
 
