@@ -23,7 +23,6 @@ bool_eval(I, S, F, 0) :- eval(I, S, F, V), V = 0.
 bool_equiv(I1, S1, I2, S2) :- state(I1, S1), state(I2, S2), bool_eval(I1, S1, F, V) : bool_eval(I2, S2, F, V), selected(F).
 % A state is a representative if it is the smallest state in its equivalence class.
 %repr(I1, S1) :- state(I1, S1), not equiv(I1, S1, I2, S2) : state(I2, S2), (I2, S2) < (I1, S1).
-bool_repr(I1, S1) :- state(I1, S1), not bool_equiv(I1, S1, I2, S2) : state(I2, S2), (I2, S2) < (I1, S1).
 % D2
 :- alive(I1, S11), alive(I2, S21), bool_equiv(I1, S11, I2, S21), good_trans(I, S11, S12), trans(I, S21, _, S22), not good_trans(I, S21, S22), trans_delta(I, S11, S12, F, D) : trans_delta(I, S21, S22, F, D), selected(F).
 % Equivalence must distinguish between goal and non-goal states.
