@@ -2,7 +2,7 @@ from genfond.solver import Solver
 from genfond.policy import generate_policy, PolicyType, PolicyRule, Cond, Effect
 
 
-def test_relaxed_solver_choose_good_trans():
+def test_trans_constraint_solver_choose_good_trans():
     program = """
         feature(n_f).
         feature_complexity(n_f, 1).
@@ -27,7 +27,7 @@ def test_relaxed_solver_choose_good_trans():
         trans(0, 0, a, 1).
         trans(0, 0, b, 2).
     """
-    solver = Solver(program, solve_prog='solve_relax.lp')
+    solver = Solver(program, solve_prog='solve_trans_constraints.lp')
     assert solver.solve()
     assert solver.solution['good_trans'] == {(0, 0, 2)}
     assert solver.solution['bad_trans'] == {(0, 0, 1)}
