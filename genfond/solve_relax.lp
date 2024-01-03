@@ -26,7 +26,8 @@ bool_equiv(I1, S1, I2, S2) :- state(I1, S1), state(I2, S2), bool_eval(I1, S1, F,
 % A state is a representative if it is the smallest state in its equivalence class.
 %repr(I1, S1) :- state(I1, S1), not equiv(I1, S1, I2, S2) : state(I2, S2), (I2, S2) < (I1, S1).
 % D2
-:- alive(I1, S11), alive(I2, S21), bool_equiv(I1, S11, I2, S21), good_trans(I1, S11, S12), trans(I2, S21, _, S22), not good_trans(I2, S21, S22), not selected(F) : trans_diff(F, I1, S11, S12, I2, S21, S22).
+distinguished(I1, S11, S12, I2, S21, S22) :- trans_diff(F, I1, S11, S12, I2, S21, S22), selected(F).
+:- alive(I1, S11), alive(I2, S21), bool_equiv(I1, S11, I2, S21), good_trans(I1, S11, S12), trans(I2, S21, _, S22), not good_trans(I2, S21, S22), not distinguished(I1, S11, S12, I2, S21, S22).
 % Equivalence must distinguish between goal and non-goal states.
 :- bool_equiv(I1, S1, I2, S2), goal(I1, S1), not goal(I2, S2).
 
