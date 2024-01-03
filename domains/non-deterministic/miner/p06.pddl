@@ -1,4 +1,4 @@
-(define (problem p06)
+(define (problem miner-6)
 (:domain miner)
 (:objects 
 	L11 - location
@@ -60,26 +60,25 @@
 (:init
 	(person-alive)
 	(person-at L11)
-	(goldcount-0)
 	(botton-loc L11)
 
-	(rock-at r1 L33)
-	(rock-at r2 L24)
-	(rock-at r3 L23)
-	(rock-at r4 L13)
-	(rock-at r5 L24)
-	(rock-at r6 L23)
-	(rock-at r7 L24)
-	(rock-at r8 L34)
-	(rock-at r9 L12)
+	(rock-at r1 L21)
+	(rock-at r2 L34)
+	(rock-at r3 L14)
+	(rock-at r4 L34)
+	(rock-at r5 L11)
+	(rock-at r6 L11)
+	(rock-at r7 L14)
+	(rock-at r8 L32)
+	(rock-at r9 L22)
 
-	(gold-bad-at L23)
+	(gold-bad-at L22)
 	(gold-bad-at L11)
-	(gold-bad-at L32)
+	(gold-bad-at L34)
 
+	(gold-good-at L71)
+	(gold-good-at L94)
 	(gold-good-at L82)
-	(gold-good-at L72)
-	(gold-good-at L93)
 
 	(road L11 L21)
 	(road L11 L12)
@@ -209,5 +208,5 @@
 	(road L94 L95)
 	(road L94 L93)
 )
-(:goal (and (person-alive) (goldcount-3)))
+(:goal (and (person-alive) (goldcount g3)))
 )

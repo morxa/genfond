@@ -1,4 +1,4 @@
-(define (problem miner-3)
+(define (problem miner-69)
 (:domain miner)
 (:objects 
 	L11 - location
@@ -19,48 +19,21 @@
 	L61 - location
 	L62 - location
 	L63 - location
-	L71 - location
-	L72 - location
-	L73 - location
-	L81 - location
-	L82 - location
-	L83 - location
-	L91 - location
-	L92 - location
-	L93 - location
 
 	r1 - rock
-	r2 - rock
-	r3 - rock
-	r4 - rock
-	r5 - rock
-	r6 - rock
-	r7 - rock
-	r8 - rock
-	r9 - rock
 )
 (:init
 	(person-alive)
 	(person-at L11)
 	(botton-loc L11)
 
-	(rock-at r1 L12)
-	(rock-at r2 L31)
-	(rock-at r3 L32)
-	(rock-at r4 L31)
-	(rock-at r5 L12)
-	(rock-at r6 L32)
-	(rock-at r7 L31)
-	(rock-at r8 L12)
-	(rock-at r9 L12)
+	(rock-at r1 L22)
 
-	(gold-bad-at L32)
 	(gold-bad-at L12)
-	(gold-bad-at L11)
+	(gold-bad-at L22)
 
-	(gold-good-at L72)
-	(gold-good-at L92)
-	(gold-good-at L91)
+	(gold-good-at L61)
+	(gold-good-at L52)
 
 	(road L11 L21)
 	(road L11 L12)
@@ -96,31 +69,10 @@
 	(road L52 L53)
 	(road L52 L51)
 	(road L61 L51)
-	(road L61 L71)
 	(road L61 L62)
 	(road L62 L52)
-	(road L62 L72)
 	(road L62 L63)
 	(road L62 L61)
-	(road L71 L61)
-	(road L71 L81)
-	(road L71 L72)
-	(road L72 L62)
-	(road L72 L82)
-	(road L72 L73)
-	(road L72 L71)
-	(road L81 L71)
-	(road L81 L91)
-	(road L81 L82)
-	(road L82 L72)
-	(road L82 L92)
-	(road L82 L83)
-	(road L82 L81)
-	(road L91 L81)
-	(road L91 L92)
-	(road L92 L82)
-	(road L92 L93)
-	(road L92 L91)
 )
-(:goal (and (person-alive) (goldcount g3)))
+(:goal (and (person-alive) (goldcount g2)))
 )

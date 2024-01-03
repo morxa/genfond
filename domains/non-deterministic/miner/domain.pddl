@@ -2,7 +2,8 @@
 
 (define (domain miner)
   (:requirements :typing :strips :non-deterministic)
-  (:types location rock)
+  (:types location rock goldcount)
+  (:constants g1 g2 g3 - goldcount)
   (:predicates (person-at ?loc - location)
                (botton-loc ?loc - location)
                (person-alive)
@@ -11,10 +12,7 @@
                (holding ?r - rock)
                (gold-bad-at ?loc - location)
                (gold-good-at ?loc - location)
-               (goldcount-0)
-               (goldcount-1)
-               (goldcount-2)
-               (goldcount-3)
+               (goldcount ?gc - goldcount)
                (botton-pressed))
 
   (:action move-person
@@ -22,7 +20,7 @@
     :precondition (and (person-at ?from) (road ?from ?to) (person-alive))
     :effect (and (person-at ?to) (not (person-at ?from)))
   )
-  
+
   (:action pick-rock
     :parameters (?loc - location ?r - rock)
     :precondition (and (person-at ?loc) (rock-at ?r ?loc) (person-alive))
@@ -43,41 +41,41 @@
 
   (:action pick-bad-gold-1
     :parameters (?loc - location)
-    :precondition (and (person-at ?loc) (gold-bad-at ?loc) (person-alive) (goldcount-0))
+    :precondition (and (person-at ?loc) (gold-bad-at ?loc) (person-alive) (not (goldcount g1)))
     :effect (oneof (not (person-alive))
-    			   (and (not (goldcount-0)) (goldcount-1) (not (gold-bad-at ?loc))))
+            (and (goldcount g1) (not (gold-bad-at ?loc))))
   )
 
   (:action pick-bad-gold-2
     :parameters (?loc - location)
-    :precondition (and (person-at ?loc) (gold-bad-at ?loc) (person-alive) (goldcount-1))
+    :precondition (and (person-at ?loc) (gold-bad-at ?loc) (person-alive) (goldcount g1) (not  (goldcount g2)))
     :effect (oneof (not (person-alive))
-    			   (and (not (goldcount-1)) (goldcount-2) (not (gold-bad-at ?loc))))
+            (and (goldcount g2) (not (gold-bad-at ?loc))))
   )
 
   (:action pick-bad-gold-3
     :parameters (?loc - location)
-    :precondition (and (person-at ?loc) (gold-bad-at ?loc) (person-alive) (goldcount-2))
+    :precondition (and (person-at ?loc) (gold-bad-at ?loc) (person-alive) (goldcount g2) (not (goldcount g3)))
     :effect (oneof (not (person-alive))
-    			   (and (not (goldcount-2)) (goldcount-3) (not (gold-bad-at ?loc))))
+            (and (goldcount g3) (not (gold-bad-at ?loc))))
   )
 
   (:action pick-good-gold-1
     :parameters (?loc - location)
-    :precondition (and (person-at ?loc) (gold-good-at ?loc) (person-alive) (goldcount-0) (botton-pressed))
-    :effect (and (not (goldcount-0)) (goldcount-1) (not (gold-good-at ?loc)))
+    :precondition (and (person-at ?loc) (gold-good-at ?loc) (person-alive) (not (goldcount g1)) (botton-pressed))
+    :effect (and (goldcount g1) (not (gold-good-at ?loc)))
   )
 
   (:action pick-good-gold-2
     :parameters (?loc - location)
-    :precondition (and (person-at ?loc) (gold-good-at ?loc) (person-alive) (goldcount-1) (botton-pressed))
-    :effect (and (not (goldcount-1)) (goldcount-2) (not (gold-good-at ?loc)))
+    :precondition (and (person-at ?loc) (gold-good-at ?loc) (person-alive) (goldcount g1) (not (goldcount g2)) (botton-pressed))
+    :effect (and (goldcount g2) (not (gold-good-at ?loc)))
   )
 
   (:action pick-good-gold-3
     :parameters (?loc - location)
-    :precondition (and (person-at ?loc) (gold-good-at ?loc) (person-alive) (goldcount-2) (botton-pressed))
-    :effect (and (not (goldcount-2)) (goldcount-3) (not (gold-good-at ?loc)))
+    :precondition (and (person-at ?loc) (gold-good-at ?loc) (person-alive) (goldcount g2) (not (goldcount g3)) (botton-pressed))
+    :effect (and (goldcount g3) (not (gold-good-at ?loc)))
   )
 
 )
