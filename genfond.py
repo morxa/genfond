@@ -24,7 +24,7 @@ def solve(domain,
           problems,
           num_threads,
           complexity,
-          use_state_constraints=False,
+          constraint_type=None,
           max_cost=None,
           all_generators=True,
           enforce_highest_complexity=False):
@@ -40,17 +40,29 @@ def solve(domain,
         'unrestricted' if all_generators else 'restricted', "enforced " if enforce_highest_complexity else "",
         complexity, f' max cost {max_cost},' if max_cost else '', " + ".join([str(s)
                                                                               for s in sg_sizes]), sum(sg_sizes)))
+    if constraint_type == 'state':
+        solve_prog = 'solve_state_constraints.lp'
+        policy_type = PolicyType.CONSTRAINED
+    elif constraint_type == 'trans':
+        solve_prog = 'solve_trans_constraints.lp'
+        policy_type = PolicyType.CONSTRAINED
+    elif not constraint_type or constraint_type == 'none':
+        solve_prog = 'solve.lp'
+        policy_type = PolicyType.EXACT
+    else:
+        raise ValueError(f'Unknown constraint type {constraints}')
     solver = Solver(asp_instance,
                     num_threads,
                     max_cost=max_cost,
                     min_feature_complexity=complexity if enforce_highest_complexity else None,
-                    solve_prog='solve_state_constraints.lp' if use_state_constraints else 'solve.lp')
+                    solve_prog=solve_prog)
     if not solver.solve():
         log.info('No solution found')
         return None
     solution = solver.solution
-    policy = generate_policy(solution,
-                             policy_type=PolicyType.CONSTRAINED if use_state_constraints else PolicyType.EXACT)
+    log.info(f'bad trans: {solution.get("bad_trans", [])}')
+    log.info(f'bad trans deltas: {solution.get("bad_trans_delta", [])}')
+    policy = generate_policy(solution, policy_type=policy_type)
     return policy
 
 
@@ -91,9 +103,9 @@ def main():
                         default=None,
                         help='number of threads to use; "None" uses all available threads')
     parser.add_argument('--max-memory', type=int, default=None, help='maximum memory to use in MB')
-    parser.add_argument('--state-constraints',
-                        action='store_true',
-                        help='use solver using state constraints to avoid bad states')
+    parser.add_argument('--constraints',
+                        choices=['none', 'state', 'trans'],
+                        help='generate constrainted policies with state or transition constraints')
     parser.add_argument('--dump-failed-policies', action='store_true', help='dump failed policies to file')
     parser.add_argument('--keep-going', action='store_true', help='keep going after one training problem failed')
     parser.add_argument('--continue-after-error', action='store_true', help='continue after error in policy execution')
@@ -120,6 +132,10 @@ def main():
         problems.append(pddl.parse_problem(f))
     name = args.name if args.name else domain.name
     log.info('Starting policy generation for domain {}'.format(name))
+    if args.constraints:
+        log.info(f'Generating constrained policies with {args.constraints} constraints')
+    else:
+        log.info('Generating exact policies without constraints')
     policy = Policy({}, {})
     solver_problems = []
     last_complexity = args.min_complexity
@@ -152,7 +168,7 @@ def main():
                     solver_problems,
                     args.num_threads,
                     i,
-                    args.state_constraints,
+                    args.constraints,
                     all_generators=all_generators,
                     max_cost=new_policy.cost[0] - 1 if new_policy else None,
                     enforce_highest_complexity=True if i > last_complexity else False,
