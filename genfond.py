@@ -222,10 +222,10 @@ def main():
             verified = solver_problems.copy()
         else:
             log.error('No policy found for {} with max complexity {}'.format(problem.name, i))
-            if not args.keep_going:
-                break
             # Delete last element in solver_problems
             solver_problems.pop()
+            if not args.keep_going:
+                break
             continue
     succs = verified
     log.info('Verifying policy ...')
