@@ -9,8 +9,7 @@ good_trans_delta(I, S1, S2, F, D) :- good_trans(I, S1, S2), selected(F), trans_d
 
 % Select good actions among the possible transition.
 % Select at least one for each alive non-goal state.
-1 { good_trans(I, S1, A, S2) : trans(I, S1, A, S2) } :- alive(I, S1), not goal(I, S1).
-good_trans(I, S1, S2) :- good_trans(I, S1, _, S2).
+1 { good_trans(I, S1, S2) : trans(I, S1, A, S2) } :- alive(I, S1), not goal(I, S1).
 
 % There must be a good transition for every alive non-goal state that ends ins an alive state.
 :- alive(I, S), not good_trans(I, S, _), not goal(I, S).
