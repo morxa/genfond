@@ -107,14 +107,25 @@ class Policy:
 
     def __repr__(self):
         if self.type == PolicyType.CONSTRAINED:
-            return '{} rules, {} constraints, {} state constraints with {} features: {}' \
-            '\nRules:\n{}\nState Constraints:\n{}\nConstraints:\n{}'.format(
-                len(self.rules), len(self.constraints), len(self.state_constraints), len(self.features),
-                ", ".join(sorted(self.features)), '\n'.join(sorted({repr(rule)
-                                                                    for rule in self.rules})),
-                '\n'.join(sorted([repr(c) for c in self.state_constraints])),
-                '\n'.join(sorted({repr(constraint)
-                                  for constraint in self.constraints})))
+            s_constraints = ''
+            s_state_constraints = ''
+            if self.constraints:
+                s_constraints = '\nConstraints:\n' + '\n'.join(
+                    sorted({repr(constraint)
+                            for constraint in self.constraints}))
+            if self.state_constraints:
+                s_state_constraints = '\nState Constraints:\n' + '\n'.join(
+                    sorted({repr(constraint)
+                            for constraint in self.state_constraints}))
+
+            return ('{} rules,'
+                    ' {} transition constraints,'
+                    ' {} state constraints with {} features: {}'
+                    '\nRules:\n{}{}{}').format(len(self.rules), len(self.constraints), len(self.state_constraints),
+                                               len(self.features), ", ".join(sorted(self.features)),
+                                               '\n'.join(sorted({repr(rule)
+                                                                 for rule in self.rules})), s_constraints,
+                                               s_state_constraints)
         else:
             return '{} rules with {} features: {}\n{}'.format(len(self.rules), len(self.features),
                                                               ", ".join(sorted(self.features)),
