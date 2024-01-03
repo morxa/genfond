@@ -228,19 +228,19 @@ def main():
     mem_usage = (resource.getrusage(resource.RUSAGE_SELF).ru_maxrss) / 1024
     stats = {
         'domain': name,
-        'total_wall_time': total_wall_time,
-        'total_cpu_time': total_cpu_time,
-        'best_solve_cpu_time': best_solve_cpu_time,
-        'best_solve_wall_time': best_solve_wall_time,
-        'total_solve_cpu_time': total_solve_cpu_time,
+        'totalWallTime': total_wall_time,
+        'totalCpuTime': total_cpu_time,
+        'bestSolveCpuTime': best_solve_cpu_time,
+        'bestSolveWallTime': best_solve_wall_time,
+        'totalSolveCpuTime': total_solve_cpu_time,
         'problems': len(problems),
         'solved': len(succs),
-        'train_problems': len(solver_problems),
-        'max_train_problem_size': max(len(p.objects) for p in solver_problems),
-        'max_problem_size': max(len(p.objects) for p in problems),
-        'mem_usage': mem_usage,
-        'num_features': len(policy.features),
-        'max_feature_complexity': last_complexity,
+        'trainProblems': len(solver_problems),
+        'maxTrainProblemSize': max(len(p.objects) for p in solver_problems),
+        'maxProblemSize': max(len(p.objects) for p in problems),
+        'memUsage': mem_usage,
+        'numFeatures': len(policy.features),
+        'maxFeatureComplexity': last_complexity,
     }
 
     log.info('Total wall time: {:.2f}s'.format(total_wall_time))
