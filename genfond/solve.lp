@@ -23,11 +23,11 @@ good_trans(I, S1, S2) :- good_trans(I, S1, _, S2).
 bool_eval(I, S, F, 1) :- eval(I, S, F, V), V > 0.
 bool_eval(I, S, F, 0) :- eval(I, S, F, V), V = 0.
 
-bool_equiv(I1, S1, I2, S2) :- state(I1, S1), state(I2, S2), bool_eval(I1, S1, F, V) : bool_eval(I2, S2, F, V), selected(F).
+bool_dist(I1, S1, I2, S2) :- state(I1, S1), state(I2, S2), bool_eval(I1, S1, F, V1), bool_eval(I2, S2, F, V2), selected(F), V1 != V2.
 % For two alive and boolean-equivalent states S11 and S21, if A1 is a good action in S11 but A2 is not good in S21, then there must be a transition that distinguishes the two actions.
-:- alive(I1, S11), alive(I2, S21), bool_equiv(I1, S11, I2, S21), good_action(I1, S11, A1), trans(I2, S21,  A2, _), not good_action(I2, S21, A2), trans_delta(I1, S11, A1, S12, F, C) : trans_delta(I2, S21, A2, S22, F, C), selected(F); trans_delta(I2, S21, A2, S22, F, C) : trans_delta(I1, S11, A1, S12, F, C), selected(F).
+:- alive(I1, S11), alive(I2, S21), not bool_dist(I1, S11, I2, S21), good_action(I1, S11, A1), trans(I2, S21,  A2, _), not good_action(I2, S21, A2), trans_delta(I1, S11, A1, S12, F, C) : trans_delta(I2, S21, A2, S22, F, C), selected(F); trans_delta(I2, S21, A2, S22, F, C) : trans_delta(I1, S11, A1, S12, F, C), selected(F).
 % Equivalence must distinguish between goal and non-goal states.
-:- bool_equiv(I1, S1, I2, S2), goal(I1, S1), not goal(I2, S2).
+:- state(I1, S1), state(I2, S2), not bool_dist(I1, S1, I2, S2), goal(I1, S1), not goal(I2, S2).
 
 safe_state(I, S) :- goal(I, S).
 safe_action(I, S, A) :- trans(I, S, A, S2), safe_state(I, S2).

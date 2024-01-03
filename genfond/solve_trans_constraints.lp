@@ -5,7 +5,7 @@ good_trans(I, S1, S2) :- good_trans(I, S1, A, S2).
 
 bad_trans(I, S1, A, S2) :- alive(I, S1), trans(I, S1, A, S2), not alive(I, S2).
 bad_trans(I, S1, S2) :- bad_trans(I, S1, _, S2).
-:- alive(I1, S11), alive(I2, S21), bool_equiv(I1, S11, I2, S21), bad_trans(I1, S11, S12), trans(I2, S21, _, S22), not bad_trans(I2, S21, S22), not distinguished(I1, S11, S12, I2, S21, S22).
+:- alive(I1, S11), alive(I2, S21), not bool_dist(I1, S11, I2, S21), bad_trans(I1, S11, S12), trans(I2, S21, _, S22), not bad_trans(I2, S21, S22), not distinguished(I1, S11, S12, I2, S21, S22).
 
 bad_trans_delta(I, S1, S2, F, D) :- bad_trans(I, S1, S2), selected(F), trans_delta(I, S1, S2, F, D).
 
