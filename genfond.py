@@ -247,6 +247,7 @@ def main():
     mem_usage = (resource.getrusage(resource.RUSAGE_SELF).ru_maxrss) / 1024
     stats = {
         'domain': name,
+        'constraintType': args.constraints,
         'totalWallTime': total_wall_time,
         'totalCpuTime': total_cpu_time,
         'bestSolveCpuTime': best_solve_cpu_time,
