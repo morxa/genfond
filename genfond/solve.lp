@@ -1,5 +1,7 @@
 
-trans_delta(I, S1, A, S2, F, D) :- trans(I, S1, A, S2), eval(I, S1, F, V1), eval(I, S2, F, V2), D=(-1;0;1), D = -1 : V2 < V1; D = 0 : V2 = V1; D = 1 : V2 > V1.
+trans_delta(I, S1, A, S2, F, -1) :- trans(I, S1, A, S2), eval(I, S1, F, V1), eval(I, S2, F, V2), V2 < V1.
+trans_delta(I, S1, A, S2, F, 0) :-  trans(I, S1, A, S2), eval(I, S1, F, V), eval(I, S2, F, V).
+trans_delta(I, S1, A, S2, F, 1) :-  trans(I, S1, A, S2), eval(I, S1, F, V1), eval(I, S2, F, V2), V2 > V1.
 trans_delta(I, S1, S2, F, D) :- trans_delta(I, S1, _, S2, F, D).
 
 good_trans_delta(I, S1, S2, F, D) :- good_trans(I, S1, S2), selected(F), trans_delta(I, S1, S2, F, D).
