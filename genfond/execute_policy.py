@@ -125,7 +125,7 @@ def execute_policy(domain, problem, policy, max_steps=0):
             log.debug(f'succs_diffs:\n{"\n".join([", ".join([str(d) for d in ds]) for ds in succs_diffs])}')
             ok = True
             for constraint in enabled_constraints:
-                if constraint.effs in succs_diffs:
+                if constraint.effs & succs_diffs:
                     log.info(f'Constraint {constraint} violated!')
                     ok = False
                     break
