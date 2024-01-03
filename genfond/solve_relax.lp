@@ -1,6 +1,5 @@
 
-trans_delta(I, S1, A, S2, F, D) :- trans(I, S1, A, S2), eval(I, S1, F, V1), eval(I, S2, F, V2), D=(-1;0;1), D = -1 : V2 < V1; D = 0 : V2 = V1; D = 1 : V2 > V1.
-trans_delta(I, S1, S2, F, D) :- trans_delta(I, S1, _, S2, F, D).
+trans_delta(I, S1, S2, F, D) :- trans(I, S1, _, S2), eval(I, S1, F, V1), eval(I, S2, F, V2), D=(-1;0;1), D = -1 : V2 < V1; D = 0 : V2 = V1; D = 1 : V2 > V1.
 
 trans_diff(F, I1, S11, S12, I2, S21, S22) :- trans_delta(I1, S11, S12, F, D1), trans_delta(I2, S21, S22, F, D2), D1 != D2.
 
@@ -51,7 +50,7 @@ crit_state(I, S2) :- alive(I, S1), trans(I, S1, _, S2), not alive(I, S2).
 #show state/2.
 #show crit_state/2.
 #show bool_eval(I, S, F, V) : bool_eval(I, S, F, V), selected(F).
-#show trans_delta(I, S1, S2, F, D) : trans_delta(I, S1, A, S2, F, D), selected(F).
+#show trans_delta(I, S1, S2, F, D) : trans_delta(I, S1, S2, F, D), selected(F).
 #show good_trans_delta/5.
 %#show bad_trans_delta/5.
 %#show rank/3.
