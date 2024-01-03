@@ -132,7 +132,7 @@ def main():
         problems.append(pddl.parse_problem(f))
     name = args.name if args.name else domain.name
     log.info('Starting policy generation for domain {}'.format(name))
-    if args.constraints:
+    if args.constraints and args.constraints != 'none':
         log.info(f'Generating constrained policies with {args.constraints} constraints')
     else:
         log.info('Generating exact policies without constraints')
