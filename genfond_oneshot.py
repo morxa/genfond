@@ -86,6 +86,7 @@ def main():
                         default=None,
                         help='number of threads to use; "None" uses all available threads')
     parser.add_argument('--no-solve', action='store_true', help='only generate the program, do not solve it')
+    parser.add_argument('--restrict-features', nargs='+', help='restrict features to the given ones')
     args = parser.parse_args()
     if args.verbose:
         loglevel = logging.DEBUG
@@ -107,7 +108,7 @@ def main():
     problems = []
     for problem_file in args.problem_file:
         problems.append(pddl.parse_problem(problem_file))
-    feature_pool = FeaturePool(domain, problems, args.complexity)
+    feature_pool = FeaturePool(domain, problems, args.complexity, preset_features=args.restrict_features)
     if args.draw_input:
         for p, g in feature_pool.state_graphs.items():
             base, suffix = os.path.splitext(args.draw_input)
