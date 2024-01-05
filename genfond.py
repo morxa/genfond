@@ -60,8 +60,6 @@ def solve(domain,
         log.info('No solution found')
         return None
     solution = solver.solution
-    log.info(f'bad trans: {solution.get("bad_trans", [])}')
-    log.info(f'bad trans deltas: {solution.get("bad_trans_delta", [])}')
     policy = generate_policy(solution, policy_type=policy_type)
     return policy
 
