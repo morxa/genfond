@@ -1,6 +1,6 @@
 from genfond.solver import Solver
 from genfond.feature_generator import FeaturePool
-from genfond.policy import generate_policy
+from genfond.policy import generate_policy, PolicyType
 import pddl
 import pygraphviz
 import pickle
@@ -74,7 +74,10 @@ def main():
     parser.add_argument('--draw-input', help='Output path for drawing the input state graph')
     parser.add_argument('-v', '--verbose', action='store_true')
     parser.add_argument('-c', '--complexity', type=int, default=5, help='max complexity of the used features')
-    parser.add_argument('--relax', action='store_true', help='use solver based on deterministic relaxation')
+    parser.add_argument('--constraints',
+                        choices=['none', 'state', 'trans'],
+                        default='none',
+                        help='generate constrainted policies with state or transition constraints')
     parser.add_argument('-n',
                         '--num-threads',
                         type=int,
@@ -86,6 +89,17 @@ def main():
     else:
         loglevel = logging.INFO
     logging.basicConfig(level=loglevel)
+    if args.constraints == 'state':
+        solve_prog = 'solve_state_constraints.lp'
+        policy_type = PolicyType.CONSTRAINED
+    elif args.constraints == 'trans':
+        solve_prog = 'solve_trans_constraints.lp'
+        policy_type = PolicyType.CONSTRAINED
+    elif args.constraints == 'none':
+        solve_prog = 'solve.lp'
+        policy_type = PolicyType.EXACT
+    else:
+        raise ValueError(f'Unknown constraint type {args.constraints}')
     domain = pddl.parse_domain(args.domain_file)
     problems = []
     for problem_file in args.problem_file:
@@ -103,7 +117,7 @@ def main():
             with open(args.program_file, 'w') as f:
                 f.write(asp_instance)
         log.info(f'Starting solver for domain {domain.name} and problems {", ".join([p.name for p in problems])}')
-        solver = Solver(asp_instance, args.num_threads, solve_prog='solve_relax.lp' if args.relax else 'solve.lp')
+        solver = Solver(asp_instance, args.num_threads, solve_prog=solve_prog)
         solver.solve()
         solution = solver.solution
         if args.dump:
@@ -112,7 +126,7 @@ def main():
     if not solution:
         log.error('No solution found')
         sys.exit(1)
-    policy = generate_policy(solution)
+    policy = generate_policy(solution, policy_type=policy_type)
     log.debug(f'Solution:\n{solution}')
     log.info(f'Policy:\n{policy}')
     if args.output:
