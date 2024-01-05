@@ -85,6 +85,7 @@ def main():
                         type=int,
                         default=None,
                         help='number of threads to use; "None" uses all available threads')
+    parser.add_argument('--no-solve', action='store_true', help='only generate the program, do not solve it')
     args = parser.parse_args()
     if args.verbose:
         loglevel = logging.DEBUG
@@ -118,6 +119,8 @@ def main():
         if args.program_file:
             with open(args.program_file, 'w') as f:
                 f.write(asp_instance)
+        if args.no_solve:
+            sys.exit(0)
         log.info(f'Starting solver for domain {domain.name} and problems {", ".join([p.name for p in problems])}')
         solver = Solver(asp_instance,
                         args.num_threads,
