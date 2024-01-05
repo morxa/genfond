@@ -10,6 +10,7 @@ class Cond(Enum):
     FALSE = 2
     POSITIVE = 3
     ZERO = 4
+    UNDEF = 5
 
 
 class Effect(Enum):
@@ -22,6 +23,9 @@ class Effect(Enum):
 class PolicyType(Enum):
     EXACT = 1
     CONSTRAINED = 2
+
+
+MAXDIST = 2147483647
 
 
 class PolicyRule:
@@ -38,14 +42,15 @@ class PolicyRule:
         for feature, val in self.conds.items():
             if val == Cond.TRUE:
                 s_conds.append(f'{feature}')
-            elif val == Cond.FALSE:
+            elif val == Cond.FALSE or val == Cond.UNDEF:
                 s_conds.append(f'¬{feature}')
             elif val == Cond.POSITIVE:
                 s_conds.append(f'{feature} > 0')
             elif val == Cond.ZERO:
                 s_conds.append(f'{feature} = 0')
+
             else:
-                raise ValueError(f'Unknown feature type {feature}')
+                raise ValueError(f'Unknown feature valuation {val}')
         s_effs = []
         for eff in self.effs:
             s_eff = []
@@ -80,14 +85,14 @@ class StateConstraint:
         for feature, val in self.conds.items():
             if val == Cond.TRUE:
                 s_conds.append(f'{feature}')
-            elif val == Cond.FALSE:
+            elif val == Cond.FALSE or val == Cond.UNDEF:
                 s_conds.append(f'¬{feature}')
             elif val == Cond.POSITIVE:
                 s_conds.append(f'{feature} > 0')
             elif val == Cond.ZERO:
                 s_conds.append(f'{feature} = 0')
             else:
-                raise ValueError(f'Unknown feature type {feature}')
+                raise ValueError(f'Unknown feature valuation {val}')
         return f'{{ {" ∧ ".join(sorted(s_conds))} }}'
 
     def __hash__(self):
@@ -235,6 +240,12 @@ def trans_deltas_to_effects(instance, state, trans_deltas):
                 elif v == -1:
                     eff.add((f, Effect.DECREASE))
                     log.debug(f'Adding effect {f}={v}')
+                elif v == 'def':
+                    eff.add((f, Effect.SET))
+                    log.debug(f'Adding effect {f}={v}')
+                elif v == 'undef':
+                    eff.add((f, Effect.UNSET))
+                    log.debug(f'Adding effect {f}={v}')
                 elif v == 0:
                     continue
                 else:
@@ -252,7 +263,9 @@ def feature_eval_to_cond(feature_str, feature_eval):
         else:
             return Cond.FALSE
     elif feature_str.startswith("n_"):
-        if feature_eval > 0:
+        if feature_eval == 'undef' or feature_eval == MAXDIST:
+            return Cond.UNDEF
+        elif feature_eval > 0:
             return Cond.POSITIVE
         else:
             return Cond.ZERO
@@ -291,6 +304,8 @@ def generate_policy(solution, policy_type=PolicyType.EXACT):
                         conds[f] = Cond.POSITIVE
                     elif v == 0:
                         conds[f] = Cond.ZERO
+                    elif v == 'undef':
+                        conds[f] = Cond.UNDEF
                     else:
                         raise ValueError(f'Unknown value {v}')
                 else:

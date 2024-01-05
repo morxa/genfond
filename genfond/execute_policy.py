@@ -1,4 +1,4 @@
-from .policy import Cond, Effect, PolicyType, feature_eval_to_cond
+from .policy import Cond, Effect, PolicyType, feature_eval_to_cond, MAXDIST
 from .feature_generator import construct_vocabulary_info, construct_instance_info, _get_state_from_goal
 from .ground import ground
 from dlplan.core import SyntacticElementFactory, State
@@ -46,9 +46,15 @@ def eval_state_diff(state, succ):
                 raise RuntimeError(f'Inconsistent state transition: {state} -> {succ}')
         elif feature.startswith("n_"):
             if state[feature] < succ[feature]:
-                diff.add((feature, Effect.INCREASE))
+                if succ[feature] == MAXDIST:
+                    diff.add((feature, Effect.UNSET))
+                else:
+                    diff.add((feature, Effect.INCREASE))
             elif state[feature] > succ[feature]:
-                diff.add((feature, Effect.DECREASE))
+                if state[feature] == MAXDIST:
+                    diff.add((feature, Effect.SET))
+                else:
+                    diff.add((feature, Effect.DECREASE))
             else:
                 raise RuntimeError(f'Inconsistent state transition: {state} -> {succ}')
         else:
@@ -58,7 +64,9 @@ def eval_state_diff(state, succ):
 
 def state_satisfies_rule_conds(bool_feature_eval, rule_conds):
     for feature, cond in rule_conds.items():
-        if cond != bool_feature_eval[feature]:
+        log.debug(f'Checking rule condition {feature} {cond} {bool_feature_eval.get(feature, Cond.UNDEF)}')
+        if cond != bool_feature_eval.get(feature, Cond.UNDEF):
+            log.debug('Failed')
             return False
     return True
 
