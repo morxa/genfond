@@ -142,7 +142,7 @@ def execute_policy(domain, problem, policy, max_steps=0):
                 for state_constraint in policy.state_constraints:
                     violated = True
                     for feature, cond in state_constraint.conds.items():
-                        if cond != bool_succs_eval[feature]:
+                        if cond != bool_succs_eval.get(feature, Cond.UNDEF):
                             violated = False
                             break
                     if violated:
