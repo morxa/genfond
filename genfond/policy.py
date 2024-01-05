@@ -333,7 +333,7 @@ def generate_policy(solution, policy_type=PolicyType.EXACT):
                     state_constraints=state_constraints)
     before_pruning_rules = len(policy.rules)
     before_pruning_state_constraints = len(policy.state_constraints)
-    policy.simplify()
+    #policy.simplify()
     log.info(f'Pruned {before_pruning_rules - len(policy.rules)} rules and '
              f'{before_pruning_state_constraints - len(policy.state_constraints)} state constraints')
     return policy
