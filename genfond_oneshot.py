@@ -74,6 +74,8 @@ def main():
     parser.add_argument('--draw-input', help='Output path for drawing the input state graph')
     parser.add_argument('-v', '--verbose', action='store_true')
     parser.add_argument('-c', '--complexity', type=int, default=5, help='max complexity of the used features')
+    parser.add_argument('--min-complexity', type=int, help='force minimum complexity of the used features')
+    parser.add_argument('--max-cost', type=int, help='max cost of the policy')
     parser.add_argument('--constraints',
                         choices=['none', 'state', 'trans'],
                         default='none',
@@ -117,7 +119,11 @@ def main():
             with open(args.program_file, 'w') as f:
                 f.write(asp_instance)
         log.info(f'Starting solver for domain {domain.name} and problems {", ".join([p.name for p in problems])}')
-        solver = Solver(asp_instance, args.num_threads, solve_prog=solve_prog)
+        solver = Solver(asp_instance,
+                        args.num_threads,
+                        solve_prog=solve_prog,
+                        max_cost=args.max_cost,
+                        min_feature_complexity=args.min_complexity)
         solver.solve()
         solution = solver.solution
         if args.dump:
