@@ -1,7 +1,9 @@
-
-trans_delta(I, S1, A, S2, F, -1) :- trans(I, S1, A, S2), eval(I, S1, F, V1), eval(I, S2, F, V2), V2 < V1.
-trans_delta(I, S1, A, S2, F, 0) :-  trans(I, S1, A, S2), eval(I, S1, F, V), eval(I, S2, F, V).
-trans_delta(I, S1, A, S2, F, 1) :-  trans(I, S1, A, S2), eval(I, S1, F, V1), eval(I, S2, F, V2), V2 > V1.
+#const inf = 2147483647.
+trans_delta(I, S1, A, S2, F, -1) :- trans(I, S1, A, S2), eval(I, S1, F, V1), eval(I, S2, F, V2), V2 < V1, V1 != inf, V2 != inf.
+trans_delta(I, S1, A, S2, F, 0)  :- trans(I, S1, A, S2), eval(I, S1, F, V),  eval(I, S2, F, V).
+trans_delta(I, S1, A, S2, F, 1)  :- trans(I, S1, A, S2), eval(I, S1, F, V1), eval(I, S2, F, V2), V2 > V1, V1 != inf, V2 != inf.
+trans_delta(I, S1, A, S2, F, undef)  :- trans(I, S1, A, S2), eval(I, S1, F, V1), eval(I, S2, F, inf), V1 != inf.
+trans_delta(I, S1, A, S2, F, def) :- trans(I, S1, A, S2), eval(I, S1, F, inf), eval(I, S2, F, V2), V2 != inf.
 trans_delta(I, S1, S2, F, D) :- trans_delta(I, S1, _, S2, F, D).
 
 good_trans_delta(I, S1, S2, F, D) :- good_trans(I, S1, S2), selected(F), trans_delta(I, S1, S2, F, D).
@@ -20,7 +22,8 @@ good_trans(I, S1, S2) :- good_trans(I, S1, _, S2).
 { selected(F) } :- feature(F).
 
 % Compute boolean evaluations
-bool_eval(I, S, F, 1) :- eval(I, S, F, V), V > 0.
+bool_eval(I, S, F, undef) :- eval(I, S, F, V), V >= inf.
+bool_eval(I, S, F, 1) :- eval(I, S, F, V), V > 0, V < inf.
 bool_eval(I, S, F, 0) :- eval(I, S, F, V), V = 0.
 
 bool_dist(I1, S1, I2, S2) :- state(I1, S1), state(I2, S2), bool_eval(I1, S1, F, V1), bool_eval(I2, S2, F, V2), selected(F), V1 != V2.
