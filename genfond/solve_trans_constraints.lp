@@ -1,10 +1,9 @@
 #include "solve_constraints.lp". 
 
 % There must be at least one good transition without a bad transition for the same action.
-1 { good_trans(I, S1, A, S2) : trans(I, S1, A, S2), not bad_trans(I, S1, A, _) } :- alive(I, S1), not goal(I, S1).
+1 { good_trans(I, S1, S2) : trans(I, S1, A, S2), not bad_trans(I, S1, A, _) } :- alive(I, S1), not goal(I, S1).
 % Allow additional good actions, possibly with matching bad actions.
-{ good_trans(I, S1, A, S2) : trans(I, S1, A, S2) } :- alive(I, S1), not goal(I, S1).
-good_trans(I, S1, S2) :- good_trans(I, S1, A, S2).
+{ good_trans(I, S1, S2) : trans(I, S1, A, S2) } :- alive(I, S1), not goal(I, S1).
 
 bad_trans(I, S1, A, S2) :- alive(I, S1), trans(I, S1, A, S2), not alive(I, S2).
 bad_trans(I, S1, S2) :- bad_trans(I, S1, _, S2).
