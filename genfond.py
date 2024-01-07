@@ -261,6 +261,7 @@ def main():
         'numFeatures': len(policy.features),
         'maxFeatureComplexity': last_complexity,
         'numConstraints': max(len(policy.state_constraints), len(policy.constraints)),
+        'cost': policy.cost[0],
     }
 
     log.info('Total wall time: {:.2f}s'.format(total_wall_time))
