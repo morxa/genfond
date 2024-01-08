@@ -74,7 +74,7 @@ def generate_problems(min_num_locations, max_num_locations, repetitions, draw):
     for num_locations in trange(min_num_locations, max_num_locations + 1):
         for i in range(repetitions):
             index = f'{num_locations:03}-{i+1:02}'
-            problem = generate_problem(f'tireworld-{index}', num_locations, draw)
+            problem = generate_problem(f'spiky-tireworld-{index}', num_locations, draw)
             with open(f'p{index}.pddl', 'w') as f:
                 f.write(problem_to_string(problem))
 

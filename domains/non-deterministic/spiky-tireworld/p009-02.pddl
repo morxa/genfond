@@ -1,4 +1,4 @@
-(define (problem tireworld-009-02)
+(define (problem spiky-tireworld-009-02)
     (:domain sptire)
     (:requirements :non-deterministic :strips :typing)
     (:objects l0 l1 l2 l3 l4 l5 l6 l7 l8 - location t0 t1 - tire)
