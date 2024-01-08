@@ -6,6 +6,10 @@ from pddl.logic.effects import AndEffect, When
 from .ground import ground
 from enum import Enum
 
+import logging
+
+log = logging.getLogger(__name__)
+
 
 def check_formula(state, formula):
     if isinstance(formula, And):
@@ -112,6 +116,7 @@ class StateSpaceGraph:
                             new_node.alive = Alive.ALIVE
                         queue.append(new_node)
         compute_alive(self.nodes.values())
+        self.prune_nodes()
         assert all(node.alive != Alive.UNKNOWN for node in self.nodes.values())
         assert self.root.alive == Alive.ALIVE, 'Problem {} is unsolvable'.format(problem.name)
 
@@ -132,6 +137,19 @@ class StateSpaceGraph:
             return node
         else:
             return None
+
+    def prune_nodes(self):
+        pruned = []
+        for state, node in self.nodes.items():
+            if node.alive == Alive.DEAD and all([parent.alive == Alive.DEAD for parent in node.parents]):
+                pruned.append(state)
+        before = len(self.nodes)
+        for state in pruned:
+            del self.nodes[state]
+        for node in self.nodes.values():
+            for action, children in node.children.items():
+                node.children[action] = {child for child in children if child.state in self.nodes}
+        log.info(f'Pruned {len(pruned)} out of {before} states in {self.problem.name}')
 
 
 def generate_state_space(domain, problem):
