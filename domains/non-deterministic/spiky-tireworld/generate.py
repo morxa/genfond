@@ -42,7 +42,7 @@ def generate_problem(name, num_locations, draw_problem):
     spiky_road = Predicate('spiky-road', x, y)
     init_location = locations[0]
     goal_location = locations[-1]
-    unsafe_length = random.randint(3, int(num_locations / 2))
+    unsafe_length = random.randint(3, num_locations - 1)
     unsafe_conn = locations[:unsafe_length] + [goal_location]
     first_spiky_unsafe = random.randint(1, unsafe_length - 2)
     unsafe_first_seg = unsafe_conn[0:first_spiky_unsafe + 1]
@@ -60,7 +60,7 @@ def generate_problem(name, num_locations, draw_problem):
     for seg in [unsafe_spiky_seg, safe_spiky_seg]:
         init += [spiky_road(*pair) for pair in pairwise(seg)]
         init += [spiky_road(*pair) for pair in pairwise(reversed(seg))]
-    num_spares = random.randint(1, len(unsafe_conn) - 1)
+    num_spares = random.randint(1, 3)
     spares = constants(' '.join([f't{i}' for i in range(num_spares)]), 'tire')
     init += [tire_at(s, unsafe_conn[1]) for s in spares]
     objects = locations + spares
