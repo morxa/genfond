@@ -118,16 +118,20 @@ class StateSpaceGraph:
     def add_node(self, state, parent_state, action):
         parent = self.nodes[parent_state]
         try:
-            parent.add_child(action, self.nodes[state])
-            self.nodes[state].parents.add(parent)
-            return None
+            node = self.nodes[state]
+            new = False
         except KeyError:
             node = StateSpaceNode(state, self.next_id)
             self.next_id += 1
             self.nodes[state] = node
-            parent.add_child(action, node)
-            node.parents.add(parent)
+            new = True
+
+        parent.add_child(action, node)
+        node.parents.add(parent)
+        if new:
             return node
+        else:
+            return None
 
 
 def generate_state_space(domain, problem):
