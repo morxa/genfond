@@ -49,7 +49,7 @@ def generate_problem(name, num_locations, draw_problem):
     unsafe_spiky_seg = unsafe_conn[first_spiky_unsafe:first_spiky_unsafe + 3]
     unsafe_second_seg = unsafe_conn[first_spiky_unsafe + 2:]
     safe_conn = [init_location] + locations[unsafe_length:]
-    first_spiky_safe = random.randint(1, len(safe_conn) - 2)
+    first_spiky_safe = random.randint(0, len(safe_conn) - 2)
     safe_first_seg = safe_conn[0:first_spiky_safe + 1]
     safe_spiky_seg = safe_conn[first_spiky_safe:first_spiky_safe + 2]
     safe_second_seg = safe_conn[first_spiky_safe + 1:]
