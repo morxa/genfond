@@ -67,6 +67,11 @@ def solve(domain,
         log.info('No solution found')
         return None
     solution = solver.solution
+    stats |= {
+        'clingoAtoms': solver.statistics['problem']['lp']['atoms'],
+        'clingoRules': solver.statistics['problem']['lp']['rules'],
+        'clingoCpuTime': solver.statistics['summary']['times']['cpu'],
+    }
     policy = generate_policy(solution, policy_type=policy_type)
     return policy, stats
 

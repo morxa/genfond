@@ -33,6 +33,7 @@ class Solver:
         self.control.configuration.solve.parallel_mode = num_threads or os.cpu_count()
         self.solution = None
         self.cost = None
+        self.statistics = None
 
     def on_model(self, model):
         if not self.solution:
@@ -50,4 +51,6 @@ class Solver:
         self.cost = model.cost
 
     def solve(self):
-        return self.control.solve(on_model=self.on_model).satisfiable
+        res = self.control.solve(on_model=self.on_model)
+        self.statistics = self.control.statistics
+        return res.satisfiable
