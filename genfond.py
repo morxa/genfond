@@ -28,9 +28,16 @@ def solve(domain,
           max_cost=None,
           all_generators=True,
           enforce_highest_complexity=False):
+    stats = dict()
+    log.debug('Generating feature pool ...')
     feature_pool = FeaturePool(domain, problems, complexity, all_generators=all_generators)
+    stats['featurePoolSize'] = len(feature_pool.features)
+    log.debug('Generating ASP instance ...')
     asp_instance = feature_pool.to_clingo()
-    sg_sizes = [len(sg.nodes) for sg in feature_pool.state_graphs.values()]
+    state_counts = [len(sg.nodes) for sg in feature_pool.state_graphs.values()]
+    edge_counts = [len(node.children) for sg in feature_pool.state_graphs.values() for node in sg.nodes.values()]
+    stats['numStates'] = sum(state_counts)
+    stats['numTransitions'] = sum(edge_counts)
     if max_cost and enforce_highest_complexity and max_cost < complexity:
         log.info(f'No solution possible for {pnames(problems)}'
                  f' with enforced max complexity {complexity} and max cost {max_cost}')
@@ -38,8 +45,8 @@ def solve(domain,
     log.info('Solving {} with {} {} features up to {}complexity {},{} and {} = {} states'.format(
         ", ".join([p.name for p in problems]), len(feature_pool.features),
         'unrestricted' if all_generators else 'restricted', "enforced " if enforce_highest_complexity else "",
-        complexity, f' max cost {max_cost},' if max_cost else '', " + ".join([str(s)
-                                                                              for s in sg_sizes]), sum(sg_sizes)))
+        complexity, f' max cost {max_cost},' if max_cost else '', " + ".join([str(s) for s in state_counts]),
+        sum(state_counts)))
     if constraint_type == 'state':
         solve_prog = 'solve_state_constraints.lp'
         policy_type = PolicyType.CONSTRAINED
@@ -61,7 +68,7 @@ def solve(domain,
         return None
     solution = solver.solution
     policy = generate_policy(solution, policy_type=policy_type)
-    return policy
+    return policy, stats
 
 
 def pnames(problems):
@@ -162,7 +169,7 @@ def main():
                 log.info(f'Starting solver for {pnames(solver_problems)} with max complexity {i}')
                 solve_wall_time_start = time.perf_counter()
                 solve_cpu_time_start = time.process_time()
-                i_policy = solve(
+                solution = solve(
                     domain,
                     solver_problems,
                     args.num_threads,
@@ -182,7 +189,8 @@ def main():
                 log.info('Solver wall time: {:.2f}s'.format(solve_wall_time))
                 log.info('Solver CPU time: {:.2f}s'.format(solve_cpu_time))
                 total_solve_cpu_time += solve_cpu_time
-            if i_policy:
+            if solution:
+                i_policy, solve_stats = solution
                 if new_policy and new_policy.cost <= i_policy.cost:
                     log.info('Found new policy, but not better than old policy')
                     continue
@@ -209,6 +217,7 @@ def main():
                     continue
                 last_complexity = i
                 new_policy = i_policy
+                stats = solve_stats
                 best_solve_wall_time = solve_wall_time
                 best_solve_cpu_time = solve_cpu_time
         if new_policy:
@@ -244,7 +253,7 @@ def main():
     total_wall_time = time.perf_counter() - total_wall_time_start
     total_cpu_time = time.process_time() - total_cpu_time_start
     mem_usage = (resource.getrusage(resource.RUSAGE_SELF).ru_maxrss) / 1024
-    stats = {
+    stats |= {
         'domain': name,
         'constraintType': args.constraints,
         'totalWallTime': total_wall_time,
