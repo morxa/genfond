@@ -89,10 +89,6 @@ def main():
     parser.add_argument('-v', '--verbose', action='store_true')
     parser.add_argument('--min-complexity', type=int, default=2, help='start policy search with this max complexity')
     parser.add_argument('--max-complexity', type=int, default=9, help='stop policy search with this max complexity')
-    parser.add_argument('--continue-steps',
-                        type=int,
-                        default=None,
-                        help='continue policy search for this number of steps after finding a policy')
     parser.add_argument('-i',
                         '--policy-iterations',
                         type=int,
@@ -163,7 +159,7 @@ def main():
         solver_problems.append(problem)
         new_policy = None
         for i, all_generators in itertools.product(range(last_complexity, args.max_complexity + 1), [False, True]):
-            if new_policy and (not args.continue_steps or i > last_complexity + args.continue_steps):
+            if new_policy and new_policy.cost[0] <= i:
                 break
             try:
                 log.info(f'Starting solver for {pnames(solver_problems)} with max complexity {i}')
