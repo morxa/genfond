@@ -45,8 +45,6 @@
 (:init
 	(person-alive)
 	(person-at L44-1)
-	(bridge-clear)
-	; If some monkey initially in bridge change this!
 
 	(bridge-drop-location L11-1)
 	(bridge-drop-location L11-2)
