@@ -1,1 +1,0 @@
-../tireworld/draw.py

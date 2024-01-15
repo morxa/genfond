@@ -1,7 +1,0 @@
-(define (problem tireworld-049-03)
-    (:domain tire-adl)
-    (:requirements :negative-preconditions :non-deterministic :strips :typing)
-    (:objects l0 l1 l10 l11 l12 l13 l14 l15 l16 l17 l18 l19 l2 l20 l21 l22 l23 l24 l25 l26 l27 l28 l29 l3 l30 l31 l32 l33 l34 l35 l36 l37 l38 l39 l4 l40 l41 l42 l43 l44 l45 l46 l47 l48 l5 l6 l7 l8 l9 - location)
-    (:init (road l0 l28) (road l0 l39) (road l1 l10) (road l10 l46) (road l12 l17) (road l13 l37) (road l14 l29) (road l15 l7) (road l16 l33) (road l17 l22) (road l18 l35) (road l19 l36) (road l2 l16) (road l20 l30) (road l21 l18) (road l22 l17) (road l22 l43) (road l23 l0) (road l23 l14) (road l24 l20) (road l24 l38) (road l25 l19) (road l26 l29) (road l26 l4) (road l27 l21) (road l28 l0) (road l28 l6) (road l29 l26) (road l3 l48) (road l30 l32) (road l31 l3) (road l32 l25) (road l33 l42) (road l34 l1) (road l35 l15) (road l36 l2) (road l37 l23) (road l38 l24) (road l39 l11) (road l4 l38) (road l40 l34) (road l41 l0) (road l42 l9) (road l43 l31) (road l44 l6) (road l45 l41) (road l45 l6) (road l46 l47) (road l47 l8) (road l48 l47) (road l5 l27) (road l6 l28) (road l6 l45) (road l6 l5) (road l7 l40) (road l8 l13) (road l9 l44) (spare-in l0) (spare-in l1) (spare-in l10) (spare-in l13) (spare-in l14) (spare-in l15) (spare-in l17) (spare-in l18) (spare-in l22) (spare-in l23) (spare-in l28) (spare-in l3) (spare-in l31) (spare-in l33) (spare-in l37) (spare-in l39) (spare-in l42) (spare-in l43) (spare-in l45) (spare-in l47) (spare-in l48) (spare-in l8) (spare-in l9) (vehicle-at l12))
-    (:goal (vehicle-at l11))
-)
