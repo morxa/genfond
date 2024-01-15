@@ -33,20 +33,8 @@
   )  
 
   (:action move-monkey
-    :parameters (?from - location ?to - location ?m - monkey )
-    :precondition (and (monkey-at ?m ?from) (road ?from ?to))
-    :effect (and (not (monkey-at ?m ?from)) (monkey-at ?m ?to))
-  )
-
-  (:action climb-bridge
     :parameters (?m - monkey ?loc - location)
-    :precondition (and (bridge-clear) (monkey-at ?m ?loc))
-    :effect (and (not (monkey-at ?m ?loc)) (monkey-on-bridge ?m) (not (bridge-clear)) (bridge-occupied))
-  )
-
-  (:action leave-bridge
-    :parameters (?m - monkey ?loc - location)
-    :precondition (and (bridge-occupied) (monkey-on-bridge ?m) (bridge-drop-location ?loc))
+    :precondition (and (person-at ?loc) (bridge-occupied) (monkey-on-bridge ?m) (bridge-drop-location ?loc))
     :effect (and (monkey-at ?m ?loc) (not (monkey-on-bridge ?m)) (not (bridge-occupied)) (bridge-clear))
   )
 
