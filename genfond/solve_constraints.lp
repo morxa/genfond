@@ -27,13 +27,6 @@ safe_state(I, S) :- goal(I, S).
 safe_state(I, S1) :- alive(I, S1), safe_state(I, S2) : good_trans(I, S1, S2).
 :- alive(I, S), not safe_state(I, S).
 
-
-
-
-
-
-
-
 #minimize { C@3,F : selected(F), feature_complexity(F, C) }.
 
 #show good_trans/3.
