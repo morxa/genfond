@@ -254,7 +254,7 @@ def main():
     total_wall_time = time.perf_counter() - total_wall_time_start
     total_cpu_time = time.process_time() - total_cpu_time_start
     mem_usage = (resource.getrusage(resource.RUSAGE_SELF).ru_maxrss) / 1024
-    stats |= {
+    stats = {
         'domain': name,
         'constraintType': args.constraints,
         'totalWallTime': total_wall_time,
@@ -272,6 +272,7 @@ def main():
         'maxFeatureComplexity': last_complexity,
         'numConstraints': max(len(policy.state_constraints), len(policy.constraints)),
         'cost': policy.cost[0],
+        **stats,
     }
 
     log.info('Total wall time: {:.2f}s'.format(total_wall_time))
