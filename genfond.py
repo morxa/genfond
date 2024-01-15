@@ -148,6 +148,7 @@ def main():
     last_complexity = args.min_complexity
     verified = []
     queue = problems.copy()
+    failure_reason = ''
     queue.sort(key=lambda p: len(p.objects))
     for problem in queue:
         try:
@@ -181,6 +182,12 @@ def main():
                     enforce_highest_complexity=True if i > last_complexity else False,
                 )
             except (RuntimeError, MemoryError) as e:
+                if 'Id out of range' in str(e):
+                    failure_reason = 'id'
+                elif type(e) == MemoryError:
+                    failure_reason = 'memory'
+                else:
+                    failure_reason = str(e)
                 log.warning(
                     f'Error during policy generation for {pnames(solver_problems)} with max complexity {i}: {e}')
                 break
@@ -272,6 +279,7 @@ def main():
         'maxFeatureComplexity': last_complexity,
         'numConstraints': max(len(policy.state_constraints), len(policy.constraints)),
         'cost': policy.cost[0],
+        'failureReason': failure_reason,
         **stats,
     }
 
