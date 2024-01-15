@@ -96,6 +96,7 @@ def execute_policy(domain, problem, policy, max_steps=0):
     log.debug("Grounding actions done.")
     state = problem.init
     num_steps = 0
+    actions_taken = []
     while not check_formula(state, problem.goal) and (max_steps <= 0 or num_steps < max_steps):
         log.info(f'New state: {",".join([str(p) for p in state])}')
         feature_eval = eval_state(instance, mapping, features, state, goal_state)
@@ -153,6 +154,7 @@ def execute_policy(domain, problem, policy, max_steps=0):
                     log.info(f'Applying action {action_string(action)}')
                     state = get_next_state(succs, action)
                     num_steps += 1
+                    actions_taken.append(action_string(action))
                     break
             if found_rule:
                 break
@@ -164,3 +166,4 @@ def execute_policy(domain, problem, policy, max_steps=0):
         log.error('Goal not reached!')
         raise RuntimeError('Goal not reached!')
     log.info('Goal reached!')
+    return actions_taken

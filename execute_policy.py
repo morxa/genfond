@@ -6,6 +6,7 @@ import logging
 import sys
 
 logging.basicConfig(format='%(message)s', level=logging.INFO)
+log = logging.getLogger(__name__)
 
 
 def main():
@@ -21,7 +22,8 @@ def main():
     problem = pddl.parse_problem(args.problem)
     with open(args.policy, 'rb') as f:
         policy = pickle.load(f)
-    execute_policy(domain, problem, policy)
+    actions_taken = execute_policy(domain, problem, policy)
+    log.info(f'{len(actions_taken)} actions taken: {", ".join([str(a) for a in actions_taken])}')
 
 
 if __name__ == '__main__':
