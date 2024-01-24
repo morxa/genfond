@@ -78,7 +78,7 @@ def main():
     parser.add_argument('--max-cost', type=int, help='max cost of the policy')
     parser.add_argument('--constraints',
                         choices=['none', 'state', 'trans'],
-                        default='none',
+                        default='state',
                         help='generate constrainted policies with state or transition constraints')
     parser.add_argument('-n',
                         '--num-threads',

@@ -111,7 +111,7 @@ def main():
     parser.add_argument('--max-memory', type=int, default=None, help='maximum memory to use in MB')
     parser.add_argument('--constraints',
                         choices=['none', 'state', 'trans'],
-                        default='none',
+                        default='state',
                         help='generate constrainted policies with state or transition constraints')
     parser.add_argument('--dump-failed-policies', action='store_true', help='dump failed policies to file')
     parser.add_argument('--keep-going', action='store_true', help='keep going after one training problem failed')
