@@ -64,3 +64,9 @@ After learning a policy and writing it to a file (by writing a policy file with 
 ```
 python execute_policy.py domains/non-deterministic/acrobatics/{domain.pddl,p0005.pddl} acrobatics.policy
 ```
+
+# Copyright
+
+All rights reserved by the authors.
+
+Upon publication, this project will be made publicly available and licensed under an open-source license.
