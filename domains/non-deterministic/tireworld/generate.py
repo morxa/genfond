@@ -1,7 +1,6 @@
 import pddl
 import itertools
 from pddl.logic import Predicate, constants, variables
-from pddl.logic.effects import AndEffect
 from pddl.core import Problem
 from pddl.formatter import problem_to_string
 import argparse
@@ -9,7 +8,6 @@ import os.path
 from tqdm import trange
 import random
 import pygraphviz
-import math
 
 
 # Taken from https://docs.python.org/3/library/itertools.html#itertools-recipes
@@ -18,14 +16,6 @@ def pairwise(iterable):
     a, b = itertools.tee(iterable)
     next(b, None)
     return zip(a, b)
-
-
-def add_conn(road, conn_locations, add_spares=True):
-    init = [road(*pair) for pair in pairwise(conn_locations)]
-    init += [road(*pair) for pair in pairwise(reversed(conn_locations))]
-    if add_spares:
-        init += [spare_in(l) for l in conn_locations[1:-1]]
-    return init
 
 
 def draw(name, locations, facts, goal):
@@ -63,7 +53,7 @@ def generate_problem(name, num_locations, draw_problem):
     init = [vehicle_at(init_location)]
     init += [road(*pair) for pair in pairwise(safe_conn)]
     init += [road(*pair) for pair in pairwise(reversed(safe_conn))]
-    init += [spare_in(l) for l in safe_conn[1:-1]]
+    init += [spare_in(loc) for loc in safe_conn[1:-1]]
     conns = [safe_conn]
     remaining_locations = set(locations) - set(safe_conn)
     while len(remaining_locations) > 0:  # and random.random() > 1 / math.log(len(remaining_locations)):

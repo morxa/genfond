@@ -1,16 +1,13 @@
 import pddl
 import itertools
-from pddl.logic import Predicate, constants, variables
-from pddl.logic.effects import AndEffect
+from pddl.logic import Predicate, variables
 from pddl.logic.terms import Constant
 from pddl.core import Problem
 from pddl.formatter import problem_to_string
 import argparse
 import os.path
 from tqdm import trange
-import random
 import pygraphviz
-import math
 
 
 # Taken from https://docs.python.org/3/library/itertools.html#itertools-recipes
@@ -19,14 +16,6 @@ def pairwise(iterable):
     a, b = itertools.tee(iterable)
     next(b, None)
     return zip(a, b)
-
-
-def add_conn(road, conn_locations, add_spares=True):
-    init = [road(*pair) for pair in pairwise(conn_locations)]
-    init += [road(*pair) for pair in pairwise(reversed(conn_locations))]
-    if add_spares:
-        init += [spare_in(l) for l in conn_locations[1:-1]]
-    return init
 
 
 def draw(name, locations, facts, goal):
@@ -62,9 +51,9 @@ def generate_problem(name, size, draw_problem):
         grid[x] = dict()
         for y in range(x, 4 * size - x + 2):
             if x % 2 == y % 2:
-                l = Constant(f'l{x}_{y}', 'location')
-                locations.append(l)
-                grid[x][y] = l
+                loc = Constant(f'l{x}_{y}', 'location')
+                locations.append(loc)
+                grid[x][y] = loc
     start_location = grid[0][0]
     init = [vehicle_at(start_location), not_flattire]
     goal_location = grid[0][4 * size]
@@ -85,17 +74,6 @@ def generate_problem(name, size, draw_problem):
                     init.append(road(location, grid[x][y + 2]))
                 except KeyError:
                     pass
-            #if x % 2 == 1:
-            #    init.append(road(location, grid[x - 1][y + 1]))
-            #    init.append(road(grid[x - 1][y + 1], location))
-            #    if x == y and x < 2 * size:
-            #        init.append(road(location, grid[x + 1][y + 1]))
-            #        init.append(road(grid[x + 1][y + 1], location))
-            #elif y < 4 * size - x:
-            #    init.append(road(location, grid[x + 1][y + 1]))
-            #    init.append(road(grid[x + 1][y + 1], location))
-            #    init.append(road(location, grid[x][y + 2]))
-            #    init.append(road(grid[x][y + 2], location))
 
     if draw_problem:
         draw(name, locations, init, goal_location)

@@ -2,15 +2,12 @@ import pddl
 import itertools
 from pddl.logic import Predicate, constants, variables
 from pddl.logic.terms import Variable
-from pddl.logic.effects import AndEffect
 from pddl.core import Problem
 from pddl.formatter import problem_to_string
 import argparse
 import os.path
 from tqdm import trange
 import random
-import pygraphviz
-import math
 
 from draw import draw
 
@@ -21,14 +18,6 @@ def pairwise(iterable):
     a, b = itertools.tee(iterable)
     next(b, None)
     return zip(a, b)
-
-
-def add_conn(road, conn_locations, add_spares=True):
-    init = [road(*pair) for pair in pairwise(conn_locations)]
-    init += [road(*pair) for pair in pairwise(reversed(conn_locations))]
-    if add_spares:
-        init += [spare_in(l) for l in conn_locations[1:-1]]
-    return init
 
 
 def generate_problem(name, num_locations, draw_problem):
