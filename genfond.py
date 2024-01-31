@@ -13,7 +13,6 @@ import time
 import signal
 import os
 import itertools
-import resource
 from filelock import FileLock
 import csv
 
@@ -57,7 +56,7 @@ def solve(domain,
         solve_prog = 'solve.lp'
         policy_type = PolicyType.EXACT
     else:
-        raise ValueError(f'Unknown constraint type {constraints}')
+        raise ValueError(f'Unknown constraint type {constraint_type}')
     solver = Solver(asp_instance,
                     num_threads,
                     max_cost=max_cost,
@@ -184,7 +183,7 @@ def main():
             except (RuntimeError, MemoryError) as e:
                 if 'Id out of range' in str(e):
                     failure_reason = 'id'
-                elif type(e) == MemoryError:
+                elif isinstance(e, MemoryError):
                     failure_reason = 'memory'
                 else:
                     failure_reason = str(e)

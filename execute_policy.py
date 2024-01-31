@@ -3,7 +3,6 @@ from genfond.execute_policy import execute_policy
 import pddl
 import pickle
 import logging
-import sys
 
 logging.basicConfig(format='%(message)s', level=logging.INFO)
 log = logging.getLogger(__name__)

@@ -1,4 +1,4 @@
-from .policy import Cond, Effect, PolicyType, feature_eval_to_cond
+from .policy import Effect, PolicyType, feature_eval_to_cond
 from .feature_generator import construct_vocabulary_info, construct_instance_info, _get_state_from_goal
 from .ground import ground
 from dlplan.core import SyntacticElementFactory, State
