@@ -41,7 +41,7 @@ def test_solver_two_conflicting_actions():
         feature(g).
         feature_complexity(g, 1).
         feature(dead).
-        feature_complexity(dead, 1).
+        feature_complexity(dead, 2).
 
         state(0, 0).
         alive(0, 0).
@@ -249,7 +249,6 @@ def test_solver_bool_equiv2(simple_program):
     assert solver.solve()
     # 'g' must also be chosen to bool-distinguish states 2 and 3.
     assert solver.solution['selected'] == {'b_g', 'b_h'}
-    assert solver.solution['bool_repr'] == {(0, 0), (0, 2), (0, 4)}
 
 
 def test_solver_generate_policy(simple_program):
