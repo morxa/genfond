@@ -25,7 +25,7 @@ def main():
     for i, problem in enumerate(problems):
         try:
             log.info(f'Checking {i}/{len(problems)} problem {problem.name} ...')
-            state_space = StateSpaceGraph(domain, problem)
+            _ = StateSpaceGraph(domain, problem)
         except AssertionError:
             log.warning('Problem {} is not solvable'.format(problem.name))
             solvable = False
