@@ -94,7 +94,7 @@ class StateSpaceNode:
 
 class StateSpaceGraph:
 
-    def __init__(self, domain, problem):
+    def __init__(self, domain, problem, prune=True):
         self.domain = domain
         self.problem = problem
         root_state = problem.init
@@ -116,7 +116,8 @@ class StateSpaceGraph:
                             new_node.alive = Alive.ALIVE
                         queue.append(new_node)
         compute_alive(self.nodes.values())
-        self.prune_nodes()
+        if prune:
+            self.prune_nodes()
         assert all(node.alive != Alive.UNKNOWN for node in self.nodes.values())
         assert self.root.alive == Alive.ALIVE, 'Problem {} is unsolvable'.format(problem.name)
 
