@@ -8,11 +8,12 @@ from helpers import get_action
 def test_generate_features_simple_blocks(simple_blocks):
     domain, problem = simple_blocks
     feature_pool = FeaturePool(domain, [problem], all_generators=True)
-    a, b = constants('a b')
+    a, b, c = constants('a b c')
     assert 'b_empty(c_primitive(holding,0))' in feature_pool.features
     assert 'b_empty(r_primitive(on,0,1))' in feature_pool.features
     on_ab = frozenset([Predicate('on', a, b)])
-    print('\n'.join([f'{k} = {feature_pool.evaluate_feature(k, on_ab)}' for k in feature_pool.features.keys()]))
+    #print('\n'.join([f'{k} = {feature_pool.evaluate_concept(k, on_ab)}' for k in feature_pool.concepts.keys()]))
+    #print('\n'.join([f'{k} = {feature_pool.evaluate_feature(k, on_ab)}' for k in feature_pool.features.keys()]))
     assert feature_pool.evaluate_feature('b_empty(c_primitive(holding,0))', on_ab) is True
     assert feature_pool.evaluate_feature('b_empty(r_primitive(on,0,1))', on_ab) is False
     assert feature_pool.evaluate_feature('n_count(c_primitive(holding,0))', on_ab) == 0
@@ -27,6 +28,12 @@ def test_generate_features_simple_blocks(simple_blocks):
     assert feature_pool.evaluate_feature('n_count(r_primitive(on_G,0,1))', holding_a) == 1
     assert feature_pool.evaluate_feature('n_count(r_transitive_reflexive_closure(r_primitive(on,0,1)))',
                                          holding_a) == 3
+    assert feature_pool.evaluate_concept('c_top', on_ab) == {a.name, b.name, c.name}
+    assert feature_pool.evaluate_concept('c_primitive(holding,0)', on_ab) == set()
+    assert feature_pool.evaluate_concept('c_primitive(holding,0)', holding_a) == {a.name}
+    assert feature_pool.evaluate_role('r_primitive(on,0,1)', on_ab) == {(a.name, b.name)}
+    assert feature_pool.evaluate_role('r_primitive(on,0,1)', holding_a) == set()
+    assert feature_pool.evaluate_role('r_primitive(on_G,0,1)', on_ab) == {(a.name, c.name)}
 
 
 def test_generate_features_fond_blocks(fond_blocks):
@@ -40,7 +47,6 @@ def test_generate_features_fond_blocks(fond_blocks):
     assert len(gstates) > 0
     a, b, c, table = constants('A B C Table')
     istate = feature_pool.state_graphs[problem.name].root.state
-    print('\n'.join([f'{k} = {feature_pool.evaluate_feature(k, istate)}' for k in feature_pool.features.keys()]))
     assert feature_pool.evaluate_feature('n_count(r_primitive(on,0,1))', istate) == 3
     assert feature_pool.evaluate_feature('n_count(c_primitive(clear,0))', istate) == 3
     assert feature_pool.evaluate_feature('n_count(c_some(r_primitive(on,0,1),c_one_of(Table)))', istate) == 2
@@ -52,6 +58,10 @@ def test_generate_features_fond_blocks(fond_blocks):
     assert feature_pool.evaluate_feature('n_count(r_and(r_primitive(on,0,1),r_primitive(on_G,0,1)))',
                                          cta_puton_state) == 0
     assert feature_pool.evaluate_feature('n_count(r_and(r_primitive(on,0,1),r_primitive(on_G,0,1)))', gstates[0]) == 1
+    assert feature_pool.evaluate_concept('c_primitive(clear,0)', istate) == {table.name, b.name, c.name}
+    assert feature_pool.evaluate_concept('c_some(r_primitive(on,0,1),c_one_of(Table))', istate) == {a.name, b.name}
+    assert feature_pool.evaluate_role('r_and(r_primitive(on,0,1),r_primitive(on_G,0,1))',
+                                      gstates[0]) == {(b.name, a.name)}
 
 
 def test_features_to_clingo(simple_blocks):

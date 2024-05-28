@@ -50,11 +50,13 @@ class FeaturePool:
         self.states = dict()
         self.state_graphs = dict()
         self.goal_states = dict()
+        self.instances = dict()
         for problem in problems:
             instance, mapping = construct_instance_info(vocabulary, domain, problem,
                                                         self.problem_name_to_id[problem.name])
             self.state_graphs[problem.name] = generate_state_space(domain, problem)
             self.goal_states[problem.name] = _get_state_from_goal(problem.goal)
+            self.instances[problem.name] = instance
             pddl_states = {
                 node.state | self.goal_states[problem.name]
                 for node in self.state_graphs[problem.name].nodes.values()
@@ -65,20 +67,25 @@ class FeaturePool:
             }
         factory = SyntacticElementFactory(vocabulary)
         if preset_features:
-            str_features = preset_features
+            str_gens = preset_features
         else:
-            str_features = dlplan_gen.generate_features(
+            str_gens = dlplan_gen.generate_features(
                 factory, [state for state in self.states[problem.name].values() for problem in problems],
                 *5 * [max_complexity], 3600, 10000, *30 * [True] if all_generators else [])
         self.features = {}
-        for str_feature in str_features:
-            if str_feature.startswith("b_"):
-                feature = factory.parse_boolean(str_feature)
-            elif str_feature.startswith("n_"):
-                feature = factory.parse_numerical(str_feature)
-            else:
-                continue
-            self.features[str(feature)] = feature
+        self.concepts = {}
+        self.roles = {}
+        for str_gen in str_gens:
+            if str_gen.startswith("b_"):
+                feature = factory.parse_boolean(str_gen)
+                self.features[str(feature)] = feature
+            elif str_gen.startswith("n_"):
+                feature = factory.parse_numerical(str_gen)
+                self.features[str(feature)] = feature
+            elif str_gen.startswith("c_"):
+                self.concepts[str_gen] = factory.parse_concept(str_gen)
+            elif str_gen.startswith("r_"):
+                self.roles[str_gen] = factory.parse_role(str_gen)
 
     def evaluate_feature(self, feature, state):
         # Try to guess which problem the state belongs to.
@@ -90,9 +97,49 @@ class FeaturePool:
             f' found {len(problems)} matching problems'
         return self.evaluate_feature_from_problem(feature, problems[0], state)
 
+    def evaluate_concept(self, concept, state):
+        # Try to guess which problem the state belongs to.
+        problems = [
+            problem for (problem, states) in self.states.items() if state | self.goal_states[problem] in states
+        ]
+        assert len(problems) == 1, \
+            'Cannot determine which problem the state belongs to,' \
+            f' found {len(problems)} matching problems'
+        return self.evaluate_concept_from_problem(concept, problems[0], state)
+
+    def evaluate_role(self, role, state):
+        # Try to guess which problem the state belongs to.
+        problems = [
+            problem for (problem, states) in self.states.items() if state | self.goal_states[problem] in states
+        ]
+        assert len(problems) == 1, \
+            'Cannot determine which problem the state belongs to,' \
+            f' found {len(problems)} matching problems'
+        return self.evaluate_role_from_problem(role, problems[0], state)
+
     def evaluate_feature_from_problem(self, feature, problem, state):
         feature = feature.strip('"')
         return self.features[feature].evaluate(self.states[problem][state | self.goal_states[problem]])
+
+    def evaluate_role_from_problem(self, role, problem, state):
+        role = role.strip('"')
+        return set([(self.obj_id_to_obj(problem, id1), self.obj_id_to_obj(problem, id2))
+                    for id1, id2 in self.roles[role].evaluate(self.states[problem]
+                                                              [state | self.goal_states[problem]]).to_sorted_vector()])
+
+    def obj_id_to_obj(self, problem, obj_id):
+        for obj in self.instances[problem].get_objects():
+            if obj_id == obj.get_index():
+                return obj.get_name()
+        return None
+
+    def evaluate_concept_from_problem(self, concept, problem, state):
+        concept = concept.strip('"')
+        return set([
+            self.obj_id_to_obj(problem, id) for id in self.concepts[concept].evaluate(
+                self.states[problem][state
+                                     | self.goal_states[problem]]).to_sorted_vector()
+        ])
 
     def to_clingo(self):
         clingo_program = ""
