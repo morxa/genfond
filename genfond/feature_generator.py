@@ -141,6 +141,21 @@ class FeaturePool:
                                      | self.goal_states[problem]]).to_sorted_vector()
         ])
 
+    def evaluate_concept_for_object(self, concept, state, object):
+        # Try to guess which problem the state belongs to.
+        problems = [
+            problem for (problem, states) in self.states.items() if state | self.goal_states[problem] in states
+        ]
+        assert len(problems) == 1, \
+            'Cannot determine which problem the state belongs to,' \
+            f' found {len(problems)} matching problems'
+        return self.evaluate_concept_for_object_from_problem(concept, problems[0], state, object)
+        
+    def evaluate_concept_for_object_from_problem(self, concept, problem, state, object):
+        concept = concept.strip('"')
+        #TODO: don't generate whole list, just check for one object
+        return object in self.evaluate_concept_from_problem(concept, problem, state)
+
     def to_clingo(self):
         clingo_program = ""
         for feature_str, feature in self.features.items():

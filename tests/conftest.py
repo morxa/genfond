@@ -44,6 +44,12 @@ def typed_blocks():
     problem = pddl.parse_problem(os.path.join(typed_blocks_path, 'p01.pddl'))
     return domain, problem
 
+@pytest.fixture
+def blocks_clear():
+    blocksclear_path = os.path.join(os.path.dirname(__file__), 'fixtures', 'pddl_files', 'blocks-clear')
+    domain = pddl.parse_domain(os.path.join(blocksclear_path, 'domain.pddl'))
+    problem = pddl.parse_problem(os.path.join(blocksclear_path, 'p002-1.pddl'))
+    return domain, problem
 
 @pytest.fixture
 def program_with_nontriv_equiv():
