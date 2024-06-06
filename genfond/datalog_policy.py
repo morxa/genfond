@@ -35,7 +35,8 @@ class DatalogPolicyRule:
     def __repr__(self):
         tail = []
         for parameter, concepts in self.tail_by_parameter.items():
-            tail.extend([str(concept).replace("0", parameter) for concept in concepts])
+            tail.extend([f'{parameter} ∈ {concept}' for concept in concepts])
+        tail.sort()
         return f'{self.name}({', '.join(self.parameters)}){(' :- ' + ', '.join(tail)) if len(tail) > 0 else ''}.'
 
     def __hash__(self):
@@ -53,4 +54,4 @@ class DatalogPolicy:
         return self.rules == other.rules
         
     def __repr__(self):
-        return f'Rules: {" ".join([str(r) for r in self.rules])}'
+        return "\n".join([str(r) for r in self.rules])
