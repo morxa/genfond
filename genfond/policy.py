@@ -1,6 +1,7 @@
 import itertools
 from enum import Enum
 import logging
+from .generate_datalog_policy import generate_datalog_policy
 
 log = logging.getLogger(__name__)
 
@@ -22,6 +23,7 @@ class Effect(Enum):
 class PolicyType(Enum):
     EXACT = 1
     CONSTRAINED = 2
+    DATALOG = 3
 
 
 class PolicyRule:
@@ -270,6 +272,8 @@ def crit_states_to_constraints(crit_states, bool_eval):
 
 
 def generate_policy(solution, policy_type=PolicyType.EXACT):
+    if policy_type == PolicyType.DATALOG:
+        return generate_datalog_policy(solution)
     rules = set()
     constraints = set()
     state_constraints = set()
