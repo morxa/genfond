@@ -37,7 +37,7 @@ class DatalogPolicyRule:
         for parameter, concepts in self.tail_by_parameter.items():
             tail.extend([f'{parameter} ∈ {concept}' for concept in concepts])
         tail.sort()
-        return f'{self.name}({', '.join(self.parameters)}){f" :- {', '.join(tail)}" if True else ' '}.'
+        return f'{self.name}({', '.join(self.parameters)}){f" :- {', '.join(tail)}" if tail else ' '}.'
 
     def __hash__(self):
         return hash((
