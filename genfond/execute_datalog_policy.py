@@ -3,7 +3,7 @@ import logging
 import random
 from dlplan.core import SyntacticElementFactory
 from pddl.logic.terms import Constant
-from .execute_policy import eval_state
+from .execute_rule_policy import eval_state
 from .feature_generator import construct_vocabulary_info, construct_instance_info, _get_state_from_goal
 from .ground import ground
 from .state_space_generator import check_formula, apply_action_effects
