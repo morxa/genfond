@@ -49,7 +49,8 @@ class DatalogPolicyRule:
 
 class DatalogPolicy:
 
-    def __init__(self, rules):
+    def __init__(self, rules, cost=0):
+        self.cost = cost
         self.rules = frozenset(rules)
 
     def __eq__(self, other):
