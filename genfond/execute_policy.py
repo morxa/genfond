@@ -3,6 +3,8 @@ from .feature_generator import construct_vocabulary_info, construct_instance_inf
 from .ground import ground
 from dlplan.core import SyntacticElementFactory, State
 from .state_space_generator import check_formula, apply_action_effects
+from .datalog_policy import DatalogPolicy
+from .execute_datalog_policy import execute_datalog_policy
 import random
 
 import logging
@@ -76,6 +78,8 @@ def state_string(state):
 
 
 def execute_policy(domain, problem, policy, max_steps=0):
+    if isinstance(policy, DatalogPolicy):
+        return execute_datalog_policy(domain, problem, policy)
     log.info(
         f'Executing policy:\n{policy}\nin {domain.name} for problem {problem.name} with features {policy.features}')
     vocabulary = construct_vocabulary_info(domain)
