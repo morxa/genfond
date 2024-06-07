@@ -40,8 +40,11 @@ class DatalogPolicyRule:
         return f'{self.name}({', '.join(self.parameters)}){f" :- {', '.join(tail)}" if True else ' '}.'
 
     def __hash__(self):
-        return hash(self.name) + hash(len(self.parameters)) + sum(
-            [hash(self.tail_by_parameter[p]) for p in self.parameters])
+        return hash((
+            self.name,
+            len(self.parameters),
+            *tuple(self.tail_by_parameter[p] for p in self.parameters),
+        ))
 
 
 class DatalogPolicy:
