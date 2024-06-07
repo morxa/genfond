@@ -4,7 +4,7 @@ from genfond.execute_datalog_policy import execute_datalog_policy
 
 def test_block_clear_all(blocks_clear):
     domain, problem = blocks_clear
-    
+
     policy = DatalogPolicy([
         DatalogPolicyRule('unstack(X, Y)', [
             ('X', 'c_primitive(clear, 0)'),
@@ -13,12 +13,13 @@ def test_block_clear_all(blocks_clear):
             ('X', 'c_primitive(clear, 0)'),
         ]),
     ])
-    
+
     execute_datalog_policy(domain, problem, policy, max_steps=0)
-    
+
+
 def test_fond_blocks(fond_blocks):
     domain, problem = fond_blocks
-    
+
     policy = DatalogPolicy([
         DatalogPolicyRule('puton(X, Y, Z)', [
             ('Y', 'c_one_of(Table)'),
@@ -33,5 +34,5 @@ def test_fond_blocks(fond_blocks):
             ('Y', 'c_projection(r_primitive(on_G,0,1),1)'),
         ]),
     ])
-    
+
     execute_datalog_policy(domain, problem, policy, max_steps=0)

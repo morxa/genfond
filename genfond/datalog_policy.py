@@ -25,7 +25,7 @@ class DatalogPolicyRule:
             return False
         if len(self.parameters) != len(other.parameters):
             return False
-        
+
         for p_self, p_other in zip(self.parameters, other.parameters):
             if self.tail_by_parameter[p_self] != other.tail_by_parameter[p_other]:
                 return False
@@ -37,21 +37,20 @@ class DatalogPolicyRule:
         for parameter, concepts in self.tail_by_parameter.items():
             tail.extend([f'{parameter} ∈ {concept}' for concept in concepts])
         tail.sort()
-        return f'{self.name}({', '.join(self.parameters)}){(' :- ' + ', '.join(tail)) if len(tail) > 0 else ''}.'
+        return f'{self.name}({', '.join(self.parameters)}){f" :- {', '.join(tail)}" if True else ' '}.'
 
     def __hash__(self):
-        return hash(self.name) + hash(len(self.parameters)) + sum([
-            hash(self.tail_by_parameter[p]) for p in self.parameters
-        ])
+        return hash(self.name) + hash(len(self.parameters)) + sum(
+            [hash(self.tail_by_parameter[p]) for p in self.parameters])
 
 
 class DatalogPolicy:
 
     def __init__(self, rules):
         self.rules = frozenset(rules)
-        
+
     def __eq__(self, other):
         return self.rules == other.rules
-        
+
     def __repr__(self):
         return "\n".join([str(r) for r in self.rules])
