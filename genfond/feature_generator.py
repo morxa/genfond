@@ -5,6 +5,8 @@ from pddl.logic import Predicate
 from .ground import ground_domain_predicates
 from .state_space_generator import apply_effects, generate_state_space, check_formula, Alive
 
+MAX_ACTION_PARAMETERS = 3
+
 
 def construct_vocabulary_info(domain):
     vocabulary = VocabularyInfo()
@@ -141,12 +143,18 @@ class FeaturePool:
                                      | self.goal_states[problem]]).to_sorted_vector()
         ])
 
-    def to_clingo(self):
+    def to_clingo(self, include_features=True, include_concepts=False):
         clingo_program = ""
-        for feature_str, feature in self.features.items():
-            feature_str = f'"{feature_str}"'
-            clingo_program += f'feature({feature_str}).\n'
-            clingo_program += f'feature_complexity({feature_str}, {feature.compute_complexity()}).\n'
+        if include_features:
+            for feature_str, feature in self.features.items():
+                feature_str = f'"{feature_str}"'
+                clingo_program += f'feature({feature_str}).\n'
+                clingo_program += f'feature_complexity({feature_str}, {feature.compute_complexity()}).\n'
+        if include_concepts:
+            for concept_str, concept in self.concepts.items():
+                concept_str = f'"{concept_str}"'
+                clingo_program += f'concept({concept_str}).\n'
+                clingo_program += f'concept_complexity({concept_str}, {concept.compute_complexity()}).\n'
         for problem, state_graph in self.state_graphs.items():
             problem_id = self.problem_name_to_id[problem]
             for node in state_graph.nodes.values():
@@ -155,14 +163,26 @@ class FeaturePool:
                     clingo_program += f'alive({problem_id}, {node.id}).\n'
                 if check_formula(node.state, state_graph.problem.goal):
                     clingo_program += f'goal({problem_id}, {node.id}).\n'
-                for feature_str, feature in self.features.items():
-                    feature_str = f'"{feature_str}"'
-                    eval = self.evaluate_feature_from_problem(feature_str, problem, node.state)
-                    if type(eval) is bool:
-                        eval = 1 if eval else 0
-                    clingo_program += f'eval({problem_id}, {node.id}, {feature_str}, {eval}).\n'
+                if include_features:
+                    for feature_str, feature in self.features.items():
+                        feature_str = f'"{feature_str}"'
+                        eval = self.evaluate_feature_from_problem(feature_str, problem, node.state)
+                        if type(eval) is bool:
+                            eval = 1 if eval else 0
+                        clingo_program += f'eval({problem_id}, {node.id}, {feature_str}, {eval}).\n'
+                if include_concepts:
+                    for concept_str, concept in self.concepts.items():
+                        concept_str = f'"{concept_str}"'
+                        for obj in self.evaluate_concept_from_problem(concept_str, problem, node.state):
+                            clingo_program += f'c_eval({problem_id}, {node.id}, {concept_str}, "{obj}").\n'
                 for action, children in node.children.items():
                     action_str = f'"{action.name}({",".join([str(p) for p in action.parameters])})"'
                     for child in children:
                         clingo_program += f'trans({problem_id}, {node.id}, {action_str}, {child.id}).\n'
+                        if include_concepts:
+                            params = [f'"{p}"' for p in action.parameters]
+                            assert len(params) <= MAX_ACTION_PARAMETERS, \
+                                    f'Action {action.name} has too many parameters: {len(params)}'
+                            params += ['nil'] * (MAX_ACTION_PARAMETERS - len(params))
+                            clingo_program += f'amap({action_str}, "{action.name}", {", ".join(params)}).\n'
         return clingo_program

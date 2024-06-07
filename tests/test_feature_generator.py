@@ -3,6 +3,7 @@ from genfond.state_space_generator import apply_action_effects, check_formula
 from genfond.ground import ground
 from pddl.logic import constants, Predicate
 from helpers import get_action
+import re
 
 
 def test_generate_features_simple_blocks(simple_blocks):
@@ -68,6 +69,7 @@ def test_features_to_clingo(simple_blocks):
     domain, problem = simple_blocks
     feature_pool = FeaturePool(domain, [problem], 2)
     clingo_program = feature_pool.to_clingo()
+    print(f'full program:\n{clingo_program}')
     assert 'feature("b_empty(c_primitive(holding,0))").' in clingo_program
     assert 'feature_complexity("b_empty(c_primitive(holding,0))", 2).' in clingo_program
     assert 'feature("b_empty(r_primitive(on,0,1))").' in clingo_program
@@ -93,6 +95,30 @@ def test_features_to_clingo(simple_blocks):
     assert 'eval(0, 2, "n_count(r_primitive(on_G,0,1))", 1).' in clingo_program
     assert 'trans(0, 0, "pick(a,b)", 1).' in clingo_program
     assert 'trans(0, 1, "put(a,b)", 0).' in clingo_program
+    assert 'c_eval' not in clingo_program
+
+
+def test_concepts_to_clingo(simple_blocks):
+    domain, problem = simple_blocks
+    feature_pool = FeaturePool(domain, [problem], 2)
+    clingo_program = feature_pool.to_clingo(include_features=False, include_concepts=True)
+    print(f'full program:\n{clingo_program}')
+    assert 'concept("c_top").' in clingo_program
+    assert 'concept_complexity("c_top", 1).' in clingo_program
+    assert 'concept("c_primitive(holding,0)").' in clingo_program
+    assert 'concept_complexity("c_primitive(holding,0)", 1).' in clingo_program
+    assert 'concept("c_not(c_primitive(holding,0))").' in clingo_program
+    assert 'concept_complexity("c_not(c_primitive(holding,0))", 2).' in clingo_program
+    assert 'state(0, 0).' in clingo_program
+    assert 'c_eval(0, 0, "c_top", "a").' in clingo_program
+    assert 'c_eval(0, 0, "c_top", "b").' in clingo_program
+    assert 'c_eval(0, 0, "c_top", "c").' in clingo_program
+    assert 'state(0, 1).' in clingo_program
+    assert 'c_eval(0, 1, "c_primitive(holding,0)", "a").' in clingo_program
+    assert 'state(0, 2).' in clingo_program
+    assert 'trans(0, 0, "pick(a,b)", 1).' in clingo_program
+    assert 'trans(0, 1, "put(a,b)", 0).' in clingo_program
+    assert not re.search(r'^eval.*', clingo_program, re.MULTILINE)
 
 
 def test_features_clingo_upper_case(fond_blocks):
