@@ -6,8 +6,8 @@ log = logging.getLogger(__name__)
 
 class DatalogPolicyRule:
 
-    def __init__(self, head, tail):
-        match = re.search(r'^(\w+)\(([\w, ]+)\)$', head)
+    def __init__(self, head, tail, conds=[]):
+        match = re.search(r'^([^(]+)\(([\w, ]+)\)$', head)
         if not match:
             raise ValueError(f'Invalid head: {head}')
         self.name = match.groups()[0]

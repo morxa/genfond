@@ -7,9 +7,9 @@ def generate_datalog_policy(solution):
     conds = dict()
     for instance, state, action in solution['good_action']:
         # TODO copied from DatalogPolicyRule
-        match = re.search(r'^(\w+)\(([\w, ]+)\)$', action.strip('"'))
+        match = re.search(r'^([^(]+)\(([\w, ]+)\)$', action.strip('"'))
         if not match:
-            raise ValueError(f'Invalid head: {head}')
+            raise ValueError(f'Invalid head: {action}')
         name = match.groups()[0]
         parameters = match.groups()[1].replace(' ', '').split(',')
         arg_to_var = dict()
@@ -36,9 +36,9 @@ def generate_datalog_policy(solution):
         conds[(instance, state, action)].append(cond)
     for key, body_conds in conds.items():
         action = key[2]
-        match = re.search(r'^(\w+)\(([\w, ]+)\)$', action.strip('"'))
+        match = re.search(r'^([^(]+)\(([\w, ]+)\)$', action.strip('"'))
         if not match:
-            raise ValueError(f'Invalid head: {head}')
+            raise ValueError(f'Invalid head: {action}')
         action_name = match.groups()[0]
         args = ",".join(args_to_vars[key].values())
         action = f'{action_name}({args})'
