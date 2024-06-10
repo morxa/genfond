@@ -1,5 +1,6 @@
 from genfond.solver import Solver
-from genfond.policy import Cond, Effect, PolicyRule, generate_policy
+from genfond.policy import Cond, Effect, PolicyRule
+from genfond.generate_policy import generate_policy
 
 
 def test_solver_choose_good_trans():
