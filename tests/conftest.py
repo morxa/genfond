@@ -151,3 +151,11 @@ def simple_program():
         trans(0, 1, b, 3).
         trans(0, 3, a, 4).
     """
+
+
+@pytest.fixture
+def doors():
+    doors_path = os.path.join(os.path.dirname(__file__), 'fixtures', 'pddl_files', 'doors')
+    domain = pddl.parse_domain(os.path.join(doors_path, 'domain.pddl'))
+    problem = pddl.parse_problem(os.path.join(doors_path, 'p01.pddl'))
+    return domain, problem

@@ -1,4 +1,4 @@
-from genfond.datalog_policy import DatalogPolicyRule, DatalogPolicy
+from genfond.datalog_policy import DatalogPolicyRule, DatalogPolicy, Cond
 from genfond.execute_datalog_policy import execute_datalog_policy
 
 
@@ -36,3 +36,16 @@ def test_fond_blocks(fond_blocks):
     ])
 
     execute_datalog_policy(domain, problem, policy, max_steps=0)
+
+
+def test_datalog_policy_with_conds(doors):
+    domain, problem = doors
+    policy = DatalogPolicy([
+        DatalogPolicyRule('move-forward-door-open(P1, P2, P3, P4)', [], {'b_nullary(hold-key)': Cond.TRUE}),
+        DatalogPolicyRule('move-forward-door-closed(P1, P2, P3, P4)', [], {'b_nullary(hold-key)': Cond.TRUE}),
+        DatalogPolicyRule('move-forward-last-door-open(P1, P2, P3)', [], {'b_nullary(hold-key)': Cond.TRUE}),
+        DatalogPolicyRule('move-forward-last-door-closed(P1, P2, P3)', [], {'b_nullary(hold-key)': Cond.TRUE}),
+        DatalogPolicyRule('pick-key(X)', [], {'b_nullary(hold-key)': Cond.FALSE}),
+    ])
+    for i in range(10):
+        execute_datalog_policy(domain, problem, policy, 10)

@@ -3,7 +3,7 @@ import logging
 import random
 from dlplan.core import SyntacticElementFactory
 from pddl.logic.terms import Constant
-from .execute_rule_policy import eval_state
+from .execute_rule_policy import eval_state, bool_eval_state, state_satisfies_rule_conds
 from .feature_generator import construct_vocabulary_info, construct_instance_info, _get_state_from_goal
 from .ground import ground
 from .state_space_generator import check_formula, apply_action_effects
@@ -35,11 +35,19 @@ def execute_datalog_policy(domain, problem, datalog_policy, max_steps=0):
     instance, mapping = construct_instance_info(vocabulary, domain, problem, 0)
     object_id_to_name = {o.get_index(): o.get_name() for o in instance.get_objects()}
 
-    features = {}
+    concepts = dict()
+    features = dict()
     for rule in datalog_policy.rules:
-        for concepts in rule.tail_by_parameter.values():
-            for concept in concepts:
-                features[concept] = factory.parse_concept(concept)
+        for cond, _ in rule.conds.items():
+            if cond.startswith('b_'):
+                features[cond] = factory.parse_boolean(cond)
+            elif cond.startswith('n_'):
+                features[cond] = factory.parse_numerical(cond)
+            else:
+                raise ValueError(f'Unknown feature type: {cond}')
+        for rule_concepts in rule.tail_by_parameter.values():
+            for concept in rule_concepts:
+                concepts[concept] = factory.parse_concept(concept)
 
     state = problem.init
     goal_state = _get_state_from_goal(problem.goal)
@@ -49,11 +57,15 @@ def execute_datalog_policy(domain, problem, datalog_policy, max_steps=0):
         log.info(f'New state: {state_string(state)}')
         found_rule = False
 
-        eval = eval_state(instance, mapping, features, state, goal_state)
+        eval = eval_state(instance, mapping, concepts, state, goal_state)
+        bool_eval = bool_eval_state(instance, mapping, features, state, goal_state)
 
         for rule in datalog_policy.rules:
             log.debug(f'Checking rule {rule}')
-
+            if not state_satisfies_rule_conds(bool_eval, rule.conds):
+                log.debug(f'... Rule conditions not satisfied!')
+                continue
+            log.debug(f'... Rule conditions satisfied!')
             objects = [[] for _ in range(len(rule.parameters))]
 
             for index, parameter in enumerate(rule.parameters):

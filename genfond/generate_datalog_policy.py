@@ -20,13 +20,13 @@ def generate_datalog_policy(solution):
         args_to_vars[(instance, state, action)] = arg_to_var
     print(args_to_vars)
     rules = []
-    for instance, state, action, _, _, _, concept, pos, argnum in solution['distinguished']:
+    for instance, state, action in solution['good_action']:
+        conds[(instance, state, action)] = []
+    for instance, state, action, _, _, _, concept, pos, argnum in solution.get('c_distinguished', []):
         action = action.strip('"')
         concept = concept.strip('"')
         argnum = int(argnum)
         negated = (pos == 'neg')
-        if (instance, state, action) not in conds:
-            conds[(instance, state, action)] = []
         if concept == 'name':
             continue
         if negated:
