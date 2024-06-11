@@ -1,6 +1,6 @@
 from genfond.solver import Solver
 from genfond.feature_generator import FeaturePool
-from genfond.policy import generate_policy, PolicyType
+from genfond.generate_policy import generate_policy, PolicyType
 import pddl
 import pygraphviz
 import pickle
@@ -76,10 +76,10 @@ def main():
     parser.add_argument('-c', '--complexity', type=int, default=5, help='max complexity of the used features')
     parser.add_argument('--min-complexity', type=int, help='force minimum complexity of the used features')
     parser.add_argument('--max-cost', type=int, help='max cost of the policy')
-    parser.add_argument('--constraints',
-                        choices=['none', 'state', 'trans'],
+    parser.add_argument('--type',
+                        choices=['none', 'state', 'trans', 'datalog'],
                         default='state',
-                        help='generate constrainted policies with state or transition constraints')
+                        help='the type of the generated policy')
     parser.add_argument('-n',
                         '--num-threads',
                         type=int,
@@ -93,17 +93,20 @@ def main():
     else:
         loglevel = logging.INFO
     logging.basicConfig(level=loglevel)
-    if args.constraints == 'state':
-        solve_prog = 'solve_state_constraints.lp'
+    if args.type == 'state':
+        solve_prog = 'solve_state_type.lp'
         policy_type = PolicyType.CONSTRAINED
-    elif args.constraints == 'trans':
-        solve_prog = 'solve_trans_constraints.lp'
+    elif args.type == 'trans':
+        solve_prog = 'solve_trans_type.lp'
         policy_type = PolicyType.CONSTRAINED
-    elif args.constraints == 'none':
+    elif args.type == 'none':
         solve_prog = 'solve.lp'
         policy_type = PolicyType.EXACT
+    elif args.type == 'datalog':
+        solve_prog = 'solve_datalog.lp'
+        policy_type = PolicyType.DATALOG
     else:
-        raise ValueError(f'Unknown constraint type {args.constraints}')
+        raise ValueError(f'Unknown constraint type {args.type}')
     domain = pddl.parse_domain(args.domain_file)
     problems = []
     for problem_file in args.problem_file:
@@ -116,7 +119,7 @@ def main():
     if args.input:
         solution, policy = pickle.load(open(args.input, 'rb'))
     else:
-        asp_instance = feature_pool.to_clingo()
+        asp_instance = feature_pool.to_clingo(include_concepts=(args.type == 'datalog'))
         if args.program_file:
             with open(args.program_file, 'w') as f:
                 f.write(asp_instance)
