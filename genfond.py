@@ -1,7 +1,9 @@
 import argparse
 from genfond.feature_generator import FeaturePool
 from genfond.solver import Solver
-from genfond.policy import Policy, generate_policy, PolicyType
+from genfond.policy import Policy, PolicyType
+from genfond.datalog_policy import DatalogPolicy
+from genfond.generate_policy import generate_policy
 from genfond.execute_policy import execute_policy
 import logging
 import sys
@@ -23,7 +25,7 @@ def solve(domain,
           problems,
           num_threads,
           complexity,
-          constraint_type=None,
+          type=None,
           max_cost=None,
           all_generators=True,
           enforce_highest_complexity=False):
@@ -32,7 +34,7 @@ def solve(domain,
     feature_pool = FeaturePool(domain, problems, complexity, all_generators=all_generators)
     stats['featurePoolSize'] = len(feature_pool.features)
     log.debug('Generating ASP instance ...')
-    asp_instance = feature_pool.to_clingo()
+    asp_instance = feature_pool.to_clingo(include_features=True, include_concepts=(type == 'datalog'))
     state_counts = [len(sg.nodes) for sg in feature_pool.state_graphs.values()]
     edge_counts = [len(node.children) for sg in feature_pool.state_graphs.values() for node in sg.nodes.values()]
     stats['numStates'] = sum(state_counts)
@@ -46,15 +48,18 @@ def solve(domain,
         'unrestricted' if all_generators else 'restricted', "enforced " if enforce_highest_complexity else "",
         complexity, f' max cost {max_cost},' if max_cost else '', " + ".join([str(s) for s in state_counts]),
         sum(state_counts)))
-    if constraint_type == 'state':
+    if type == 'state':
         solve_prog = 'solve_state_constraints.lp'
         policy_type = PolicyType.CONSTRAINED
-    elif constraint_type == 'trans':
+    elif type == 'trans':
         solve_prog = 'solve_trans_constraints.lp'
         policy_type = PolicyType.CONSTRAINED
-    elif not constraint_type or constraint_type == 'none':
+    elif not type or type == 'exact':
         solve_prog = 'solve.lp'
         policy_type = PolicyType.EXACT
+    elif type == 'datalog':
+        solve_prog = 'solve_datalog.lp'
+        policy_type = PolicyType.DATALOG
     else:
         raise ValueError(f'Unknown constraint type {constraint_type}')
     solver = Solver(asp_instance,
@@ -71,7 +76,15 @@ def solve(domain,
         'clingoRules': solver.statistics['problem']['lp']['rules'],
         'clingoCpuTime': solver.statistics['summary']['times']['cpu'],
     }
-    policy = generate_policy(solution, policy_type=policy_type)
+    log.debug(f'ASP instance:\n{asp_instance}')
+    log.debug(f'Solution: {solution}')
+    log.debug(f'f_selected: {solution.get("f_selected", [])}')
+    log.debug(f'f_distinguished: {solution.get("f_distinguished", [])}')
+    try:
+        policy = generate_policy(solution, policy_type=policy_type)
+    except KeyError as e:
+        log.error(f'Error during policy generation: {e}')
+        raise
     return policy, stats
 
 
@@ -108,10 +121,10 @@ def main():
                         default=None,
                         help='number of threads to use; "None" uses all available threads')
     parser.add_argument('--max-memory', type=int, default=None, help='maximum memory to use in MB')
-    parser.add_argument('--constraints',
-                        choices=['none', 'state', 'trans'],
+    parser.add_argument('--type',
+                        choices=['exact', 'state', 'trans', 'datalog'],
                         default='state',
-                        help='generate constrainted policies with state or transition constraints')
+                        help='generate policies of the given type')
     parser.add_argument('--dump-failed-policies', action='store_true', help='dump failed policies to file')
     parser.add_argument('--keep-going', action='store_true', help='keep going after one training problem failed')
     parser.add_argument('--continue-after-error', action='store_true', help='continue after error in policy execution')
@@ -119,8 +132,11 @@ def main():
     args = parser.parse_args()
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO,
                         format='%(asctime)s %(levelname)-8s %(message)s')
+    logging.getLogger('genfond.generate_rule_policy').setLevel(logging.ERROR)
     if not args.verbose:
         logging.getLogger('genfond.execute_policy').setLevel(logging.CRITICAL)
+        logging.getLogger('genfond.execute_datalog_policy').setLevel(logging.CRITICAL)
+        logging.getLogger('genfond.execute_rule_policy').setLevel(logging.CRITICAL)
     signal.signal(signal.SIGINT, signal_handler)
     if args.max_memory:
         _, hard = resource.getrlimit(resource.RLIMIT_AS)
@@ -138,11 +154,11 @@ def main():
         problems.append(pddl.parse_problem(f))
     name = args.name if args.name else domain.name
     log.info('Starting policy generation for domain {}'.format(name))
-    if args.constraints and args.constraints != 'none':
-        log.info(f'Generating constrained policies with {args.constraints} constraints')
+    log.info(f'Generating policies of type {args.type}')
+    if args.type == 'datalog':
+        policy = DatalogPolicy({}, {})
     else:
-        log.info('Generating exact policies without constraints')
-    policy = Policy({}, {})
+        policy = Policy({}, {})
     solver_problems = []
     last_complexity = args.min_complexity
     verified = []
@@ -175,7 +191,7 @@ def main():
                     solver_problems,
                     args.num_threads,
                     i,
-                    args.constraints,
+                    args.type,
                     all_generators=all_generators,
                     max_cost=new_policy.cost[0] - 1 if new_policy else None,
                     enforce_highest_complexity=True if i > last_complexity else False,
@@ -264,7 +280,7 @@ def main():
     mem_usage = (resource.getrusage(resource.RUSAGE_SELF).ru_maxrss) / 1024
     stats = {
         'domain': name,
-        'constraintType': args.constraints,
+        'constraintType': args.type,
         'totalWallTime': total_wall_time,
         'totalCpuTime': total_cpu_time,
         'bestSolveCpuTime': best_solve_cpu_time,
@@ -276,9 +292,9 @@ def main():
         'maxTrainProblemSize': max(len(p.objects) for p in solver_problems),
         'maxProblemSize': max(len(p.objects) for p in problems),
         'memUsage': mem_usage,
-        'numFeatures': len(policy.features),
+        #'numFeatures': len(policy.features),
         'maxFeatureComplexity': last_complexity,
-        'numConstraints': max(len(policy.state_constraints), len(policy.constraints)),
+        #'numConstraints': max(len(policy.state_constraints), len(policy.constraints)),
         'cost': policy.cost[0],
         'failureReason': failure_reason,
         **stats,
