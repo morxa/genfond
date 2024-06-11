@@ -61,4 +61,4 @@ class DatalogPolicy:
         return self.rules == other.rules
 
     def __repr__(self):
-        return "\n".join([str(r) for r in self.rules])
+        return (f'{len(self.rules)} rules\n' + "\n".join([str(r) for r in self.rules]))
