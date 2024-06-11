@@ -23,7 +23,7 @@ def generate_datalog_policy(solution):
                 arg_to_var[i + 1] = vars.pop(0)
         args_to_vars[(instance, state, action)] = arg_to_var
     bool_eval_dict = dict()
-    for i, s, f, v in solution['bool_eval']:
+    for i, s, f, v in solution.get('bool_eval', []):
         bool_eval_dict[(i, s, f)] = v
     rules = []
     dist_features = dict()
