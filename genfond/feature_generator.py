@@ -5,7 +5,7 @@ from pddl.logic import Predicate
 from .ground import ground_domain_predicates
 from .state_space_generator import apply_effects, generate_state_space, check_formula, Alive
 
-MAX_ACTION_PARAMETERS = 3
+MAX_ACTION_PARAMETERS = 4
 
 
 def construct_vocabulary_info(domain):
