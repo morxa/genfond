@@ -21,15 +21,17 @@ def _get_repr(reprs, equiv, i, s):
     raise ValueError(f'No repr found for {i}, {s}')
 
 
-def _state_to_str(state):
-    return ','.join([f'{p.name}({",".join([str(p) for p in p.terms])})' for p in sorted(state)])
+def _state_to_str(node):
+    state = node.state
+    s = f'{node.id}: '
+    return s + ','.join([f'{p.name}({",".join([str(p) for p in p.terms])})' for p in sorted(state)])
 
 
 def draw_state_graph(state_graph, filename):
     graph = pygraphviz.AGraph(directed=True)
     graph.node_attr['shape'] = 'box'
     for node in state_graph.nodes.values():
-        graph.add_node(node.id, label=_state_to_str(node.state), color='green' if node.alive == Alive.ALIVE else 'red')
+        graph.add_node(node.id, label=_state_to_str(node), color='green' if node.alive == Alive.ALIVE else 'red')
         for action, children in node.children.items():
             action_str = f'{action.name}({",".join([str(p) for p in action.parameters])})'
             for child in children:
