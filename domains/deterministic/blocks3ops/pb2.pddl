@@ -1,6 +1,0 @@
-(define (problem pb2)
-   (:domain blocks2)
-   (:objects a b)
-   (:init (ontable a) (ontable b)  (clear a)  (clear b)
-          (neq a b) (neq b a))
-   (:goal (and (on a b))))

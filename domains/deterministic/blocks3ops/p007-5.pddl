@@ -1,0 +1,7 @@
+(define (problem blocks-007-5)
+    (:domain blocks3ops)
+    (:requirements :equality :non-deterministic :strips)
+    (:objects b0 b1 b2 b3 b4 b5 b6)
+    (:init (clear b0) (clear b3) (clear b4) (clear b5) (on b1 b6) (on b4 b2) (on b5 b1) (ontable b0) (ontable b2) (ontable b3) (ontable b6))
+    (:goal (and (clear b1) (on b1 b4) (on b4 b0) (on b0 b2) (ontable b2)))
+)
