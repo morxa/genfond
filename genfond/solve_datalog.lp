@@ -33,3 +33,9 @@ f_distinguished(I1, S1, I2, S2, F) :- state(I1, S1), state(I2, S2), bool_eval(I1
 
 #minimize { Cost,C : c_selected(C), concept_complexity(C, Cost) }.
 #minimize { Cost,F : f_selected(F), feature_complexity(F, Cost) }.
+
+#program limit_feature_cost(c).
+:- #sum { C,F : f_selected(F), feature_complexity(F, C); Cost,Concept : c_selected(Concept), concept_complexity(Concept, Cost) } > c.
+
+#program min_feature_complexity(c).
+:- C < c : f_selected(F), feature_complexity(F, C); Cost < c : c_selected(Concept), concept_complexity(Concept, Cost).
