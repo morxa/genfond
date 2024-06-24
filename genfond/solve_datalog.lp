@@ -3,10 +3,12 @@ c_selected(name).
 
 { f_selected(F) } :- feature(F).
 
-1 { good_action(I, S, A) : trans(I, S, A, _) } :- alive(I, S), not goal(I, S).
+1 { good_trans(I, S, A, S2) : trans(I, S, A, S2) } :- alive(I, S), not goal(I, S).
+:- good_trans(I, S, A, _), trans(I, S, A, S2), not alive(I, S2).
+good_action(I, S, A) :- good_trans(I, S, A, _).
 
 safe_state(I, S) :- goal(I, S).
-safe_state(I, S1) :- alive(I, S1), safe_state(I, S2) : good_action(I, S1, A), trans(I, S1, A, S2).
+safe_state(I, S1) :- alive(I, S1), safe_state(I, S2) : good_trans(I, S1, _, S2).
 :- alive(I, S), not safe_state(I, S).
 
 c_distinguished(I1, S1, A1, I2, S2, A2, name, pos, 0) :- state(I1, S1), state(I2, S2), amap(A1, AName1, _, _, _, _), amap(A2, AName2, _, _, _, _), AName1 < AName2.
