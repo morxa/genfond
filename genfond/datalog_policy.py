@@ -5,11 +5,13 @@ from frozendict import frozendict
 
 log = logging.getLogger(__name__)
 
+ACTION_REGEX = r'^([^(]+)\(([^(]*)\)$'
+
 
 class DatalogPolicyRule:
 
     def __init__(self, head, tail, conds=[]):
-        match = re.search(r'^([^(]+)\(([\w, ]+)\)$', head)
+        match = re.search(ACTION_REGEX, head)
         if not match:
             raise ValueError(f'Invalid head: {head}')
         self.name = match.groups()[0]

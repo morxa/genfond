@@ -1,5 +1,5 @@
 import re
-from genfond.datalog_policy import DatalogPolicyRule, DatalogPolicy, Cond
+from genfond.datalog_policy import DatalogPolicyRule, DatalogPolicy, Cond, ACTION_REGEX
 import logging
 
 log = logging.getLogger(__name__)
@@ -10,7 +10,7 @@ def generate_datalog_policy(solution):
     conds = dict()
     for instance, state, action in solution['good_action']:
         # TODO copied from DatalogPolicyRule
-        match = re.search(r'^([^(]+)\(([\w, ]+)\)$', action.strip('"'))
+        match = re.search(ACTION_REGEX, action.strip('"'))
         if not match:
             raise ValueError(f'Invalid head: {action}')
         name = match.groups()[0]
@@ -68,7 +68,7 @@ def generate_datalog_policy(solution):
         conds[(instance, state, action)].append(cond)
     for key, body_conds in conds.items():
         action = key[2]
-        match = re.search(r'^([^(]+)\(([\w, ]+)\)$', action.strip('"'))
+        match = re.search(ACTION_REGEX, action.strip('"'))
         if not match:
             raise ValueError(f'Invalid head: {action}')
         action_name = match.groups()[0]
