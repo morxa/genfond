@@ -38,10 +38,13 @@ class DatalogPolicyRule:
         return True
 
     def __repr__(self):
-        tail = [cond_to_str(cond, val) for cond, val in self.conds.items()]
+        state_conds = [cond_to_str(cond, val) for cond, val in self.conds.items()]
+        state_conds.sort()
+        concept_conds = []
         for parameter, concepts in self.tail_by_parameter.items():
-            tail.extend([f'{parameter} ∊ {concept}' for concept in concepts])
-        tail.sort()
+            concept_conds.extend([f'{parameter} ∊ {concept}' for concept in concepts])
+        concept_conds.sort()
+        tail = state_conds + concept_conds
         return f'{self.name}({', '.join(self.parameters)}){f" :- {', '.join(tail)}" if tail else ' '}.'
 
     def __hash__(self):
