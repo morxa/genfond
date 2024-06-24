@@ -137,6 +137,10 @@ def main():
         logging.getLogger('genfond.execute_policy').setLevel(logging.CRITICAL)
         logging.getLogger('genfond.execute_datalog_policy').setLevel(logging.CRITICAL)
         logging.getLogger('genfond.execute_rule_policy').setLevel(logging.CRITICAL)
+    else:
+        logging.getLogger('genfond.execute_policy').setLevel(logging.WARN)
+        logging.getLogger('genfond.execute_datalog_policy').setLevel(logging.WARN)
+        logging.getLogger('genfond.execute_rule_policy').setLevel(logging.WARN)
     signal.signal(signal.SIGINT, signal_handler)
     if args.max_memory:
         _, hard = resource.getrlimit(resource.RLIMIT_AS)
