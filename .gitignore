@@ -1,1 +1,5 @@
 *.swp
+*.sif
+results-*
+__pycache__
+.vscode/settings.json
