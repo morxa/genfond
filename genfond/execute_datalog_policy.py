@@ -85,17 +85,22 @@ def execute_datalog_policy(domain, problem, datalog_policy, max_steps=0):
             if [] in objects:
                 log.debug(f'... Rule not applicable! Not all objects found!')
                 continue
-
+            
+            grounded_actions_by_name_and_preconditions = dict()
+            for grounded_action in grounded_actions:
+                grounded_actions_by_name_and_preconditions[(grounded_action.name, grounded_action.parameters)] = grounded_action
+            
             log.debug(f'... Checking if rule is applicable')
             action = None
             for object_combination in itertools.product(*objects):
                 log.debug(f'... Checking rule with object combination {object_combination}')
                 object_combination = tuple(Constant(o) for o in object_combination)
-                for grounded_action in grounded_actions:
-                    if grounded_action.name == rule.name and grounded_action.parameters == object_combination and check_formula(
-                            state, grounded_action.precondition):
+                grounded_action = grounded_actions_by_name_and_preconditions.get((rule.name, object_combination))
+                if grounded_action and check_formula(state, grounded_action.precondition):
                         action = grounded_action
                         break
+                if action:
+                    break
 
             if not action:
                 log.debug(f'... Rule not applicable! No matching action found!')
