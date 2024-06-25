@@ -1,10 +1,11 @@
 #!/bin/bash
 SOURCE=/work/rleap1/samuel.stante/pddl-generators/barman
-TARGET=/work/rleap1/samuel.stante/genfond/domains/deterministic/aaai21/barman
+TARGET=/work/rleap1/samuel.stante/genfond/domains/deterministic/barman
 
 source /work/rleap1/samuel.stante/genfond/generators/_.bash
 
 echo "Barman"
+echo "# Manually remove total-cost from the domain file"
 
 for i in {3..7} # $i is the number of balls
 do

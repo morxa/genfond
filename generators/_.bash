@@ -21,18 +21,6 @@ with open('$TARGET/$PROBLEM_NAME.pddl', 'w+') as f:
 """
 }
 
-function check_solvable_and_reformat_problem {
-    SOLVABLE=$(python3 /work/rleap1/samuel.stante/genfond/is_solvable.py $TARGET/domain.pddl $TARGET/$PROBLEM_NAME.pddl)
-    if [[ $SOLVABLE = "solvable" ]];
-    then
-        reformat_problem
-        return 0
-    else
-        rm $TARGET/$PROBLEM_NAME.pddl
-        return 1
-    fi
-}
-
 mkdir -p $TARGET
 
 # Copy the domain file
@@ -43,3 +31,5 @@ fi
 
 # Reformat the domain file
 reformat_domain $TARGET/domain.pddl
+
+exit 1

@@ -1,6 +1,0 @@
-(define (problem problem-6-2)
-    (:domain blocksworld-3ops)
-    (:objects b1 b2 b3 b4 b5 b6)
-    (:init (arm-empty) (clear b1) (clear b2) (clear b4) (on b1 b6) (on b4 b5) (on b6 b3) (on-table b2) (on-table b3) (on-table b5))
-    (:goal (and (on b1 b5) (on b4 b6) (on b6 b3)))
-)

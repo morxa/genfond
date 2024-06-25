@@ -1,6 +1,6 @@
 #!/bin/bash
 SOURCE=/work/rleap1/samuel.stante/pddl-generators/visitall
-TARGET=/work/rleap1/samuel.stante/genfond/domains/deterministic/aaai21/visitall
+TARGET=/work/rleap1/samuel.stante/genfond/domains/deterministic/visitall
 
 source /work/rleap1/samuel.stante/genfond/generators/_.bash
 

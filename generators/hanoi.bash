@@ -1,6 +1,6 @@
 #!/bin/bash
 SOURCE=/work/rleap1/samuel.stante/pddl-generators/hanoi
-TARGET=/work/rleap1/samuel.stante/genfond/domains/deterministic/aaai21/hanoi
+TARGET=/work/rleap1/samuel.stante/genfond/domains/deterministic/hanoi
 
 source /work/rleap1/samuel.stante/genfond/generators/_.bash
 

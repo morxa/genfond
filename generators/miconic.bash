@@ -1,10 +1,11 @@
 #!/bin/bash
 SOURCE=/work/rleap1/samuel.stante/pddl-generators/miconic
-TARGET=/work/rleap1/samuel.stante/genfond/domains/deterministic/aaai21/miconic
+TARGET=/work/rleap1/samuel.stante/genfond/domains/deterministic/miconic
 
 source /work/rleap1/samuel.stante/genfond/generators/_.bash
 
 echo "Miconic"
+echo "# Manually add :typing to the domain file"
 
 for i in {1..5} # $i is the number of passengers
 do
