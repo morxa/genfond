@@ -8,15 +8,22 @@ log = logging.getLogger(__name__)
 ACTION_REGEX = r'^([^(]+)\(([^(]*)\)$'
 
 
+def split_action_string(action):
+    match = re.search(ACTION_REGEX, action.strip('"'))
+    if not match:
+        raise ValueError(f'Invalid action string: {action}')
+    name = match.groups()[0]
+    if match.groups()[1]:
+        parameters = match.groups()[1].replace(' ', '').split(',')
+    else:
+        parameters = []
+    return name, parameters
+
+
 class DatalogPolicyRule:
 
     def __init__(self, head, tail, conds=[]):
-        match = re.search(ACTION_REGEX, head)
-        if not match:
-            raise ValueError(f'Invalid head: {head}')
-        self.name = match.groups()[0]
-        self.parameters = match.groups()[1].replace(' ', '').split(',')
-
+        self.name, self.parameters = split_action_string(head)
         tail_by_parameter = {name: [] for name in self.parameters}
         for parameter, concept in tail or []:
             if parameter not in self.parameters:
