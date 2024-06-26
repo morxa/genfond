@@ -247,7 +247,7 @@ def main():
                 stats = solve_stats
                 best_solve_wall_time = solve_wall_time
                 best_solve_cpu_time = solve_cpu_time
-            else:
+            elif not new_policy:
                 failure_reason = 'maxcomplexity'
         if new_policy:
             policy = new_policy

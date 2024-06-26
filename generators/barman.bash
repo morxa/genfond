@@ -7,7 +7,7 @@ source /work/rleap1/samuel.stante/genfond/generators/_.bash
 echo "Barman"
 echo "# Manually remove total-cost from the domain file"
 
-for i in {3..7} # $i is the number of balls
+for i in {3..7} # $i is the number of cocktails
 do
     for j in {1..5}
     do
