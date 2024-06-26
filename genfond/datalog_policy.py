@@ -74,3 +74,6 @@ class DatalogPolicy:
 
     def __repr__(self):
         return (f'{len(self.rules)} rules\n' + "\n".join([str(r) for r in self.rules]))
+
+    def __hash__(self):
+        return hash(self.rules)
