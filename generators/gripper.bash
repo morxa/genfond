@@ -2,9 +2,9 @@
 SOURCE=/work/rleap1/samuel.stante/pddl-generators/gripper
 TARGET=/work/rleap1/samuel.stante/genfond/domains/deterministic/gripper
 
-source /work/rleap1/samuel.stante/genfond/generators/_.bash
-
 echo "Gripper"
+
+source /work/rleap1/samuel.stante/genfond/generators/_.bash
 
 for i in {1..6} # $i is the number of balls
 do

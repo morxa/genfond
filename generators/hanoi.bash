@@ -2,9 +2,9 @@
 SOURCE=/work/rleap1/samuel.stante/pddl-generators/hanoi
 TARGET=/work/rleap1/samuel.stante/genfond/domains/deterministic/hanoi
 
-source /work/rleap1/samuel.stante/genfond/generators/_.bash
-
 echo "Hanoi"
+
+source /work/rleap1/samuel.stante/genfond/generators/_.bash
 
 for i in {3..8} # $i is the number of balls
 do

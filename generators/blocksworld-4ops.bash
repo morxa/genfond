@@ -2,9 +2,9 @@
 SOURCE=/work/rleap1/samuel.stante/pddl-generators/blocksworld
 TARGET=/work/rleap1/samuel.stante/genfond/domains/deterministic/blocksworld-4ops
 
-source /work/rleap1/samuel.stante/genfond/generators/_.bash
-
 echo "Blocksworld 4ops"
+
+source /work/rleap1/samuel.stante/genfond/generators/_.bash
 
 for i in {2..20} # $i is the number of blocks
 do

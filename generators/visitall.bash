@@ -2,9 +2,9 @@
 SOURCE=/work/rleap1/samuel.stante/pddl-generators/visitall
 TARGET=/work/rleap1/samuel.stante/genfond/domains/deterministic/visitall
 
-source /work/rleap1/samuel.stante/genfond/generators/_.bash
-
 echo "Visitall"
+
+source /work/rleap1/samuel.stante/genfond/generators/_.bash
 
 # Full
 for i in {4..7} # $i is the size of the square grid

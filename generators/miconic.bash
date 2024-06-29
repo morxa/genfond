@@ -2,10 +2,13 @@
 SOURCE=/work/rleap1/samuel.stante/pddl-generators/miconic
 TARGET=/work/rleap1/samuel.stante/genfond/domains/deterministic/miconic
 
+echo "Miconic"
+
 source /work/rleap1/samuel.stante/genfond/generators/_.bash
 
-echo "Miconic"
-echo "# Manually add :typing to the domain file"
+# Add missing :typing requirement to domain
+sed -i 's/(:requirements :strips)/(:requirements :strips :typing)/' $TARGET/domain.pddl
+reformat_domain
 
 for i in {1..5} # $i is the number of passengers
 do
