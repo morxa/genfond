@@ -13,13 +13,19 @@ reformat_domain
 
 for i in {3..7} # $i is the number of cocktails
 do
-    for j in {1..5}
+    for j in $(seq 1 $(($i + 1))) # $j is the number of shots
     do
         PROBLEM_NAME=problem-$i-$j
         echo $PROBLEM_NAME
 
         # Generate the problem file
-        $SOURCE/barman-generator.py $i 3 $((3 + $RANDOM % ($i - 2))) > $TARGET/$PROBLEM_NAME.pddl
+        $SOURCE/barman-generator.py $i 3 $j > $TARGET/$PROBLEM_NAME.pddl
+
+        # Remove invalid goals
+        for k in $(seq $(($j + 1)) $(($i + 1)))
+        do
+            sed -i "s/(contains shot$k cocktail[0-9]\+)//g" $TARGET/$PROBLEM_NAME.pddl
+        done
 
         reformat_problem
     done
