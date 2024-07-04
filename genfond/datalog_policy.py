@@ -22,7 +22,9 @@ def split_action_string(action):
 
 class DatalogPolicyRule:
 
-    def __init__(self, head, tail, conds=[]):
+    def __init__(self, head, tail, conds=None):
+        if not conds:
+            conds = []
         self.name, self.parameters = split_action_string(head)
         tail_by_parameter = {name: [] for name in self.parameters}
         for parameter, concept in tail or []:
