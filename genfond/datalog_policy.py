@@ -22,16 +22,16 @@ def split_action_string(action):
 
 class DatalogPolicyRule:
 
-    def __init__(self, head, tail, conds=None):
+    def __init__(self, head, concepts, conds=None):
         if not conds:
             conds = []
         self.name, self.parameters = split_action_string(head)
-        tail_by_parameter = {name: [] for name in self.parameters}
-        for parameter, concept in tail or []:
+        concepts_by_parameter = {name: [] for name in self.parameters}
+        for parameter, concept in concepts or []:
             if parameter not in self.parameters:
                 raise ValueError(f'Free variable {parameter} not in head parameters {self.parameters}!')
-            tail_by_parameter[parameter].append(concept.replace(' ', ''))
-        self.tail_by_parameter = {name: frozenset(concepts) for name, concepts in tail_by_parameter.items()}
+            concepts_by_parameter[parameter].append(concept.replace(' ', ''))
+        self.concepts_by_parameter = {name: frozenset(concepts) for name, concepts in concepts_by_parameter.items()}
         self.conds = frozendict(conds)
 
     def __eq__(self, other):
@@ -42,7 +42,7 @@ class DatalogPolicyRule:
         if self.conds != other.conds:
             return False
         for p_self, p_other in zip(self.parameters, other.parameters):
-            if self.tail_by_parameter[p_self] != other.tail_by_parameter[p_other]:
+            if self.concepts_by_parameter[p_self] != other.concepts_by_parameter[p_other]:
                 return False
         return True
 
@@ -50,18 +50,18 @@ class DatalogPolicyRule:
         state_conds = [cond_to_str(cond, val) for cond, val in self.conds.items()]
         state_conds.sort()
         concept_conds = []
-        for parameter, concepts in self.tail_by_parameter.items():
+        for parameter, concepts in self.concepts_by_parameter.items():
             concept_conds.extend([f'{parameter} ∊ {concept}' for concept in concepts])
         concept_conds.sort()
-        tail = state_conds + concept_conds
-        return f'{self.name}({', '.join(self.parameters)}){f" :- {', '.join(tail)}" if tail else ' '}.'
+        conds = state_conds + concept_conds
+        return f'{self.name}({', '.join(self.parameters)}){f" :- {', '.join(conds)}" if concepts else ' '}.'
 
     def __hash__(self):
         return hash((
             self.name,
             len(self.parameters),
             self.conds,
-            *tuple(self.tail_by_parameter[p] for p in self.parameters),
+            *tuple(self.concepts_by_parameter[p] for p in self.parameters),
         ))
 
 

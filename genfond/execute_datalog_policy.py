@@ -45,7 +45,7 @@ def execute_datalog_policy(domain, problem, datalog_policy, max_steps=0):
                 features[cond] = factory.parse_numerical(cond)
             else:
                 raise ValueError(f'Unknown feature type: {cond}')
-        for rule_concepts in rule.tail_by_parameter.values():
+        for rule_concepts in rule.concepts_by_parameter.values():
             for concept in rule_concepts:
                 concepts[concept] = factory.parse_concept(concept)
 
@@ -72,7 +72,7 @@ def execute_datalog_policy(domain, problem, datalog_policy, max_steps=0):
                 log.debug(f'... Finding valid objects for parameter {parameter}')
                 valid_objects = set(list(range(len(instance.get_objects()))))
 
-                for concept in rule.tail_by_parameter[parameter]:
+                for concept in rule.concepts_by_parameter[parameter]:
                     valid_objects &= set(eval[concept].to_vector())
                     if len(valid_objects) == 0:
                         break
@@ -85,11 +85,12 @@ def execute_datalog_policy(domain, problem, datalog_policy, max_steps=0):
             if [] in objects:
                 log.debug(f'... Rule not applicable! Not all objects found!')
                 continue
-            
+
             grounded_actions_by_name_and_preconditions = dict()
             for grounded_action in grounded_actions:
-                grounded_actions_by_name_and_preconditions[(grounded_action.name, grounded_action.parameters)] = grounded_action
-            
+                grounded_actions_by_name_and_preconditions[(grounded_action.name,
+                                                            grounded_action.parameters)] = grounded_action
+
             log.debug(f'... Checking if rule is applicable')
             action = None
             for object_combination in itertools.product(*objects):
@@ -97,8 +98,8 @@ def execute_datalog_policy(domain, problem, datalog_policy, max_steps=0):
                 object_combination = tuple(Constant(o) for o in object_combination)
                 grounded_action = grounded_actions_by_name_and_preconditions.get((rule.name, object_combination))
                 if grounded_action and check_formula(state, grounded_action.precondition):
-                        action = grounded_action
-                        break
+                    action = grounded_action
+                    break
                 if action:
                     break
 
