@@ -8,7 +8,7 @@ import re
 
 def test_generate_features_simple_blocks(simple_blocks):
     domain, problem = simple_blocks
-    feature_pool = FeaturePool(domain, [problem], all_generators=True)
+    feature_pool = FeaturePool(domain, [problem], all_generators=True, include_concepts=True, include_roles=True)
     a, b, c = constants('a b c')
     assert 'b_empty(c_primitive(holding,0))' in feature_pool.features
     assert 'b_empty(r_primitive(on,0,1))' in feature_pool.features
@@ -40,7 +40,7 @@ def test_generate_features_simple_blocks(simple_blocks):
 def test_generate_features_fond_blocks(fond_blocks):
     domain, problem = fond_blocks
     ground_actions = ground(domain, problem)
-    feature_pool = FeaturePool(domain, [problem], all_generators=False)
+    feature_pool = FeaturePool(domain, [problem], all_generators=False, include_concepts=True, include_roles=True)
     gstates = [
         node.state for node in feature_pool.state_graphs[problem.name].nodes.values()
         if check_formula(node.state, problem.goal)
@@ -100,10 +100,12 @@ def test_features_to_clingo(simple_blocks):
 
 def test_concepts_to_clingo(simple_blocks):
     domain, problem = simple_blocks
-    feature_pool = FeaturePool(domain, [problem], 2)
-    clingo_program = feature_pool.to_clingo(include_boolean_features=False,
-                                            include_numerical_features=False,
-                                            include_concepts=True)
+    feature_pool = FeaturePool(domain, [problem],
+                               2,
+                               include_boolean_features=False,
+                               include_numerical_features=False,
+                               include_concepts=True)
+    clingo_program = feature_pool.to_clingo()
     print(f'full program:\n{clingo_program}')
     assert 'concept("c_top").' in clingo_program
     assert 'concept_complexity("c_top", 1).' in clingo_program

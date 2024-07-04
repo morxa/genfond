@@ -113,7 +113,14 @@ def main():
     problems = []
     for problem_file in args.problem_file:
         problems.append(pddl.parse_problem(problem_file))
-    feature_pool = FeaturePool(domain, problems, args.complexity, preset_features=args.restrict_features)
+    feature_pool = FeaturePool(domain,
+                               problems,
+                               args.complexity,
+                               preset_features=args.restrict_features,
+                               include_boolean_features=True,
+                               include_numerical_features=(args.type != 'datalog'),
+                               include_concepts=(args.type == 'datalog'),
+                               include_roles=False)
     if args.draw_input:
         for p, g in feature_pool.state_graphs.items():
             base, suffix = os.path.splitext(args.draw_input)
@@ -121,10 +128,7 @@ def main():
     if args.input:
         solution, policy = pickle.load(open(args.input, 'rb'))
     else:
-        asp_instance = feature_pool.to_clingo(include_boolean_features=True,
-                                              include_numerical_features=(args.type != 'datalog'),
-                                              include_concepts=(args.type == 'datalog'),
-                                              include_roles=False)
+        asp_instance = feature_pool.to_clingo()
         if args.program_file:
             with open(args.program_file, 'w') as f:
                 f.write(asp_instance)

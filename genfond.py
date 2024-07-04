@@ -31,13 +31,17 @@ def solve(domain,
           enforce_highest_complexity=False):
     stats = dict()
     log.debug('Generating feature pool ...')
-    feature_pool = FeaturePool(domain, problems, complexity, all_generators=all_generators)
+    feature_pool = FeaturePool(domain,
+                               problems,
+                               complexity,
+                               all_generators=all_generators,
+                               include_boolean_features=True,
+                               include_numerical_features=(type != 'datalog'),
+                               include_concepts=(type == 'datalog'),
+                               include_roles=False)
     stats['featurePoolSize'] = len(feature_pool.features)
     log.debug('Generating ASP instance ...')
-    asp_instance = feature_pool.to_clingo(include_boolean_features=True,
-                                          include_numerical_features=(type != 'datalog'),
-                                          include_concepts=(type == 'datalog'),
-                                          include_roles=False)
+    asp_instance = feature_pool.to_clingo()
     state_counts = [len(sg.nodes) for sg in feature_pool.state_graphs.values()]
     edge_counts = [len(node.children) for sg in feature_pool.state_graphs.values() for node in sg.nodes.values()]
     stats['numStates'] = sum(state_counts)
