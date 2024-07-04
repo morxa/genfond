@@ -40,18 +40,25 @@ def test_generate_datalog_policy():
     policy = generate_datalog_policy(solution)
     print(policy)
     assert policy == DatalogPolicy([
-        DatalogPolicyRule('puton(X, Y, Z)', [
-            ('Y', 'c_one_of(Table)'),
-            ('X', 'c_some(r_transitive_reflexive_closure(r_primitive(on,0,1)),c_projection(r_primitive(on_G,0,1),0))'),
-        ]),
-        DatalogPolicyRule('puton(X, Y, Z)', [
-            ('Y', 'c_one_of(Table)'),
-            ('X', 'c_some(r_transitive_reflexive_closure(r_primitive(on,0,1)),c_projection(r_primitive(on_G,0,1),1))'),
-        ]),
-        DatalogPolicyRule('puton(X, Y, Z)', [
-            ('X', 'c_projection(r_primitive(on_G,0,1),0)'),
-            ('Y', 'c_projection(r_primitive(on_G,0,1),1)'),
-        ]),
+        DatalogPolicyRule(
+            'puton(X, Y, Z)',
+            concepts=[
+                ('Y', 'c_one_of(Table)'),
+                ('X',
+                 'c_some(r_transitive_reflexive_closure(r_primitive(on,0,1)),c_projection(r_primitive(on_G,0,1),0))'),
+            ]),
+        DatalogPolicyRule(
+            'puton(X, Y, Z)',
+            concepts=[
+                ('Y', 'c_one_of(Table)'),
+                ('X',
+                 'c_some(r_transitive_reflexive_closure(r_primitive(on,0,1)),c_projection(r_primitive(on_G,0,1),1))'),
+            ]),
+        DatalogPolicyRule('puton(X, Y, Z)',
+                          concepts=[
+                              ('X', 'c_projection(r_primitive(on_G,0,1),0)'),
+                              ('Y', 'c_projection(r_primitive(on_G,0,1),1)'),
+                          ]),
     ])
 
 
@@ -83,7 +90,7 @@ def test_generate_datalog_policy_with_conds():
     policy = generate_datalog_policy(solution)
     print(policy)
     assert policy == DatalogPolicy([
-        DatalogPolicyRule('move-forward-door-open(P1, P2, P3, P4)', [], {'b_nullary(hold-key)': Cond.TRUE}),
-        DatalogPolicyRule('move-forward-last-door-closed(P1, P2, P3)', [], {'b_nullary(hold-key)': Cond.TRUE}),
-        DatalogPolicyRule('pick-key(X)', [], {'b_nullary(hold-key)': Cond.FALSE}),
+        DatalogPolicyRule('move-forward-door-open(P1, P2, P3, P4)', conds={'b_nullary(hold-key)': Cond.TRUE}),
+        DatalogPolicyRule('move-forward-last-door-closed(P1, P2, P3)', conds={'b_nullary(hold-key)': Cond.TRUE}),
+        DatalogPolicyRule('pick-key(X)', conds={'b_nullary(hold-key)': Cond.FALSE}),
     ])

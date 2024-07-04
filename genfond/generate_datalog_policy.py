@@ -66,6 +66,6 @@ def generate_datalog_policy(solution):
         action_name, _ = split_action_string(action)
         args = ",".join(args_to_vars[key].values())
         action = f'{action_name}({args})'
-        rule = DatalogPolicyRule(action, body_conds, state_conds[key])
+        rule = DatalogPolicyRule(action, concepts=body_conds, conds=state_conds[key])
         rules.append(rule)
     return DatalogPolicy(rules, cost=solution['cost'])

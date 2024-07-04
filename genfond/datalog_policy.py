@@ -22,16 +22,28 @@ def split_action_string(action):
 
 class DatalogPolicyRule:
 
-    def __init__(self, head, concepts, conds=None):
+    def __init__(self, head, concepts=None, roles=None, conds=None):
+        if not concepts:
+            concepts = []
+        if not roles:
+            roles = []
         if not conds:
             conds = []
         self.name, self.parameters = split_action_string(head)
         concepts_by_parameter = {name: [] for name in self.parameters}
+        roles_by_parameter = {}
         for parameter, concept in concepts or []:
             if parameter not in self.parameters:
                 raise ValueError(f'Free variable {parameter} not in head parameters {self.parameters}!')
             concepts_by_parameter[parameter].append(concept.replace(' ', ''))
+        for param1, param2, role in roles:
+            if param1 not in self.parameters:
+                raise ValueError(f'Free variable {param1} not in head parameters {self.parameters}!')
+            if param2 not in self.parameters:
+                raise ValueError(f'Free variable {param2} not in head parameters {self.parameters}!')
+            roles_by_parameter.setdefault((param1, param2), []).append(role)
         self.concepts_by_parameter = {name: frozenset(concepts) for name, concepts in concepts_by_parameter.items()}
+        self.roles_by_parameter = {params: frozenset(roles) for params, roles in roles_by_parameter.items()}
         self.conds = frozendict(conds)
 
     def __eq__(self, other):
@@ -44,16 +56,25 @@ class DatalogPolicyRule:
         for p_self, p_other in zip(self.parameters, other.parameters):
             if self.concepts_by_parameter[p_self] != other.concepts_by_parameter[p_other]:
                 return False
+        if self.roles_by_parameter.keys() != other.roles_by_parameter.keys():
+            return False
+        for params in self.roles_by_parameter.keys():
+            if self.roles_by_parameter[params] != other.roles_by_parameter[params]:
+                return False
         return True
 
     def __repr__(self):
         state_conds = [cond_to_str(cond, val) for cond, val in self.conds.items()]
         state_conds.sort()
         concept_conds = []
+        roles_conds = []
         for parameter, concepts in self.concepts_by_parameter.items():
             concept_conds.extend([f'{parameter} ∊ {concept}' for concept in concepts])
         concept_conds.sort()
-        conds = state_conds + concept_conds
+        for parameters, roles in self.roles_by_parameter.items():
+            roles_conds.extend([f'{parameters[0]} {role} {parameters[1]}' for role in roles])
+        roles_conds.sort()
+        conds = state_conds + concept_conds + roles_conds
         return f'{self.name}({', '.join(self.parameters)}){f" :- {', '.join(conds)}" if concepts else ' '}.'
 
     def __hash__(self):
@@ -62,6 +83,7 @@ class DatalogPolicyRule:
             len(self.parameters),
             self.conds,
             *tuple(self.concepts_by_parameter[p] for p in self.parameters),
+            *tuple((params, roles) for params, roles in self.roles_by_parameter.items()),
         ))
 
 
