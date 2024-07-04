@@ -94,3 +94,21 @@ def test_generate_datalog_policy_with_conds():
         DatalogPolicyRule('move-forward-last-door-closed(P1, P2, P3)', conds={'b_nullary(hold-key)': Cond.TRUE}),
         DatalogPolicyRule('pick-key(X)', conds={'b_nullary(hold-key)': Cond.FALSE}),
     ])
+
+
+def test_generate_datalog_policy_with_role_conds():
+    solution = {
+        'cost': 2,
+        'r_selected': {'r_primitive(on_G,0,1)'},
+        'good_action': {
+            (0, 0, 'puton(A, C, Table)'),
+        },
+        'r_distinguished': {
+            (0, 0, 'puton(A, C, Table)', 0, 0, 'puton(A, B, C)', 'r_primitive(on_G,0,1)', 'pos', 1, 2),
+        },
+    }
+    policy = generate_datalog_policy(solution)
+    print(policy)
+    assert policy == DatalogPolicy([
+        DatalogPolicyRule('puton(P, Q, R)', roles=[('P', 'Q', 'r_primitive(on_G,0,1)')]),
+    ])

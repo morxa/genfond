@@ -26,7 +26,7 @@ def generate_datalog_policy(solution):
         dist_features.setdefault((instance, state), []).append(feature)
     state_conds = dict()
     for instance, state, action in solution['good_action']:
-        conds[(instance, state, action)] = []
+        conds[(instance, state, action)] = {'concepts': [], 'roles': []}
         state_cond = dict()
         for f in dist_features.get((instance, state), []):
             v = bool_eval_dict[(instance, state, f)]
@@ -60,12 +60,27 @@ def generate_datalog_policy(solution):
             concept = f'c_not({concept})'
         var = args_to_vars[(instance, state, action)][argnum]
         cond = (var, concept)
-        conds[(instance, state, action)].append(cond)
-    for key, body_conds in conds.items():
+        conds[(instance, state, action)]['concepts'].append(cond)
+    for instance, state, action, _, _, _, role, pos, argnum1, argnum2 in solution.get('r_distinguished', []):
+        action = action.strip('"')
+        role = role.strip('"')
+        argnum1 = int(argnum1)
+        argnum2 = int(argnum2)
+        negated = (pos == 'neg')
+        if negated:
+            role = f'r_not({role})'
+        var1 = args_to_vars[(instance, state, action)][argnum1]
+        var2 = args_to_vars[(instance, state, action)][argnum2]
+        cond = (var1, var2, role)
+        conds[(instance, state, action)]['roles'].append(cond)
+    for key, cond_dict in conds.items():
         action = key[2]
         action_name, _ = split_action_string(action)
         args = ",".join(args_to_vars[key].values())
         action = f'{action_name}({args})'
-        rule = DatalogPolicyRule(action, concepts=body_conds, conds=state_conds[key])
+        rule = DatalogPolicyRule(action,
+                                 concepts=cond_dict['concepts'],
+                                 roles=cond_dict['roles'],
+                                 conds=state_conds[key])
         rules.append(rule)
     return DatalogPolicy(rules, cost=solution['cost'])
