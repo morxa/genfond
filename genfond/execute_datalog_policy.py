@@ -32,6 +32,7 @@ def execute_datalog_policy(domain, problem, datalog_policy, max_steps=0):
     object_id_to_name = {o.get_index(): o.get_name() for o in instance.get_objects()}
 
     concepts = dict()
+    roles = dict()
     features = dict()
     for rule in datalog_policy.rules:
         for cond, _ in rule.conds.items():
@@ -44,6 +45,9 @@ def execute_datalog_policy(domain, problem, datalog_policy, max_steps=0):
         for rule_concepts in rule.concepts_by_parameter.values():
             for concept in rule_concepts:
                 concepts[concept] = factory.parse_concept(concept)
+        for rule_roles in rule.roles_by_parameter.values():
+            for role in rule_roles:
+                roles[role] = factory.parse_role(role)
 
     state = problem.init
     goal_state = _get_state_from_goal(problem.goal)
@@ -53,7 +57,7 @@ def execute_datalog_policy(domain, problem, datalog_policy, max_steps=0):
         log.info(f'New state: {state_string(state)}')
         found_rule = False
 
-        eval = eval_state(instance, mapping, concepts, state, goal_state)
+        eval = eval_state(instance, mapping, concepts | roles, state, goal_state)
         bool_eval = bool_eval_state(instance, mapping, features, state, goal_state)
 
         for rule in datalog_policy.rules:
@@ -86,6 +90,20 @@ def execute_datalog_policy(domain, problem, datalog_policy, max_steps=0):
             action = None
             for object_combination in itertools.product(*objects):
                 log.debug(f'... Checking rule with object combination {object_combination}')
+                valid = True
+                for role_params, rule_roles in rule.roles_by_parameter.items():
+                    role_arg_0 = object_combination[rule.parameters.index(role_params[0])]
+                    role_arg_1 = object_combination[rule.parameters.index(role_params[1])]
+                    for role in rule_roles:
+                        if (instance.get_object(role_arg_0).get_index(),
+                                instance.get_object(role_arg_1).get_index()) not in eval[role].to_vector():
+                            log.debug(f'... Role {role} not satisfied for {role_arg_0} and {role_arg_1}')
+                            valid = False
+                            break
+                    if not valid:
+                        break
+                if not valid:
+                    continue
                 object_combination = tuple(
                     next(c for c in problem.objects | domain.constants if c.name == o) for o in object_combination)
                 grounded_action = ground_action(domain, problem, rule.name, object_combination)

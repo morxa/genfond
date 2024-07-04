@@ -56,3 +56,21 @@ def test_datalog_policy_with_conds(doors):
     ])
     for i in range(10):
         execute_datalog_policy(domain, problem, policy, 10)
+
+
+def test_datalog_policy_with_roles(fond_blocks):
+    domain, problem = fond_blocks
+    policy = DatalogPolicy([
+        DatalogPolicyRule(
+            'puton(X, Y, Z)',
+            roles=[
+                ('X', 'Y', 'r_primitive(on_G,0,1)'),
+            ],
+        ),
+        DatalogPolicyRule(
+            'puton(X, Y, Z)',
+            concepts=[('Y', 'c_one_of(Table)')],
+        ),
+    ])
+    for i in range(10):
+        execute_datalog_policy(domain, problem, policy, max_steps=10)
