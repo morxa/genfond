@@ -5,7 +5,7 @@ from dlplan.core import SyntacticElementFactory
 from pddl.logic.terms import Constant
 from .execute_rule_policy import eval_state, bool_eval_state, state_satisfies_rule_conds
 from .feature_generator import construct_vocabulary_info, construct_instance_info, _get_state_from_goal
-from .ground import ground
+from .ground import ground_action
 from .state_space_generator import check_formula, apply_action_effects
 
 log = logging.getLogger(__name__)
@@ -25,10 +25,6 @@ def state_string(state) -> str:
 
 def execute_datalog_policy(domain, problem, datalog_policy, max_steps=0):
     log.info(f'Executing policy:\n{datalog_policy}\nin {domain.name} for problem {problem.name}')
-
-    log.debug("Grounding actions...")
-    grounded_actions = ground(domain, problem)
-    log.debug("Grounding actions done.")
 
     vocabulary = construct_vocabulary_info(domain)
     factory = SyntacticElementFactory(vocabulary)
@@ -86,21 +82,15 @@ def execute_datalog_policy(domain, problem, datalog_policy, max_steps=0):
                 log.debug(f'... Rule not applicable! Not all objects found!')
                 continue
 
-            grounded_actions_by_name_and_preconditions = dict()
-            for grounded_action in grounded_actions:
-                grounded_actions_by_name_and_preconditions[(grounded_action.name,
-                                                            grounded_action.parameters)] = grounded_action
-
             log.debug(f'... Checking if rule is applicable')
             action = None
             for object_combination in itertools.product(*objects):
                 log.debug(f'... Checking rule with object combination {object_combination}')
-                object_combination = tuple(Constant(o) for o in object_combination)
-                grounded_action = grounded_actions_by_name_and_preconditions.get((rule.name, object_combination))
+                object_combination = tuple(
+                    next(c for c in problem.objects | domain.constants if c.name == o) for o in object_combination)
+                grounded_action = ground_action(domain, problem, rule.name, object_combination)
                 if grounded_action and check_formula(state, grounded_action.precondition):
                     action = grounded_action
-                    break
-                if action:
                     break
 
             if not action:
