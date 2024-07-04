@@ -121,7 +121,10 @@ def main():
     if args.input:
         solution, policy = pickle.load(open(args.input, 'rb'))
     else:
-        asp_instance = feature_pool.to_clingo(include_concepts=(args.type == 'datalog'))
+        asp_instance = feature_pool.to_clingo(include_boolean_features=True,
+                                              include_numerical_features=(args.type != 'datalog'),
+                                              include_concepts=(args.type == 'datalog'),
+                                              include_roles=False)
         if args.program_file:
             with open(args.program_file, 'w') as f:
                 f.write(asp_instance)

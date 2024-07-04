@@ -101,7 +101,9 @@ def test_features_to_clingo(simple_blocks):
 def test_concepts_to_clingo(simple_blocks):
     domain, problem = simple_blocks
     feature_pool = FeaturePool(domain, [problem], 2)
-    clingo_program = feature_pool.to_clingo(include_features=False, include_concepts=True)
+    clingo_program = feature_pool.to_clingo(include_boolean_features=False,
+                                            include_numerical_features=False,
+                                            include_concepts=True)
     print(f'full program:\n{clingo_program}')
     assert 'concept("c_top").' in clingo_program
     assert 'concept_complexity("c_top", 1).' in clingo_program

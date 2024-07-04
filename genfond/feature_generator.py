@@ -143,18 +143,29 @@ class FeaturePool:
                                      | self.goal_states[problem]]).to_sorted_vector()
         ])
 
-    def to_clingo(self, include_features=True, include_concepts=False):
+    def to_clingo(self,
+                  include_boolean_features=True,
+                  include_numerical_features=True,
+                  include_concepts=False,
+                  include_roles=False):
         clingo_program = ""
-        if include_features:
+        if include_boolean_features or include_numerical_features:
             for feature_str, feature in self.features.items():
-                feature_str = f'"{feature_str}"'
-                clingo_program += f'feature({feature_str}).\n'
-                clingo_program += f'feature_complexity({feature_str}, {feature.compute_complexity()}).\n'
+                if (feature_str.startswith('b_') and include_boolean_features
+                        or feature_str.startswith('n_') and include_numerical_features):
+                    feature_str = f'"{feature_str}"'
+                    clingo_program += f'feature({feature_str}).\n'
+                    clingo_program += f'feature_complexity({feature_str}, {feature.compute_complexity()}).\n'
         if include_concepts:
             for concept_str, concept in self.concepts.items():
                 concept_str = f'"{concept_str}"'
                 clingo_program += f'concept({concept_str}).\n'
                 clingo_program += f'concept_complexity({concept_str}, {concept.compute_complexity()}).\n'
+        if include_roles:
+            for role_str, role in self.roles.items():
+                role_str = f'"{role_str}"'
+                clingo_program += f'role({role_str}).\n'
+                clingo_program += f'role_complexity({role_str}, {role.compute_complexity()}).\n'
         for problem, state_graph in self.state_graphs.items():
             problem_id = self.problem_name_to_id[problem]
             for node in state_graph.nodes.values():
@@ -163,18 +174,25 @@ class FeaturePool:
                     clingo_program += f'alive({problem_id}, {node.id}).\n'
                 if check_formula(node.state, state_graph.problem.goal):
                     clingo_program += f'goal({problem_id}, {node.id}).\n'
-                if include_features:
+                if include_boolean_features or include_numerical_features:
                     for feature_str, feature in self.features.items():
-                        feature_str = f'"{feature_str}"'
-                        eval = self.evaluate_feature_from_problem(feature_str, problem, node.state)
-                        if type(eval) is bool:
-                            eval = 1 if eval else 0
-                        clingo_program += f'eval({problem_id}, {node.id}, {feature_str}, {eval}).\n'
+                        if (feature_str.startswith('b_') and include_boolean_features
+                                or feature_str.startswith('n_') and include_numerical_features):
+                            feature_str = f'"{feature_str}"'
+                            eval = self.evaluate_feature_from_problem(feature_str, problem, node.state)
+                            if type(eval) is bool:
+                                eval = 1 if eval else 0
+                            clingo_program += f'eval({problem_id}, {node.id}, {feature_str}, {eval}).\n'
                 if include_concepts:
                     for concept_str, concept in self.concepts.items():
                         concept_str = f'"{concept_str}"'
                         for obj in self.evaluate_concept_from_problem(concept_str, problem, node.state):
                             clingo_program += f'c_eval({problem_id}, {node.id}, {concept_str}, "{obj}").\n'
+                if include_roles:
+                    for role_str, role in self.roles.items():
+                        role_str = f'"{role_str}"'
+                        for obj1, obj2 in self.evaluate_role_from_problem(role_str, problem, node.state):
+                            clingo_program += f'r_eval({problem_id}, {node.id}, {role_str}, "{obj1}", "{obj2}").\n'
                 for action, children in node.children.items():
                     action_str = f'"{action.name}({",".join([str(p) for p in action.parameters])})"'
                     for child in children:
