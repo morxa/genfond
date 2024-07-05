@@ -164,7 +164,7 @@ def main():
     for f in tqdm.tqdm(args.problem_file, disable=None):
         problems.append(pddl.parse_problem(f))
     name = args.name if args.name else domain.name
-    log.info('Starting policy generation for domain {}'.format(name))
+    log.info(f'Starting policy generation for domain {name}')
     log.info(f'Generating policies of type {args.type}')
     if args.type == 'datalog':
         policy = DatalogPolicy({}, {})
@@ -172,40 +172,63 @@ def main():
         policy = Policy({}, {})
     solver_problems = []
     last_complexity = args.min_complexity
-    verified = []
-    queue = problems.copy()
+    succs = []
+    considered_problems = problems.copy()
+    considered_problems.sort(key=lambda p: len(p.objects))
+    log.info(f'Considering problems: {pnames(considered_problems)}')    
     failure_reason = ''
-    queue.sort(key=lambda p: len(p.objects))
-    for problem in queue:
+    i = 0
+    max_i = -1
+    
+    log.info('')
+    log.info('=' * 80)
+    log.info('')
+    
+    while i < len(considered_problems):
+        problem = considered_problems[i]
         try:
             log.info(f'Testing policy on {problem.name} {args.policy_iterations} times ...')
             # Execute policy policy_iterations times
             for _ in tqdm.trange(args.policy_iterations, disable=None):
                 execute_policy(domain, problem, policy, args.policy_steps)
             log.info(f'Policy already solves {problem.name}')
-            verified.append(problem)
+            log.info(f'Appending {problem.name} to successful problems')
+            succs.append(problem)
+            max_i = max(max_i, i)
+            i += 1
+            log.info('')
             continue
         except RuntimeError:
             pass
         log.info('Policy does not solve {}'.format(problem.name))
-        solver_problems.append(problem)
+        log.info('')
+        old_i = i
+        if i > max_i:
+            log.info(f'--- Resetting solver problems to just {problem.name} and starting over ---')
+            solver_problems = [problem]
+        else:
+            log.info(f'--- Appending {problem.name} to solver problems and starting over ---')
+            solver_problems.append(problem)
+        log.info('')
+        i = 0
+        error = False
         new_policy = None
-        for i, all_generators in itertools.product(range(last_complexity, args.max_complexity + 1), [False, True]):
-            if new_policy and new_policy.cost[0] <= i:
+        for j, all_generators in itertools.product(range(last_complexity, args.max_complexity + 1), [False, True]):
+            if new_policy and new_policy.cost[0] <= j:
                 break
             try:
-                log.info(f'Starting solver for {pnames(solver_problems)} with max complexity {i}')
+                log.info(f'Starting solver for {pnames(solver_problems)} with max complexity {j}')
                 solve_wall_time_start = time.perf_counter()
                 solve_cpu_time_start = time.process_time()
                 solution = solve(
                     domain,
                     solver_problems,
                     args.num_threads,
-                    i,
+                    j,
                     args.type,
                     all_generators=all_generators,
                     max_cost=new_policy.cost[0] - 1 if new_policy else None,
-                    enforce_highest_complexity=True if i > last_complexity else False,
+                    enforce_highest_complexity=True if j > last_complexity else False,
                 )
             except (RuntimeError, MemoryError) as e:
                 if 'Id out of range' in str(e):
@@ -215,7 +238,7 @@ def main():
                 else:
                     failure_reason = str(e)
                 log.warning(
-                    f'Error during policy generation for {pnames(solver_problems)} with max complexity {i}: {e}')
+                    f'Error during policy generation for {pnames(solver_problems)} with max complexity {j}: {e}')
                 break
             finally:
                 solve_wall_time = time.perf_counter() - solve_wall_time_start
@@ -233,14 +256,14 @@ def main():
                         f'Found another policy with lower cost ({i_policy.cost}) than old policy ({new_policy.cost})')
                 else:
                     log.info(f'Found first policy with cost {i_policy.cost} for'
-                             f' {pnames(solver_problems)} with max complexity {i}')
+                             f' {pnames(solver_problems)} with max complexity {j}')
                 log.info(f'New policy: {i_policy}')
                 log.info('Verifying new policy on solved problems')
                 try:
                     for problem in tqdm.tqdm(solver_problems, disable=None):
                         execute_policy(domain, problem, i_policy, args.policy_steps)
                 except RuntimeError:
-                    log.critical('New policy does not solve {}'.format(problem.name))
+                    log.critical(f'New policy does not solve {problem.name}')
                     if args.dump_failed_policies:
                         h = hash(i_policy)
                         with open(f'failed_policy-{h}.pickle', 'wb') as f:
@@ -249,7 +272,7 @@ def main():
                     if not args.continue_after_error:
                         sys.exit(1)
                     continue
-                last_complexity = i
+                last_complexity = j
                 new_policy = i_policy
                 stats = solve_stats
                 best_solve_wall_time = solve_wall_time
@@ -261,25 +284,35 @@ def main():
             if args.output:
                 with open(args.output, 'wb') as f:
                     pickle.dump(policy, f)
-            # Re-add previously verified problems  to queue if not part of the solver set
-            queue += [p for p in verified if p not in solver_problems]
-            verified = solver_problems.copy()
+            succs = []
+            log.info('Resetting successful problems')
+            log.info('')
         else:
-            log.error('No policy found for {} with max complexity {}'.format(problem.name, i))
+            log.error(f'No policy found for {problem.name} with max complexity {j}')
             # Delete last element in solver_problems
-            solver_problems.pop()
             if not args.keep_going:
+                error = True
+                log.info('')
                 break
-            continue
-    succs = verified
-    log.info('Verifying policy ...')
-    for problem in tqdm.tqdm([p for p in problems if p not in verified], disable=None):
-        try:
-            for _ in tqdm.trange(args.policy_iterations, leave=False, disable=None):
-                execute_policy(domain, problem, policy, args.policy_steps)
-            succs.append(problem)
-        except RuntimeError:
-            log.error('Policy does not solve {}'.format(problem.name))
+            log.info(f'Removing {problem.name} from solver problems')
+            log.info('')
+            del considered_problems[old_i]
+            if old_i <= max_i:
+                 max_i -= 1
+
+    log.info('=' * 80)
+    log.info('')
+
+    if error:
+        log.info('Verifying policy from start because an error occured ...')
+        for problem in tqdm.tqdm([p for p in problems if p not in succs], disable=None):
+            try:
+                for _ in tqdm.trange(args.policy_iterations, leave=False, disable=None):
+                    execute_policy(domain, problem, policy, args.policy_steps)
+                succs.append(problem)
+            except RuntimeError:
+                log.error('Policy does not solve {}'.format(problem.name))
+        log.info('')
     log.info('Policy solves {} out of {} problems, unsolved: {}'.format(
         len(succs), len(problems), pnames([p for p in problems if p not in succs])))
     log.info('Final policy: {}'.format(policy))
@@ -326,7 +359,7 @@ def main():
                 if not file_exists:
                     writer.writeheader()
                 writer.writerow(stats)
-    if len(succs) == len(problems):
+    if len(considered_problems) == len(problems):
         sys.exit(0)
     else:
         sys.exit(1)
