@@ -1,6 +1,6 @@
 #!/bin/bash
-SOURCE=/work/rleap1/samuel.stante/pddl-generators/miconic
-TARGET=/work/rleap1/samuel.stante/genfond/domains/deterministic/miconic
+SOURCE="${SOURCE:-/work/rleap1/samuel.stante/pddl-generators/miconic}"
+TARGET="${TARGET:-/work/rleap1/samuel.stante/genfond/domains/deterministic/miconic}"
 
 echo "Miconic"
 

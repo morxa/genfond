@@ -1,6 +1,6 @@
 #!/bin/bash
-SOURCE=/work/rleap1/samuel.stante/pddl-generators/visitall
-TARGET=/work/rleap1/samuel.stante/genfond/domains/deterministic/visitall
+SOURCE="${SOURCE:-/work/rleap1/samuel.stante/pddl-generators/visitall}"
+TARGET="${TARGET:-/work/rleap1/samuel.stante/genfond/domains/deterministic/visitall}"
 
 echo "Visitall"
 

@@ -14,7 +14,7 @@ def test_block_clear_all(blocks_clear):
         ]),
     ])
 
-    execute_datalog_policy(domain, problem, policy, max_steps=0)
+    execute_datalog_policy(domain, problem, policy)
 
 
 def test_fond_blocks(fond_blocks):
@@ -42,7 +42,7 @@ def test_fond_blocks(fond_blocks):
                           ]),
     ])
 
-    execute_datalog_policy(domain, problem, policy, max_steps=0)
+    execute_datalog_policy(domain, problem, policy)
 
 
 def test_datalog_policy_with_conds(doors):
@@ -54,8 +54,8 @@ def test_datalog_policy_with_conds(doors):
         DatalogPolicyRule('move-forward-last-door-closed(P1, P2, P3)', conds={'b_nullary(hold-key)': Cond.TRUE}),
         DatalogPolicyRule('pick-key(X)', conds={'b_nullary(hold-key)': Cond.FALSE}),
     ])
-    for i in range(10):
-        execute_datalog_policy(domain, problem, policy, 10)
+    for _ in range(10):
+        execute_datalog_policy(domain, problem, policy, max_steps=10)
 
 
 def test_datalog_policy_with_roles(fond_blocks):
@@ -72,5 +72,5 @@ def test_datalog_policy_with_roles(fond_blocks):
             concepts=[('Y', 'c_one_of(Table)')],
         ),
     ])
-    for i in range(10):
+    for _ in range(10):
         execute_datalog_policy(domain, problem, policy, max_steps=10)

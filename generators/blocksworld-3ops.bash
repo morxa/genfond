@@ -1,6 +1,6 @@
 #!/bin/bash
-SOURCE=/work/rleap1/samuel.stante/pddl-generators/blocksworld
-TARGET=/work/rleap1/samuel.stante/genfond/domains/deterministic/blocksworld-3ops
+SOURCE="${SOURCE:-/work/rleap1/samuel.stante/pddl-generators/blocksworld}"
+TARGET="${TARGET:-/work/rleap1/samuel.stante/genfond/domains/deterministic/blocksworld-3ops}"
 
 echo "Blocksworld 3ops"
 

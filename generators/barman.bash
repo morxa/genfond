@@ -1,6 +1,6 @@
 #!/bin/bash
-SOURCE=/work/rleap1/samuel.stante/pddl-generators/barman
-TARGET=/work/rleap1/samuel.stante/genfond/domains/deterministic/barman
+SOURCE="${SOURCE:-/work/rleap1/samuel.stante/pddl-generators/barman}"
+TARGET="${TARGET:-/work/rleap1/samuel.stante/genfond/domains/deterministic/barman}"
 
 echo "Barman"
 

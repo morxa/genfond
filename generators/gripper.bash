@@ -1,6 +1,6 @@
 #!/bin/bash
-SOURCE=/work/rleap1/samuel.stante/pddl-generators/gripper
-TARGET=/work/rleap1/samuel.stante/genfond/domains/deterministic/gripper
+SOURCE="${SOURCE:-/work/rleap1/samuel.stante/pddl-generators/gripper}"
+TARGET="${TARGET:-/work/rleap1/samuel.stante/genfond/domains/deterministic/gripper}"
 
 echo "Gripper"
 
