@@ -75,7 +75,7 @@ class DatalogPolicyRule:
             roles_conds.extend([f'{parameters[0]} {role} {parameters[1]}' for role in roles])
         roles_conds.sort()
         conds = state_conds + concept_conds + roles_conds
-        return f'{self.name}({', '.join(self.parameters)}){f" :- {', '.join(conds)}" if concepts else ' '}.'
+        return f'{self.name}({', '.join(self.parameters)}){f" :- {', '.join(conds)}" if conds else ""}.'
 
     def __hash__(self):
         return hash((
