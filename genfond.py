@@ -52,11 +52,13 @@ def solve(domain,
         log.info(f'No solution possible for {pnames(problems)}'
                  f' with enforced max complexity {complexity} and max cost {max_cost}')
         return None
-    log.info('Solving {} with {} {} features up to {}complexity {},{} and {} = {} states'.format(
-        ", ".join([p.name for p in problems]), len(feature_pool.features),
-        'unrestricted' if all_generators else 'restricted', "enforced " if enforce_highest_complexity else "",
-        complexity, f' max cost {max_cost},' if max_cost else '', " + ".join([str(s) for s in state_counts]),
-        sum(state_counts)))
+    log.info(
+        'Solving {} with {} features, {} concepts, {} roles ({}); up to {}complexity {},{} and {} = {} states'.format(
+            ", ".join([p.name for p in problems]), len(feature_pool.features), len(feature_pool.concepts),
+            len(feature_pool.roles), 'unrestricted' if all_generators else 'restricted',
+            "enforced " if enforce_highest_complexity else "",
+            complexity, f' max cost {max_cost},' if max_cost else '', " + ".join([str(s) for s in state_counts]),
+            sum(state_counts)))
     if type == 'state':
         solve_prog = 'solve_state_constraints.lp'
         policy_type = PolicyType.CONSTRAINED
