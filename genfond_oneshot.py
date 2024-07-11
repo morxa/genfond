@@ -113,14 +113,16 @@ def main():
     problems = []
     for problem_file in args.problem_file:
         problems.append(pddl.parse_problem(problem_file))
-    feature_pool = FeaturePool(domain,
-                               problems,
-                               args.complexity,
-                               preset_features=args.restrict_features,
-                               include_boolean_features=True,
-                               include_numerical_features=(args.type != 'datalog'),
-                               include_concepts=(args.type == 'datalog'),
-                               include_roles=False)
+    feature_pool = FeaturePool(
+        domain,
+        problems,
+        args.complexity,
+        preset_features=args.restrict_features,
+        include_boolean_features=True,
+        include_numerical_features=(args.type != 'datalog'),
+        include_concepts=(args.type == 'datalog'),
+        include_roles=(args.type == 'datalog'),
+    )
     if args.draw_input:
         for p, g in feature_pool.state_graphs.items():
             base, suffix = os.path.splitext(args.draw_input)
