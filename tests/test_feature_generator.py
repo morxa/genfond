@@ -1,6 +1,7 @@
 from genfond.feature_generator import FeaturePool
 from genfond.state_space_generator import apply_action_effects, check_formula
 from genfond.ground import ground
+from genfond.config_handler import ConfigHandler
 from pddl.logic import constants, Predicate
 from helpers import get_action
 import re
@@ -8,7 +9,9 @@ import re
 
 def test_generate_features_simple_blocks(simple_blocks):
     domain, problem = simple_blocks
-    feature_pool = FeaturePool(domain, [problem], all_generators=True, include_concepts=True, include_roles=True)
+    config = ConfigHandler(type='datalog')
+    config['include_numerical_features'] = True
+    feature_pool = FeaturePool(domain, [problem], config=config, all_generators=True)
     a, b, c = constants('a b c')
     assert 'b_empty(c_primitive(holding,0))' in feature_pool.features
     assert 'b_empty(r_primitive(on,0,1))' in feature_pool.features
@@ -40,7 +43,9 @@ def test_generate_features_simple_blocks(simple_blocks):
 def test_generate_features_fond_blocks(fond_blocks):
     domain, problem = fond_blocks
     ground_actions = ground(domain, problem)
-    feature_pool = FeaturePool(domain, [problem], all_generators=False, include_concepts=True, include_roles=True)
+    config = ConfigHandler(type='datalog')
+    config['include_numerical_features'] = True
+    feature_pool = FeaturePool(domain, [problem], config=config, all_generators=False)
     gstates = [
         node.state for node in feature_pool.state_graphs[problem.name].nodes.values()
         if check_formula(node.state, problem.goal)
@@ -67,7 +72,9 @@ def test_generate_features_fond_blocks(fond_blocks):
 
 def test_features_to_clingo(simple_blocks):
     domain, problem = simple_blocks
-    feature_pool = FeaturePool(domain, [problem], 2)
+    config = ConfigHandler()
+    config['max_complexity'] = 2
+    feature_pool = FeaturePool(domain, [problem], config=config)
     clingo_program = feature_pool.to_clingo()
     print(f'full program:\n{clingo_program}')
     assert 'feature("b_empty(c_primitive(holding,0))").' in clingo_program
@@ -100,11 +107,12 @@ def test_features_to_clingo(simple_blocks):
 
 def test_concepts_to_clingo(simple_blocks):
     domain, problem = simple_blocks
-    feature_pool = FeaturePool(domain, [problem],
-                               2,
-                               include_boolean_features=False,
-                               include_numerical_features=False,
-                               include_concepts=True)
+    config = ConfigHandler()
+    config['include_boolean_features'] = False
+    config['include_numerical_features'] = False
+    config['include_concepts'] = True
+    config['max_complexity'] = 2
+    feature_pool = FeaturePool(domain, [problem], config=config)
     clingo_program = feature_pool.to_clingo()
     print(f'full program:\n{clingo_program}')
     assert 'concept("c_top").' in clingo_program
@@ -127,7 +135,9 @@ def test_concepts_to_clingo(simple_blocks):
 
 def test_features_clingo_upper_case(fond_blocks):
     domain, problem = fond_blocks
-    feature_pool = FeaturePool(domain, [problem], 2)
+    config = ConfigHandler()
+    config['max_complexity'] = 2
+    feature_pool = FeaturePool(domain, [problem], config=config)
     clingo_program = feature_pool.to_clingo()
     # Omit the target state as it might vary.
     assert 'trans(0, 0, "puton(B,C,Table)"' in clingo_program

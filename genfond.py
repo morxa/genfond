@@ -5,6 +5,7 @@ from genfond.policy import Policy, PolicyType
 from genfond.datalog_policy import DatalogPolicy
 from genfond.generate_policy import generate_policy
 from genfond.execute_policy import execute_policy
+from genfond.config_handler import ConfigHandler
 import logging
 import sys
 import pddl
@@ -21,25 +22,24 @@ import csv
 log = logging.getLogger(__name__)
 
 
-def solve(domain,
-          problems,
-          num_threads,
-          complexity,
-          type=None,
-          max_cost=None,
-          all_generators=True,
-          enforce_highest_complexity=False):
+def solve(
+    domain,
+    problems,
+    type,
+    config,
+    complexity,
+    max_cost=None,
+    all_generators=True,
+    enforce_highest_complexity=False,
+):
     stats = dict()
     log.debug('Generating feature pool ...')
     feature_pool = FeaturePool(
         domain,
         problems,
-        complexity,
+        config=config,
+        max_complexity=complexity,
         all_generators=all_generators,
-        include_boolean_features=True,
-        include_numerical_features=(type != 'datalog'),
-        include_concepts=(type == 'datalog'),
-        include_roles=(type == 'datalog'),
     )
     stats['featurePoolSize'] = len(feature_pool.features)
     log.debug('Generating ASP instance ...')
@@ -74,7 +74,7 @@ def solve(domain,
     else:
         raise ValueError(f'Unknown constraint type {constraint_type}')
     solver = Solver(asp_instance,
-                    num_threads,
+                    config['num_threads'],
                     max_cost=max_cost,
                     min_feature_complexity=complexity if enforce_highest_complexity else None,
                     solve_prog=solve_prog)
@@ -115,31 +115,29 @@ def main():
     parser.add_argument('--name', help='Name of the problem set (default: domain name)')
     parser.add_argument('--output', '-o', help='Output file for the resulting policy (as pickle dump)')
     parser.add_argument('-v', '--verbose', action='store_true')
-    parser.add_argument('--min-complexity', type=int, default=2, help='start policy search with this max complexity')
-    parser.add_argument('--max-complexity', type=int, default=9, help='stop policy search with this max complexity')
-    parser.add_argument('-i',
-                        '--policy-iterations',
-                        type=int,
-                        default=100,
-                        help='number of policy iterations for testing')
-    parser.add_argument('--policy-steps',
-                        type=int,
-                        default=10000,
-                        help='number of steps to execute policy for testing (0 for no limit)')
-    parser.add_argument('-n',
-                        '--num-threads',
-                        type=int,
-                        default=None,
-                        help='number of threads to use; "None" uses all available threads')
-    parser.add_argument('--max-memory', type=int, default=None, help='maximum memory to use in MB')
+    parser.add_argument('--stats', help='file to dump stats to')
+    parser.add_argument('--config', help='config file for parameters')
     parser.add_argument('--type',
                         choices=['exact', 'state', 'trans', 'datalog'],
                         default='state',
                         help='generate policies of the given type')
-    parser.add_argument('--dump-failed-policies', action='store_true', help='dump failed policies to file')
-    parser.add_argument('--keep-going', action='store_true', help='keep going after one training problem failed')
-    parser.add_argument('--continue-after-error', action='store_true', help='continue after error in policy execution')
-    parser.add_argument('--stats', help='file to dump stats to')
+    config_args = parser.add_argument_group('config', 'Overwrite config parameters')
+    config_args.add_argument('--min-complexity', type=int, help='start policy search with this max complexity')
+    config_args.add_argument('--max-complexity', type=int, help='stop policy search with this max complexity')
+    config_args.add_argument('-i', '--policy-iterations', type=int, help='number of policy iterations for testing')
+    config_args.add_argument('--policy-steps',
+                             type=int,
+                             help='number of steps to execute policy for testing (0 for no limit)')
+    config_args.add_argument('-n',
+                             '--num-threads',
+                             type=int,
+                             help='number of threads to use; "None" uses all available threads')
+    config_args.add_argument('--max-memory', type=int, help='maximum memory to use in MB')
+    config_args.add_argument('--dump-failed-policies', action='store_true', help='dump failed policies to file')
+    config_args.add_argument('--keep-going', action='store_true', help='keep going after one training problem failed')
+    config_args.add_argument('--continue-after-error',
+                             action='store_true',
+                             help='continue after error in policy execution')
     args = parser.parse_args()
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO,
                         format='%(asctime)s %(levelname)-8s %(message)s')
@@ -153,9 +151,10 @@ def main():
         logging.getLogger('genfond.execute_datalog_policy').setLevel(logging.WARN)
         logging.getLogger('genfond.execute_rule_policy').setLevel(logging.WARN)
     signal.signal(signal.SIGINT, signal_handler)
-    if args.max_memory:
+    config = ConfigHandler(args.config, args.type, vars(args))
+    if config['max_memory']:
         _, hard = resource.getrlimit(resource.RLIMIT_AS)
-        resource.setrlimit(resource.RLIMIT_AS, (args.max_memory * 1024 * 1024, hard))
+        resource.setrlimit(resource.RLIMIT_AS, (config['max_memory'] * 1024 * 1024, hard))
     total_wall_time_start = time.perf_counter()
     total_cpu_time_start = time.process_time()
     total_solve_cpu_time = 0
@@ -175,26 +174,26 @@ def main():
     else:
         policy = Policy({}, {})
     solver_problems = []
-    last_complexity = args.min_complexity
+    last_complexity = config['min_complexity']
     succs = []
     considered_problems = problems.copy()
     considered_problems.sort(key=lambda p: len(p.objects))
-    log.info(f'Considering problems: {pnames(considered_problems)}')    
+    log.info(f'Considering problems: {pnames(considered_problems)}')
     failure_reason = ''
     i = 0
     max_i = -1
-    
+
     log.info('')
     log.info('=' * 80)
     log.info('')
-    
+
     while i < len(considered_problems):
         problem = considered_problems[i]
         try:
-            log.info(f'Testing policy on {problem.name} {args.policy_iterations} times ...')
+            log.info(f'Testing policy on {problem.name} {config["policy_iterations"]} times ...')
             # Execute policy policy_iterations times
-            for _ in tqdm.trange(args.policy_iterations, disable=None):
-                execute_policy(domain, problem, policy, args.policy_steps)
+            for _ in tqdm.trange(config['policy_iterations'], disable=None):
+                execute_policy(domain, problem, policy, config['policy_steps'])
             log.info(f'Policy already solves {problem.name}')
             log.info(f'Appending {problem.name} to successful problems')
             succs.append(problem)
@@ -217,7 +216,8 @@ def main():
         i = 0
         error = False
         new_policy = None
-        for j, all_generators in itertools.product(range(last_complexity, args.max_complexity + 1), [False, True]):
+        for j, all_generators in itertools.product(range(last_complexity, config['max_complexity'] + 1),
+                                                   [False, True]):
             if new_policy and new_policy.cost[0] <= j:
                 break
             try:
@@ -227,9 +227,9 @@ def main():
                 solution = solve(
                     domain,
                     solver_problems,
-                    args.num_threads,
-                    j,
-                    args.type,
+                    type=args.type,
+                    config=config,
+                    complexity=j,
                     all_generators=all_generators,
                     max_cost=new_policy.cost[0] - 1 if new_policy else None,
                     enforce_highest_complexity=True if j > last_complexity else False,
@@ -265,15 +265,15 @@ def main():
                 log.info('Verifying new policy on solved problems')
                 try:
                     for problem in tqdm.tqdm(solver_problems, disable=None):
-                        execute_policy(domain, problem, i_policy, args.policy_steps)
+                        execute_policy(domain, problem, i_policy, config['policy_steps'])
                 except RuntimeError:
                     log.critical(f'New policy does not solve {problem.name}')
-                    if args.dump_failed_policies:
+                    if config['dump_failed_policies']:
                         h = hash(i_policy)
                         with open(f'failed_policy-{h}.pickle', 'wb') as f:
                             pickle.dump(i_policy, f)
                         log.critical(f'Dumped failed policy to failed_policy-{h}.pickle')
-                    if not args.continue_after_error:
+                    if not config['continue_after_error']:
                         sys.exit(1)
                     continue
                 last_complexity = j
@@ -294,7 +294,7 @@ def main():
         else:
             log.error(f'No policy found for {problem.name} with max complexity {j}')
             # Delete last element in solver_problems
-            if not args.keep_going:
+            if not config['keep_going']:
                 error = True
                 log.info('')
                 break
@@ -302,7 +302,7 @@ def main():
             log.info('')
             del considered_problems[old_i]
             if old_i <= max_i:
-                 max_i -= 1
+                max_i -= 1
 
     log.info('=' * 80)
     log.info('')
@@ -311,8 +311,8 @@ def main():
         log.info('Verifying policy from start because an error occured ...')
         for problem in tqdm.tqdm([p for p in problems if p not in succs], disable=None):
             try:
-                for _ in tqdm.trange(args.policy_iterations, leave=False, disable=None):
-                    execute_policy(domain, problem, policy, args.policy_steps)
+                for _ in tqdm.trange(config['policy_iterations'], leave=False, disable=None):
+                    execute_policy(domain, problem, policy, config['policy_steps'])
                 succs.append(problem)
             except RuntimeError:
                 log.error('Policy does not solve {}'.format(problem.name))

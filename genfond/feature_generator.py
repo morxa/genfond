@@ -44,16 +44,14 @@ def construct_instance_info(vocabulary, domain, problem, problem_id):
 
 class FeaturePool:
 
-    def __init__(self,
-                 domain,
-                 problems,
-                 max_complexity=9,
-                 all_generators=True,
-                 preset_features=None,
-                 include_boolean_features=True,
-                 include_numerical_features=True,
-                 include_concepts=False,
-                 include_roles=False):
+    def __init__(
+        self,
+        domain,
+        problems,
+        config,
+        max_complexity=9,
+        all_generators=True,
+    ):
         assert len({problem.name for problem in problems}) == len(problems), \
             "Problem names must be unique."
         self.problem_name_to_id = {problem.name: i for i, problem in enumerate(problems)}
@@ -77,8 +75,8 @@ class FeaturePool:
                 for state in pddl_states
             }
         factory = SyntacticElementFactory(vocabulary)
-        if preset_features:
-            str_gens = preset_features
+        if config.get('preset_features', None):
+            str_gens = config['preset_features']
         else:
             str_gens = dlplan_gen.generate_features(
                 factory, [state for state in self.states[problem.name].values() for problem in problems],
@@ -87,15 +85,15 @@ class FeaturePool:
         self.concepts = {}
         self.roles = {}
         for str_gen in str_gens:
-            if include_boolean_features and str_gen.startswith("b_"):
+            if config['include_boolean_features'] and str_gen.startswith("b_"):
                 feature = factory.parse_boolean(str_gen)
                 self.features[str(feature)] = feature
-            elif include_numerical_features and str_gen.startswith("n_"):
+            elif config['include_numerical_features'] and str_gen.startswith("n_"):
                 feature = factory.parse_numerical(str_gen)
                 self.features[str(feature)] = feature
-            elif include_concepts and str_gen.startswith("c_"):
+            elif config['include_concepts'] and str_gen.startswith("c_"):
                 self.concepts[str_gen] = factory.parse_concept(str_gen)
-            elif include_roles and str_gen.startswith("r_"):
+            elif config['include_roles'] and str_gen.startswith("r_"):
                 self.roles[str_gen] = factory.parse_role(str_gen)
 
     def evaluate_feature(self, feature, state):
