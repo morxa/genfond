@@ -14,6 +14,7 @@ DEFAULT_CONFIG = {
     'include_numerical_features': True,
     'include_concepts': False,
     'include_roles': False,
+    'preset_features': None,
 }
 
 DEFAULT_TYPE_CONFIGS = {
@@ -27,9 +28,12 @@ DEFAULT_TYPE_CONFIGS = {
 
 class ConfigHandler(dict):
 
-    def __init__(self, config_file_object=None, type=None):
+    def __init__(self, config_file_object=None, type=None, override=None):
         self.update(DEFAULT_CONFIG)
         if type and type in DEFAULT_TYPE_CONFIGS:
             self.update(DEFAULT_TYPE_CONFIGS[type])
         if config_file_object:
             self.update(yaml.safe_load(config_file_object))
+        if override:
+            # Only override values that are already in the config that have been set to a non-None value
+            self.update({k: v for k, v in override.items() if k in self and v is not None})

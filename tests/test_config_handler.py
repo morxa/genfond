@@ -18,3 +18,10 @@ def test_datalog_config_handler():
     assert config['include_numerical_features'] is False
     assert config['include_concepts'] is True
     assert config['include_roles'] is True
+
+
+def test_config_handler_override(simple_config):
+    config = ConfigHandler(simple_config, override={'min_complexity': 5, 'num_threads': None})
+    assert config['min_complexity'] == 5
+    # Still using the config value
+    assert config['num_threads'] == 8
