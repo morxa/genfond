@@ -118,6 +118,9 @@ def main():
     for problem_file in args.problem_file:
         problems.append(pddl.parse_problem(problem_file))
     feature_pool = FeaturePool(domain, problems, config=config)
+    log.info(
+        f'Generated {len(feature_pool.features)} features, {len(feature_pool.concepts)} concepts, {len(feature_pool.roles)} roles.'
+    )
     if args.draw_input:
         for p, g in feature_pool.state_graphs.items():
             base, suffix = os.path.splitext(args.draw_input)
