@@ -76,7 +76,7 @@ def state_string(state):
     return ",".join([str(p) for p in state])
 
 
-def execute_rule_policy(domain, problem, policy, max_steps=0):
+def execute_rule_policy(domain, problem, policy, config):
     log.info(
         f'Executing policy:\n{policy}\nin {domain.name} for problem {problem.name} with features {policy.features}')
     vocabulary = construct_vocabulary_info(domain)
@@ -98,6 +98,7 @@ def execute_rule_policy(domain, problem, policy, max_steps=0):
     state = problem.init
     num_steps = 0
     actions_taken = []
+    max_steps = config['policy_steps']
     while not check_formula(state, problem.goal) and (max_steps <= 0 or num_steps < max_steps):
         log.info(f'New state: {",".join([str(p) for p in state])}')
         feature_eval = eval_state(instance, mapping, features, state, goal_state)

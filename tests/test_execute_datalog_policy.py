@@ -1,5 +1,6 @@
 from genfond.datalog_policy import DatalogPolicyRule, DatalogPolicy, Cond
 from genfond.execute_datalog_policy import execute_datalog_policy
+from genfond.config_handler import ConfigHandler
 
 
 def test_block_clear_all(blocks_clear):
@@ -13,8 +14,8 @@ def test_block_clear_all(blocks_clear):
             ('X', 'c_primitive(clear, 0)'),
         ]),
     ])
-
-    execute_datalog_policy(domain, problem, policy)
+    config = ConfigHandler()
+    execute_datalog_policy(domain, problem, policy, config)
 
 
 def test_fond_blocks(fond_blocks):
@@ -41,8 +42,8 @@ def test_fond_blocks(fond_blocks):
                               ('Y', 'c_projection(r_primitive(on_G,0,1),1)'),
                           ]),
     ])
-
-    execute_datalog_policy(domain, problem, policy)
+    config = ConfigHandler()
+    execute_datalog_policy(domain, problem, policy, config)
 
 
 def test_datalog_policy_with_conds(doors):
@@ -54,8 +55,10 @@ def test_datalog_policy_with_conds(doors):
         DatalogPolicyRule('move-forward-last-door-closed(P1, P2, P3)', conds={'b_nullary(hold-key)': Cond.TRUE}),
         DatalogPolicyRule('pick-key(X)', conds={'b_nullary(hold-key)': Cond.FALSE}),
     ])
+    config = ConfigHandler()
+    config['policy_steps'] = 10
     for _ in range(10):
-        execute_datalog_policy(domain, problem, policy, max_steps=10)
+        execute_datalog_policy(domain, problem, policy, config)
 
 
 def test_datalog_policy_with_roles(fond_blocks):
@@ -72,5 +75,7 @@ def test_datalog_policy_with_roles(fond_blocks):
             concepts=[('Y', 'c_one_of(Table)')],
         ),
     ])
+    config = ConfigHandler()
+    config['policy_steps'] = 10
     for _ in range(10):
-        execute_datalog_policy(domain, problem, policy, max_steps=10)
+        execute_datalog_policy(domain, problem, policy, config)

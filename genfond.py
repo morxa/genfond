@@ -193,7 +193,7 @@ def main():
             log.info(f'Testing policy on {problem.name} {config["policy_iterations"]} times ...')
             # Execute policy policy_iterations times
             for _ in tqdm.trange(config['policy_iterations'], disable=None):
-                execute_policy(domain, problem, policy, config['policy_steps'])
+                execute_policy(domain, problem, policy, config)
             log.info(f'Policy already solves {problem.name}')
             log.info(f'Appending {problem.name} to successful problems')
             succs.append(problem)
@@ -265,7 +265,7 @@ def main():
                 log.info('Verifying new policy on solved problems')
                 try:
                     for problem in tqdm.tqdm(solver_problems, disable=None):
-                        execute_policy(domain, problem, i_policy, config['policy_steps'])
+                        execute_policy(domain, problem, i_policy, config)
                 except RuntimeError:
                     log.critical(f'New policy does not solve {problem.name}')
                     if config['dump_failed_policies']:
@@ -312,7 +312,7 @@ def main():
         for problem in tqdm.tqdm([p for p in problems if p not in succs], disable=None):
             try:
                 for _ in tqdm.trange(config['policy_iterations'], leave=False, disable=None):
-                    execute_policy(domain, problem, policy, config['policy_steps'])
+                    execute_policy(domain, problem, policy, config)
                 succs.append(problem)
             except RuntimeError:
                 log.error('Policy does not solve {}'.format(problem.name))

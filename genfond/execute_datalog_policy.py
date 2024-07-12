@@ -23,7 +23,7 @@ def state_string(state) -> str:
     return ",".join([str(p) for p in state])
 
 
-def execute_datalog_policy(domain, problem, datalog_policy, max_steps=0):
+def execute_datalog_policy(domain, problem, datalog_policy, config):
     log.info(f'Executing policy:\n{datalog_policy}\nin {domain.name} for problem {problem.name}')
 
     vocabulary = construct_vocabulary_info(domain)
@@ -53,6 +53,7 @@ def execute_datalog_policy(domain, problem, datalog_policy, max_steps=0):
     goal_state = _get_state_from_goal(problem.goal)
     num_steps = 0
     actions_taken = []
+    max_steps = config['policy_steps']
     while not check_formula(state, problem.goal) and (max_steps <= 0 or num_steps < max_steps):
         log.info(f'New state: {state_string(state)}')
         found_rule = False
