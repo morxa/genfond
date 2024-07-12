@@ -50,7 +50,7 @@ class FeaturePool:
         problems,
         config,
         max_complexity=None,
-        all_generators=True,
+        all_generators=False,
     ):
         assert len({problem.name for problem in problems}) == len(problems), \
             "Problem names must be unique."
