@@ -14,6 +14,7 @@ DEFAULT_CONFIG = {
     'include_numerical_features': True,
     'include_concepts': False,
     'include_roles': False,
+    'include_actions': False,
     'preset_features': None,
     'feature_generator': {}
 }
@@ -23,6 +24,7 @@ DEFAULT_TYPE_CONFIGS = {
         'include_numerical_features': False,
         'include_concepts': True,
         'include_roles': True,
+        'include_actions': True,
         'feature_generator': {
             'generate_concept_distance_numerical': False,
             'generate_count_numerical': False,
