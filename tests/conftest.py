@@ -11,6 +11,13 @@ import io
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)-8s %(message)s')
 
 
+def load(domain_name, problem_name):
+    path = os.path.join(os.path.dirname(__file__), 'fixtures', 'pddl_files', domain_name)
+    domain = pddl.parse_domain(os.path.join(path, 'domain.pddl'))
+    problem = pddl.parse_problem(os.path.join(path, problem_name))
+    return domain, problem
+
+
 @pytest.fixture
 def simple_blocks():
     requirements = [Requirements.STRIPS]
@@ -32,26 +39,22 @@ def simple_blocks():
 
 @pytest.fixture
 def fond_blocks():
-    blocksworld_path = os.path.join(os.path.dirname(__file__), 'fixtures', 'pddl_files', 'blocksworld_fond')
-    domain = pddl.parse_domain(os.path.join(blocksworld_path, 'domain.pddl'))
-    problem = pddl.parse_problem(os.path.join(blocksworld_path, 'p01.pddl'))
-    return domain, problem
+    return load('blocksworld-fond', 'p01.pddl')
 
 
 @pytest.fixture
 def typed_blocks():
-    typed_blocks_path = os.path.join(os.path.dirname(__file__), 'fixtures', 'pddl_files', 'typed_blocks')
-    domain = pddl.parse_domain(os.path.join(typed_blocks_path, 'domain.pddl'))
-    problem = pddl.parse_problem(os.path.join(typed_blocks_path, 'p01.pddl'))
-    return domain, problem
+    return load('typed-blocks', 'p01.pddl')
 
 
 @pytest.fixture
 def blocks_clear():
-    blocksclear_path = os.path.join(os.path.dirname(__file__), 'fixtures', 'pddl_files', 'blocks-clear')
-    domain = pddl.parse_domain(os.path.join(blocksclear_path, 'domain.pddl'))
-    problem = pddl.parse_problem(os.path.join(blocksclear_path, 'p002-1.pddl'))
-    return domain, problem
+    return load('blocks4ops-clear', 'p002-1.pddl')
+
+
+@pytest.fixture
+def doors():
+    return load('doors', 'p01.pddl')
 
 
 @pytest.fixture
@@ -152,14 +155,6 @@ def simple_program():
         trans(0, 1, b, 3).
         trans(0, 3, a, 4).
     """
-
-
-@pytest.fixture
-def doors():
-    doors_path = os.path.join(os.path.dirname(__file__), 'fixtures', 'pddl_files', 'doors')
-    domain = pddl.parse_domain(os.path.join(doors_path, 'domain.pddl'))
-    problem = pddl.parse_problem(os.path.join(doors_path, 'p01.pddl'))
-    return domain, problem
 
 
 @pytest.fixture
