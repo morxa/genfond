@@ -11,6 +11,7 @@ def test_generate_features_simple_blocks(simple_blocks):
     domain, problem = simple_blocks
     config = ConfigHandler(type='datalog')
     config['include_numerical_features'] = True
+    config['feature_generator']['generate_count_numerical'] = True
     feature_pool = FeaturePool(domain, [problem], config=config, all_generators=True)
     a, b, c = constants('a b c')
     assert 'b_empty(c_primitive(holding,0))' in feature_pool.features
