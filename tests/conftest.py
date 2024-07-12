@@ -6,6 +6,7 @@ from pddl.core import Domain, Problem
 from pddl.requirements import Requirements
 from pddl.logic import Predicate, constants, variables
 import logging
+import io
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)-8s %(message)s')
 
@@ -159,3 +160,12 @@ def doors():
     domain = pddl.parse_domain(os.path.join(doors_path, 'domain.pddl'))
     problem = pddl.parse_problem(os.path.join(doors_path, 'p01.pddl'))
     return domain, problem
+
+
+@pytest.fixture
+def simple_config():
+    return io.StringIO("""
+      min_complexity: 3
+      keep_going: True
+      num_threads: 8
+    """)
