@@ -80,9 +80,45 @@ class FeaturePool:
         if config.get('preset_features', None):
             str_gens = config['preset_features']
         else:
+            if all_generators:
+                feature_generator_kwargs = {
+                    'generate_empty_boolean': True,
+                    'generate_inclusion_boolean': True,
+                    'generate_nullary_boolean': True,
+                    'generate_all_concept': True,
+                    'generate_and_concept': True,
+                    'generate_bot_concept': True,
+                    'generate_diff_concept': True,
+                    'generate_equal_concept': True,
+                    'generate_not_concept': True,
+                    'generate_one_of_concept': True,
+                    'generate_or_concept': True,
+                    'generate_primitive_concept': True,
+                    'generate_projection_concept': True,
+                    'generate_some_concept': True,
+                    'generate_subset_concept': True,
+                    'generate_top_concept': True,
+                    'generate_concept_distance_numerical': True,
+                    'generate_count_numerical': True,
+                    'generate_and_role': True,
+                    'generate_compose_role': True,
+                    'generate_diff_role': True,
+                    'generate_identity_role': True,
+                    'generate_inverse_role': True,
+                    'generate_not_role': True,
+                    'generate_or_role': True,
+                    'generate_primitive_role': True,
+                    'generate_restrict_role': True,
+                    'generate_top_role': True,
+                    'generate_transitive_closure_role': True,
+                    'generate_transitive_reflexive_closure_role': True,
+                }
+            else:
+                feature_generator_kwargs = config['feature_generator']
+            print(feature_generator_kwargs)
             str_gens = dlplan_gen.generate_features(
                 factory, [state for state in self.states[problem.name].values() for problem in problems],
-                *5 * [max_complexity], 3600, 10000, *30 * [True] if all_generators else [])
+                *5 * [max_complexity], 3600, 10000, **feature_generator_kwargs)
         self.features = {}
         self.concepts = {}
         self.roles = {}
