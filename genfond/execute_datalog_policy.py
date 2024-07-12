@@ -4,7 +4,7 @@ import random
 from dlplan.core import SyntacticElementFactory
 from pddl.logic.terms import Constant
 from .execute_rule_policy import eval_state, bool_eval_state, state_satisfies_rule_conds
-from .feature_generator import construct_vocabulary_info, construct_instance_info, _get_state_from_goal
+from .feature_generator import construct_vocabulary_info, construct_instance_info, _get_state_from_goal, get_augmented_state
 from .ground import ground_action
 from .state_space_generator import check_formula, apply_action_effects
 
@@ -26,9 +26,13 @@ def state_string(state) -> str:
 def execute_datalog_policy(domain, problem, datalog_policy, config):
     log.info(f'Executing policy:\n{datalog_policy}\nin {domain.name} for problem {problem.name}')
 
-    vocabulary = construct_vocabulary_info(domain)
+    vocabulary = construct_vocabulary_info(domain, include_actions=config['include_actions'])
     factory = SyntacticElementFactory(vocabulary)
-    instance, mapping = construct_instance_info(vocabulary, domain, problem, 0)
+    instance, mapping = construct_instance_info(vocabulary,
+                                                domain,
+                                                problem,
+                                                0,
+                                                include_actions=config['include_actions'])
     object_id_to_name = {o.get_index(): o.get_name() for o in instance.get_objects()}
 
     concepts = dict()
@@ -58,8 +62,8 @@ def execute_datalog_policy(domain, problem, datalog_policy, config):
         log.info(f'New state: {state_string(state)}')
         found_rule = False
 
-        eval = eval_state(instance, mapping, concepts | roles, state, goal_state)
-        bool_eval = bool_eval_state(instance, mapping, features, state, goal_state)
+        eval = eval_state(instance, mapping, concepts | roles, domain, problem, state, config)
+        bool_eval = bool_eval_state(instance, mapping, features, domain, problem, state, config)
 
         for rule in datalog_policy.rules:
             log.debug(f'Checking rule {rule}')

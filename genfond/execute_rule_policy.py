@@ -1,6 +1,6 @@
 from .policy import Effect, PolicyType
 from .generate_rule_policy import feature_eval_to_cond
-from .feature_generator import construct_vocabulary_info, construct_instance_info, _get_state_from_goal
+from .feature_generator import construct_vocabulary_info, construct_instance_info, get_augmented_state
 from .ground import ground
 from dlplan.core import SyntacticElementFactory, State
 from .state_space_generator import check_formula, apply_action_effects
@@ -11,11 +11,12 @@ import logging
 log = logging.getLogger(__name__)
 
 
-def eval_state(instance, mapping, features, state, goal_state):
+def eval_state(instance, mapping, features, domain, problem, state, config):
     try:
-        fstate = State(-1, instance, [mapping[predicate] for predicate in state | goal_state])
+        fstate = State(-1, instance,
+                       [mapping[predicate] for predicate in get_augmented_state(domain, problem, state, config)])
     except KeyError as e:
-        log.critical(f'Cannot find predicate in mapping {mapping}: {e}')
+        log.critical(f'Cannot find predicate in mapping {"\n".join(f"{k}: {v}" for k, v in mapping.items())}: {e}')
         raise
     feature_eval = dict()
     for fstring, feature in features.items():
@@ -23,8 +24,8 @@ def eval_state(instance, mapping, features, state, goal_state):
     return feature_eval
 
 
-def bool_eval_state(instance, mapping, features, state, goal_state):
-    feature_eval = eval_state(instance, mapping, features, state, goal_state)
+def bool_eval_state(instance, mapping, features, domain, problem, state, config):
+    feature_eval = eval_state(instance, mapping, features, domain, problem, state, config)
     log.debug(f'feature eval: {feature_eval}')
     bool_feature_eval = dict()
     for feature, eval in feature_eval.items():
@@ -101,8 +102,8 @@ def execute_rule_policy(domain, problem, policy, config):
     max_steps = config['policy_steps']
     while not check_formula(state, problem.goal) and (max_steps <= 0 or num_steps < max_steps):
         log.info(f'New state: {",".join([str(p) for p in state])}')
-        feature_eval = eval_state(instance, mapping, features, state, goal_state)
-        bool_feature_eval = bool_eval_state(instance, mapping, features, state, goal_state)
+        feature_eval = eval_state(instance, mapping, features, domain, problem, state, config)
+        bool_feature_eval = bool_eval_state(instance, mapping, features, domain, problem, state, config)
         enabled_rules = {rule for rule in policy.rules if state_satisfies_rule_conds(bool_feature_eval, rule.conds)}
         log.debug('Enabled rules: {}'.format(",  ".join([str(r) for r in enabled_rules])))
         enabled_constraints = {
@@ -122,7 +123,7 @@ def execute_rule_policy(domain, problem, policy, config):
             succs = apply_action_effects(state, action)
             log.debug('Action {} has {} successors: {}'.format(action_string(action), len(succs),
                                                                "; ".join([state_string(s) for s in succs])))
-            succs_evals = [eval_state(instance, mapping, features, succ, goal_state) for succ in succs]
+            succs_evals = [eval_state(instance, mapping, features, domain, problem, succ, config) for succ in succs]
             log.debug(f'succs_evals: {succs_evals}')
             succs_diffs = {eval_state_diff(feature_eval, succ_eval) for succ_eval in succs_evals}
             log.debug(f'succs_diffs:\n{"\n".join([", ".join([str(d) for d in ds]) for ds in succs_diffs])}')
@@ -132,7 +133,9 @@ def execute_rule_policy(domain, problem, policy, config):
                     log.info(f'Constraint {constraint} violated!')
                     ok = False
                     break
-            bool_succs_evals = [bool_eval_state(instance, mapping, features, succ, goal_state) for succ in succs]
+            bool_succs_evals = [
+                bool_eval_state(instance, mapping, features, domain, problem, succ, config) for succ in succs
+            ]
             for bool_succs_eval in bool_succs_evals:
                 for state_constraint in policy.state_constraints:
                     violated = True

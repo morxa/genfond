@@ -59,6 +59,15 @@ def construct_instance_info(vocabulary, domain, problem, problem_id, include_act
     return instance, map
 
 
+def get_augmented_state(domain, problem, state, config):
+    augmented_state = set(state | _get_state_from_goal(problem.goal))
+    if config['include_actions']:
+        for action in ground(domain, problem):
+            if check_formula(state, action.precondition):
+                augmented_state.add(get_predicate_from_action(action))
+    return frozenset(augmented_state)
+
+
 class FeaturePool:
 
     def __init__(
@@ -94,7 +103,7 @@ class FeaturePool:
             pddl_states = set()
             ground_actions = ground(domain, problem)
             for node in self.state_graphs[problem.name].nodes.values():
-                pddl_states.add(self._get_augmented_state(problem.name, node.state))
+                pddl_states.add(get_augmented_state(domain, problem, node.state, config))
             self.states[problem.name] = {
                 state: State(-1, instance, [mapping[predicate] for predicate in state])
                 for state in pddl_states
@@ -157,18 +166,11 @@ class FeaturePool:
             elif config['include_roles'] and str_gen.startswith("r_"):
                 self.roles[str_gen] = factory.parse_role(str_gen)
 
-    def _get_augmented_state(self, problem, state):
-        augmented_state = set(state | self.goal_states[problem])
-        if self.config['include_actions']:
-            for action in ground(self.domain, self.problems[problem]):
-                if check_formula(state, action.precondition):
-                    augmented_state.add(get_predicate_from_action(action))
-        return frozenset(augmented_state)
-
     def evaluate_feature(self, feature, state):
         # Try to guess which problem the state belongs to.
         problems = [
-            problem for (problem, states) in self.states.items() if self._get_augmented_state(problem, state) in states
+            problem for (problem, states) in self.states.items()
+            if get_augmented_state(self.domain, self.problems[problem], state, self.config) in states
         ]
         assert len(problems) == 1, \
             'Cannot determine which problem the state belongs to,' \
@@ -178,7 +180,8 @@ class FeaturePool:
     def evaluate_concept(self, concept, state):
         # Try to guess which problem the state belongs to.
         problems = [
-            problem for (problem, states) in self.states.items() if self._get_augmented_state(problem, state) in states
+            problem for (problem, states) in self.states.items()
+            if get_augmented_state(self.domain, self.problems[problem], state, self.config) in states
         ]
         assert len(problems) == 1, \
             'Cannot determine which problem the state belongs to,' \
@@ -188,7 +191,8 @@ class FeaturePool:
     def evaluate_role(self, role, state):
         # Try to guess which problem the state belongs to.
         problems = [
-            problem for (problem, states) in self.states.items() if self._get_augmented_state(problem, state) in states
+            problem for (problem, states) in self.states.items()
+            if get_augmented_state(self.domain, self.problems[problem], state, self.config) in states
         ]
         assert len(problems) == 1, \
             'Cannot determine which problem the state belongs to,' \
@@ -197,13 +201,14 @@ class FeaturePool:
 
     def evaluate_feature_from_problem(self, feature, problem, state):
         feature = feature.strip('"')
-        return self.features[feature].evaluate(self.states[problem][self._get_augmented_state(problem, state)])
+        return self.features[feature].evaluate(self.states[problem][get_augmented_state(
+            self.domain, self.problems[problem], state, self.config)])
 
     def evaluate_role_from_problem(self, role, problem, state):
         role = role.strip('"')
         return set([(self.obj_id_to_obj(problem, id1), self.obj_id_to_obj(problem, id2))
-                    for id1, id2 in self.roles[role].evaluate(self.states[problem][self._get_augmented_state(
-                        problem, state)]).to_sorted_vector()])
+                    for id1, id2 in self.roles[role].evaluate(self.states[problem][get_augmented_state(
+                        self.domain, self.problems[problem], state, self.config)]).to_sorted_vector()])
 
     def obj_id_to_obj(self, problem, obj_id):
         for obj in self.instances[problem].get_objects():
@@ -214,8 +219,9 @@ class FeaturePool:
     def evaluate_concept_from_problem(self, concept, problem, state):
         concept = concept.strip('"')
         return set([
-            self.obj_id_to_obj(problem, id) for id in self.concepts[concept].evaluate(self.states[problem][
-                self._get_augmented_state(problem, state)]).to_sorted_vector()
+            self.obj_id_to_obj(problem, id)
+            for id in self.concepts[concept].evaluate(self.states[problem][get_augmented_state(
+                self.domain, self.problems[problem], state, self.config)]).to_sorted_vector()
         ])
 
     def to_clingo(self):
