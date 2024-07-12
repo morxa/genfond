@@ -49,7 +49,7 @@ class FeaturePool:
         domain,
         problems,
         config,
-        max_complexity=9,
+        max_complexity=None,
         all_generators=True,
     ):
         assert len({problem.name for problem in problems}) == len(problems), \
@@ -60,6 +60,8 @@ class FeaturePool:
         self.state_graphs = dict()
         self.goal_states = dict()
         self.instances = dict()
+        if not max_complexity:
+            max_complexity = config['max_complexity']
         for problem in problems:
             instance, mapping = construct_instance_info(vocabulary, domain, problem,
                                                         self.problem_name_to_id[problem.name])
