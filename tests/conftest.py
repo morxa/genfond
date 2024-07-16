@@ -11,10 +11,10 @@ import io
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)-8s %(message)s')
 
 
-def load(domain_name, problem_name):
-    path = os.path.join(os.path.dirname(__file__), 'fixtures', 'pddl_files', domain_name)
-    domain = pddl.parse_domain(os.path.join(path, 'domain.pddl'))
-    problem = pddl.parse_problem(os.path.join(path, problem_name))
+def load(name, problem_filename, domain_filename='domain.pddl'):
+    path = os.path.join(os.path.dirname(__file__), 'fixtures', 'pddl_files', name)
+    domain = pddl.parse_domain(os.path.join(path, domain_filename))
+    problem = pddl.parse_problem(os.path.join(path, problem_filename))
     return domain, problem
 
 
@@ -55,6 +55,11 @@ def blocks_clear():
 @pytest.fixture
 def doors():
     return load('doors', 'p01.pddl')
+
+
+@pytest.fixture
+def blocks3ops():
+    return load('blocks3ops', 'p005-2.pddl')
 
 
 @pytest.fixture

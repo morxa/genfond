@@ -59,6 +59,7 @@ def execute_datalog_policy(domain, problem, datalog_policy, config):
     actions_taken = []
     max_steps = config['policy_steps']
     while not check_formula(state, problem.goal) and (max_steps <= 0 or num_steps < max_steps):
+        log.debug('-' * 80)
         log.info(f'New state: {state_string(state)}')
         found_rule = False
 

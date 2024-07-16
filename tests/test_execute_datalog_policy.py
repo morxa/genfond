@@ -79,3 +79,47 @@ def test_datalog_policy_with_roles(fond_blocks):
     config['policy_steps'] = 10
     for _ in range(10):
         execute_datalog_policy(domain, problem, policy, config)
+
+
+def test_blocks3ops(blocks3ops):
+    domain, problem = blocks3ops
+
+    cond1 = 'b_empty(r_restrict(r_primitive(on, 0, 1), c_and(c_primitive(ontable, 0), c_not(c_primitive(ontable_G, 0)))))'
+    cond2 = 'b_empty(r_and(r_primitive(on, 0, 1), r_not(r_primitive(on_G, 0, 1))))'
+
+    policy = DatalogPolicy([
+        DatalogPolicyRule(
+            'newtower(X, Y)',
+            conds={
+                cond1: Cond.FALSE,
+            },
+        ),
+        DatalogPolicyRule(
+            'newtower(X, Y)',
+            conds={
+                cond2: Cond.FALSE,
+            },
+        ),
+        DatalogPolicyRule('stack(X, Y)',
+                          concepts=[
+                              ('Y', 'c_primitive(ontable, 0)'),
+                              ('Y', 'c_primitive(ontable_G, 0)'),
+                          ],
+                          roles=[('X', 'Y', 'r_primitive(on_G, 0, 1)')],
+                          conds={
+                              cond1: Cond.TRUE,
+                              cond2: Cond.TRUE,
+                          }),
+        DatalogPolicyRule('stack(X, Y)',
+                          concepts=[
+                              ('Y', 'c_some(r_and(r_primitive(on, 0, 1), r_inverse(r_primitive(on, 1, 0))), c_top)'),
+                          ],
+                          roles=[('X', 'Y', 'r_primitive(on_G, 0, 1)')],
+                          conds={
+                              cond1: Cond.TRUE,
+                              cond2: Cond.TRUE,
+                          }),
+    ])
+    config = ConfigHandler()
+    config['policy_steps'] = 10
+    execute_datalog_policy(domain, problem, policy, config)
