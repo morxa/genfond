@@ -11,7 +11,14 @@ import io
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)-8s %(message)s')
 
 
-def load(name, problem_filename, domain_filename='domain.pddl'):
+def load(name, *problem_filenames, domain_filename='domain.pddl'):
+    path = os.path.join(os.path.dirname(__file__), 'fixtures', 'pddl_files', name)
+    domain = pddl.parse_domain(os.path.join(path, domain_filename))
+    problems = [pddl.parse_problem(os.path.join(path, problem_filename)) for problem_filename in problem_filenames]
+    return domain, problems
+
+
+def load_one(name, problem_filename, domain_filename='domain.pddl'):
     path = os.path.join(os.path.dirname(__file__), 'fixtures', 'pddl_files', name)
     domain = pddl.parse_domain(os.path.join(path, domain_filename))
     problem = pddl.parse_problem(os.path.join(path, problem_filename))
@@ -39,27 +46,27 @@ def simple_blocks():
 
 @pytest.fixture
 def fond_blocks():
-    return load('blocksworld-fond', 'p01.pddl')
+    return load_one('blocksworld-fond', 'p01.pddl')
 
 
 @pytest.fixture
 def typed_blocks():
-    return load('typed-blocks', 'p01.pddl')
-
-
-@pytest.fixture
-def blocks_clear():
-    return load('blocks4ops-clear', 'p002-1.pddl')
+    return load_one('typed-blocks', 'p01.pddl')
 
 
 @pytest.fixture
 def doors():
-    return load('doors', 'p01.pddl')
+    return load_one('doors', 'p01.pddl')
+
+
+@pytest.fixture
+def blocks_clear():
+    return load('blocks4ops-clear', 'p002-1.pddl', 'p004-1.pddl', 'p006-1.pddl', 'p010-1.pddl', 'p020-1.pddl')
 
 
 @pytest.fixture
 def blocks3ops():
-    return load('blocks3ops', 'p005-2.pddl')
+    return load('blocks3ops', 'p002-1.pddl', 'p004-1.pddl', 'p006-1.pddl', 'p010-1.pddl', 'p020-1.pddl')
 
 
 @pytest.fixture

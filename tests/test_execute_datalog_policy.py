@@ -2,20 +2,18 @@ from genfond.datalog_policy import DatalogPolicyRule, DatalogPolicy, Cond
 from genfond.execute_datalog_policy import execute_datalog_policy
 from genfond.config_handler import ConfigHandler
 
-
 def test_block_clear_all(blocks_clear):
-    domain, problem = blocks_clear
+    domain, problems = blocks_clear
 
     policy = DatalogPolicy([
         DatalogPolicyRule('unstack(X, Y)', concepts=[
             ('X', 'c_primitive(clear, 0)'),
         ]),
-        DatalogPolicyRule('putdown(X)', concepts=[
-            ('X', 'c_primitive(clear, 0)'),
-        ]),
+        DatalogPolicyRule('putdown(X)'),
     ])
     config = ConfigHandler()
-    execute_datalog_policy(domain, problem, policy, config)
+    for problem in problems:
+        execute_datalog_policy(domain, problem, policy, config)
 
 
 def test_fond_blocks(fond_blocks):
@@ -82,7 +80,7 @@ def test_datalog_policy_with_roles(fond_blocks):
 
 
 def test_blocks3ops(blocks3ops):
-    domain, problem = blocks3ops
+    domain, problems = blocks3ops
 
     cond1 = 'b_empty(r_restrict(r_primitive(on, 0, 1), c_and(c_primitive(ontable, 0), c_not(c_primitive(ontable_G, 0)))))'
     cond2 = 'b_empty(r_and(r_primitive(on, 0, 1), r_not(r_primitive(on_G, 0, 1))))'
@@ -121,5 +119,5 @@ def test_blocks3ops(blocks3ops):
                           }),
     ])
     config = ConfigHandler()
-    config['policy_steps'] = 10
-    execute_datalog_policy(domain, problem, policy, config)
+    for problem in problems:
+        execute_datalog_policy(domain, problem, policy, config)
