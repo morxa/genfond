@@ -1,6 +1,6 @@
 from .policy import Effect, PolicyType
 from .generate_rule_policy import feature_eval_to_cond
-from .feature_generator import construct_vocabulary_info, construct_instance_info, get_augmented_state
+from .feature_generator import construct_vocabulary_info, construct_instance_info, get_augmented_state, _get_state_from_goal
 from .ground import ground
 from dlplan.core import SyntacticElementFactory, State
 from .state_space_generator import check_formula, apply_action_effects
