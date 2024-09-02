@@ -1,0 +1,28 @@
+[tool.poetry]
+name = "genfond"
+version = "0.1.0"
+description = ""
+authors = ["Till Hofmann <till.hofmann@ml.rwth-aachen.de>"]
+license = "MIT"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+pddl = "*"
+pytest = "*"
+flake8 = "*"
+dlplan = {git = "https://github.com/morxa/dlplan", rev = "silent-logger"}
+clingo = "*"
+pygraphviz = "*"
+tqdm = "*"
+setuptools = "*"
+filelock = "*"
+frozendict = "*"
+pyyaml = "*"
+
+
+[tool.poetry.group.dev.dependencies]
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
