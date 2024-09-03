@@ -148,23 +148,24 @@ class FeaturePool:
             else:
                 feature_generator_kwargs = config['feature_generator']
             print(feature_generator_kwargs)
-            str_gens = dlplan_gen.generate_features(
+            booleans, numericals, concepts, roles = dlplan_gen.generate_features(
                 factory, [state for state in self.states[problem.name].values() for problem in problems],
                 *5 * [max_complexity], 3600, 10000, **feature_generator_kwargs)
         self.features = {}
         self.concepts = {}
         self.roles = {}
-        for str_gen in str_gens:
-            if config['include_boolean_features'] and str_gen.startswith("b_"):
-                feature = factory.parse_boolean(str_gen)
+        if config['include_boolean_features']:
+            for feature in booleans:
                 self.features[str(feature)] = feature
-            elif config['include_numerical_features'] and str_gen.startswith("n_"):
-                feature = factory.parse_numerical(str_gen)
+        if config['include_numerical_features']:
+            print(f'Including {len(numericals)} numerical features')
+            for feature in numericals:
                 self.features[str(feature)] = feature
-            elif config['include_concepts'] and str_gen.startswith("c_"):
-                self.concepts[str_gen] = factory.parse_concept(str_gen)
-            elif config['include_roles'] and str_gen.startswith("r_"):
-                self.roles[str_gen] = factory.parse_role(str_gen)
+        if config['include_concepts']:
+            self.concepts = {str(concept): concept for concept in concepts}
+        if config['include_roles']:
+            self.roles = {str(role): role for role in roles}
+        print(f'generated features: {", ".join(self.features.keys())}')
 
     def evaluate_feature(self, feature, state):
         # Try to guess which problem the state belongs to.
