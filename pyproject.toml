@@ -11,7 +11,7 @@ python = "^3.12"
 pddl = "*"
 pytest = "*"
 flake8 = "*"
-dlplan = {git = "https://github.com/morxa/dlplan", rev = "silent-logger"}
+dlplan = { git = "https://github.com/rleap-project/dlplan" }
 clingo = "*"
 pygraphviz = "*"
 tqdm = "*"

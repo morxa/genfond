@@ -248,9 +248,9 @@ test = ["pytest"]
 
 [package.source]
 type = "git"
-url = "https://github.com/morxa/dlplan"
-reference = "silent-logger"
-resolved_reference = "5d5eb5bbcd36a34815126f770906661b315fde3f"
+url = "https://github.com/rleap-project/dlplan"
+reference = "HEAD"
+resolved_reference = "98566b6dbc356653d7f89c8d6e592ed8a3ae6e3c"
 
 [[package]]
 name = "filelock"
@@ -533,13 +533,13 @@ files = [
 
 [[package]]
 name = "setuptools"
-version = "74.0.0"
+version = "74.1.0"
 description = "Easily download, build, install, upgrade, and uninstall Python packages"
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "setuptools-74.0.0-py3-none-any.whl", hash = "sha256:0274581a0037b638b9fc1c6883cc71c0210865aaa76073f7882376b641b84e8f"},
-    {file = "setuptools-74.0.0.tar.gz", hash = "sha256:a85e96b8be2b906f3e3e789adec6a9323abf79758ecfa3065bd740d81158b11e"},
+    {file = "setuptools-74.1.0-py3-none-any.whl", hash = "sha256:cee604bd76cc092355a4e43ec17aee5369095974f41f088676724dc6bc2c9ef8"},
+    {file = "setuptools-74.1.0.tar.gz", hash = "sha256:bea195a800f510ba3a2bc65645c88b7e016fe36709fefc58a880c4ae8a0138d7"},
 ]
 
 [package.extras]
@@ -588,4 +588,4 @@ telegram = ["requests"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.12"
-content-hash = "b8e171b00733207b93b2fde473d94ce433a4fc4f29f399960333dbeb1c8553d7"
+content-hash = "17d13f130f2e6f5e7bdd8550c9431915a48832d2e9f86ec8bb552bf33fc43747"
