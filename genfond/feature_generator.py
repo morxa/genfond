@@ -4,6 +4,9 @@ import dlplan.generator as dlplan_gen
 from pddl.logic import Predicate
 from .ground import ground_domain_predicates, ground
 from .state_space_generator import apply_effects, generate_state_space, check_formula, Alive
+import logging
+
+log = logging.getLogger(__name__)
 
 MAX_ACTION_PARAMETERS = 4
 
@@ -147,7 +150,6 @@ class FeaturePool:
                 }
             else:
                 feature_generator_kwargs = config['feature_generator']
-            print(feature_generator_kwargs)
             booleans, numericals, concepts, roles = dlplan_gen.generate_features(
                 factory, [state for state in self.states[problem.name].values() for problem in problems],
                 *5 * [max_complexity], 3600, 10000, **feature_generator_kwargs)
@@ -158,14 +160,15 @@ class FeaturePool:
             for feature in booleans:
                 self.features[str(feature)] = feature
         if config['include_numerical_features']:
-            print(f'Including {len(numericals)} numerical features')
             for feature in numericals:
                 self.features[str(feature)] = feature
         if config['include_concepts']:
             self.concepts = {str(concept): concept for concept in concepts}
         if config['include_roles']:
             self.roles = {str(role): role for role in roles}
-        print(f'generated features: {", ".join(self.features.keys())}')
+        log.debug(f'generated concepts: {", ".join(self.concepts.keys())}')
+        log.debug(f'generated roles: {", ".join(self.roles.keys())}')
+        log.debug(f'generated features: {", ".join(self.features.keys())}')
 
     def evaluate_feature(self, feature, state):
         # Try to guess which problem the state belongs to.
