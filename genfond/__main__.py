@@ -193,7 +193,8 @@ def main():
         log.info('Policy does not solve {}'.format(problem.name))
         solver_problems.append(problem)
         new_policy = None
-        for i, all_generators in itertools.product(range(last_complexity, config['max_complexity'] + 1), [False, True]):
+        for i, all_generators in itertools.product(range(last_complexity, config['max_complexity'] + 1),
+                                                   [False, True]):
             if new_policy and new_policy.cost[0] <= i:
                 break
             try:
@@ -279,7 +280,7 @@ def main():
     for problem in tqdm.tqdm([p for p in problems if p not in verified], disable=None):
         try:
             for _ in tqdm.trange(args.policy_iterations, leave=False, disable=None):
-                execute_policy(domain, problem, policy, args.policy_steps)
+                execute_policy(domain, problem, policy, config)
             succs.append(problem)
         except RuntimeError:
             log.error('Policy does not solve {}'.format(problem.name))
