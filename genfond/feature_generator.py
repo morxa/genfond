@@ -264,10 +264,14 @@ class FeaturePool:
                 for concept_str, concept in self.concepts.items():
                     concept_str = f'"{concept_str}"'
                     for obj in self.evaluate_concept_from_problem(concept_str, problem, node.state):
+                        if is_relevant_object_set({obj}, node.children.keys()):
+                            clingo_program += f'c_eval({problem_id}, {node.id}, {concept_str}, "{obj}").\n'
                             num_concept_evals += 1
                 for role_str, role in self.roles.items():
                     role_str = f'"{role_str}"'
                     for obj1, obj2 in self.evaluate_role_from_problem(role_str, problem, node.state):
+                        if is_relevant_object_set({obj1, obj2}, node.children.keys()):
+                            clingo_program += f'r_eval({problem_id}, {node.id}, {role_str}, "{obj1}", "{obj2}").\n'
                             num_role_evals += 1
                 for action, children in node.children.items():
                     action_str = f'"{action.name}({",".join([str(p) for p in action.parameters])})"'
@@ -282,3 +286,11 @@ class FeaturePool:
         log.info(f'Generated program with {num_feature_evals} feature evaluations, '
                  f'{num_concept_evals} concept evaluations, and {num_role_evals} role evaluations')
         return clingo_program
+
+
+def is_relevant_object_set(objects, actions):
+    for action in actions:
+        params = {str(p) for p in action.parameters}
+        if objects <= params:
+            return True
+    return False
