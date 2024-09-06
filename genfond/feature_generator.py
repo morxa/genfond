@@ -243,6 +243,9 @@ class FeaturePool:
             role_str = f'"{role_str}"'
             clingo_program += f'role({role_str}).\n'
             clingo_program += f'role_complexity({role_str}, {role.compute_complexity()}).\n'
+        num_feature_evals = 0
+        num_concept_evals = 0
+        num_role_evals = 0
         for problem, state_graph in self.state_graphs.items():
             problem_id = self.problem_name_to_id[problem]
             for node in state_graph.nodes.values():
@@ -257,14 +260,15 @@ class FeaturePool:
                     if type(eval) is bool:
                         eval = 1 if eval else 0
                     clingo_program += f'eval({problem_id}, {node.id}, {feature_str}, {eval}).\n'
+                    num_feature_evals += 1
                 for concept_str, concept in self.concepts.items():
                     concept_str = f'"{concept_str}"'
                     for obj in self.evaluate_concept_from_problem(concept_str, problem, node.state):
-                        clingo_program += f'c_eval({problem_id}, {node.id}, {concept_str}, "{obj}").\n'
+                            num_concept_evals += 1
                 for role_str, role in self.roles.items():
                     role_str = f'"{role_str}"'
                     for obj1, obj2 in self.evaluate_role_from_problem(role_str, problem, node.state):
-                        clingo_program += f'r_eval({problem_id}, {node.id}, {role_str}, "{obj1}", "{obj2}").\n'
+                            num_role_evals += 1
                 for action, children in node.children.items():
                     action_str = f'"{action.name}({",".join([str(p) for p in action.parameters])})"'
                     for child in children:
@@ -275,4 +279,6 @@ class FeaturePool:
                                     f'Action {action.name} has too many parameters: {len(params)}'
                             params += ['nil'] * (MAX_ACTION_PARAMETERS - len(params))
                             clingo_program += f'amap({action_str}, "{action.name}", {", ".join(params)}).\n'
+        log.info(f'Generated program with {num_feature_evals} feature evaluations, '
+                 f'{num_concept_evals} concept evaluations, and {num_role_evals} role evaluations')
         return clingo_program
