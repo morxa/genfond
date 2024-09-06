@@ -144,6 +144,7 @@ class FeaturePool:
                     'generate_or_role': True,
                     'generate_primitive_role': True,
                     'generate_restrict_role': True,
+                    'generate_til_c_role': True,
                     'generate_top_role': True,
                     'generate_transitive_closure_role': True,
                     'generate_transitive_reflexive_closure_role': True,
