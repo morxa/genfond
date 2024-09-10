@@ -23,19 +23,19 @@ c_distinguished(I1, S1, A1, I2, S2, A2, C,    pos, 3) :- state(I1, S1), state(I2
 c_distinguished(I1, S1, A1, I2, S2, A2, C,    pos, 4) :- state(I1, S1), state(I2, S2), amap(A1, AName, _, _, _, P1), amap(A2, AName, _, _, _, P2), c_eval(I1, S1, C, P1), not c_eval(I2, S2, C, P2).
 c_distinguished(I1, S1, A1, I2, S2, A2, C, neg, N) :- c_distinguished(I2, S2, A2, I1, S1, A1, C, pos, N).
 
-r_distinguished(I1, S1, A1, I2, S2, A2, R,    pos, 1, 2) :- state(I1, S1), state(I2, S2), amap(A1, _, P11, P12, _, _), amap(A2, _, P21, P22, _, _), r_eval(I1, S1, R, P11, P12), not r_eval(I2, S2, R, P21, P22).
-r_distinguished(I1, S1, A1, I2, S2, A2, R,    pos, 1, 3) :- state(I1, S1), state(I2, S2), amap(A1, _, P11, _, P12, _), amap(A2, _, P21, _, P22, _), r_eval(I1, S1, R, P11, P12), not r_eval(I2, S2, R, P21, P22).
-r_distinguished(I1, S1, A1, I2, S2, A2, R,    pos, 1, 4) :- state(I1, S1), state(I2, S2), amap(A1, _, P11, _, _, P12), amap(A2, _, P21, _, _, P22), r_eval(I1, S1, R, P11, P12), not r_eval(I2, S2, R, P21, P22).
-r_distinguished(I1, S1, A1, I2, S2, A2, R,    pos, 2, 3) :- state(I1, S1), state(I2, S2), amap(A1, _, _, P11, P12, _), amap(A2, _, _, P21, P22, _), r_eval(I1, S1, R, P11, P12), not r_eval(I2, S2, R, P21, P22).
-r_distinguished(I1, S1, A1, I2, S2, A2, R,    pos, 2, 4) :- state(I1, S1), state(I2, S2), amap(A1, _, _, P11, _, P12), amap(A2, _, _, P21, _, P22), r_eval(I1, S1, R, P11, P12), not r_eval(I2, S2, R, P21, P22).
-r_distinguished(I1, S1, A1, I2, S2, A2, R,    pos, 3, 4) :- state(I1, S1), state(I2, S2), amap(A1, _, _, _, P11, P12), amap(A2, _, _, _, P21, P22), r_eval(I1, S1, R, P11, P12), not r_eval(I2, S2, R, P21, P22).
+r_distinguished(I1, S1, A1, I2, S2, A2, R,    pos, 1, 2) :- state(I1, S1), state(I2, S2), amap(A1, AName, P11, P12, _, _), amap(A2, AName, P21, P22, _, _), r_eval(I1, S1, R, P11, P12), not r_eval(I2, S2, R, P21, P22).
+r_distinguished(I1, S1, A1, I2, S2, A2, R,    pos, 1, 3) :- state(I1, S1), state(I2, S2), amap(A1, AName, P11, _, P12, _), amap(A2, AName, P21, _, P22, _), r_eval(I1, S1, R, P11, P12), not r_eval(I2, S2, R, P21, P22).
+r_distinguished(I1, S1, A1, I2, S2, A2, R,    pos, 1, 4) :- state(I1, S1), state(I2, S2), amap(A1, AName, P11, _, _, P12), amap(A2, AName, P21, _, _, P22), r_eval(I1, S1, R, P11, P12), not r_eval(I2, S2, R, P21, P22).
+r_distinguished(I1, S1, A1, I2, S2, A2, R,    pos, 2, 3) :- state(I1, S1), state(I2, S2), amap(A1, AName, _, P11, P12, _), amap(A2, AName, _, P21, P22, _), r_eval(I1, S1, R, P11, P12), not r_eval(I2, S2, R, P21, P22).
+r_distinguished(I1, S1, A1, I2, S2, A2, R,    pos, 2, 4) :- state(I1, S1), state(I2, S2), amap(A1, AName, _, P11, _, P12), amap(A2, AName, _, P21, _, P22), r_eval(I1, S1, R, P11, P12), not r_eval(I2, S2, R, P21, P22).
+r_distinguished(I1, S1, A1, I2, S2, A2, R,    pos, 3, 4) :- state(I1, S1), state(I2, S2), amap(A1, AName, _, _, P11, P12), amap(A2, AName, _, _, P21, P22), r_eval(I1, S1, R, P11, P12), not r_eval(I2, S2, R, P21, P22).
 
-r_distinguished(I1, S1, A1, I2, S2, A2, R,    pos, 2, 1) :- state(I1, S1), state(I2, S2), amap(A1, _, P12, P11, _, _), amap(A2, _, P22, P21, _, _), r_eval(I1, S1, R, P11, P12), not r_eval(I2, S2, R, P21, P22).
-r_distinguished(I1, S1, A1, I2, S2, A2, R,    pos, 3, 1) :- state(I1, S1), state(I2, S2), amap(A1, _, P12, _, P11, _), amap(A2, _, P22, _, P21, _), r_eval(I1, S1, R, P11, P12), not r_eval(I2, S2, R, P21, P22).
-r_distinguished(I1, S1, A1, I2, S2, A2, R,    pos, 3, 2) :- state(I1, S1), state(I2, S2), amap(A1, _, _, P12, P11, _), amap(A2, _, _, P22, P21, _), r_eval(I1, S1, R, P11, P12), not r_eval(I2, S2, R, P21, P22).
-r_distinguished(I1, S1, A1, I2, S2, A2, R,    pos, 4, 1) :- state(I1, S1), state(I2, S2), amap(A1, _, P12, _, _, P11), amap(A2, _, P22, _, _, P21), r_eval(I1, S1, R, P11, P12), not r_eval(I2, S2, R, P21, P22).
-r_distinguished(I1, S1, A1, I2, S2, A2, R,    pos, 4, 2) :- state(I1, S1), state(I2, S2), amap(A1, _, _, P12, _, P11), amap(A2, _, _, P22, _, P21), r_eval(I1, S1, R, P11, P12), not r_eval(I2, S2, R, P21, P22).
-r_distinguished(I1, S1, A1, I2, S2, A2, R,    pos, 4, 3) :- state(I1, S1), state(I2, S2), amap(A1, _, _, _, P12, P11), amap(A2, _, _, _, P22, P21), r_eval(I1, S1, R, P11, P12), not r_eval(I2, S2, R, P21, P22).
+r_distinguished(I1, S1, A1, I2, S2, A2, R,    pos, 2, 1) :- state(I1, S1), state(I2, S2), amap(A1, AName, P12, P11, _, _), amap(A2, AName, P22, P21, _, _), r_eval(I1, S1, R, P11, P12), not r_eval(I2, S2, R, P21, P22).
+r_distinguished(I1, S1, A1, I2, S2, A2, R,    pos, 3, 1) :- state(I1, S1), state(I2, S2), amap(A1, AName, P12, _, P11, _), amap(A2, AName, P22, _, P21, _), r_eval(I1, S1, R, P11, P12), not r_eval(I2, S2, R, P21, P22).
+r_distinguished(I1, S1, A1, I2, S2, A2, R,    pos, 3, 2) :- state(I1, S1), state(I2, S2), amap(A1, AName, _, P12, P11, _), amap(A2, AName, _, P22, P21, _), r_eval(I1, S1, R, P11, P12), not r_eval(I2, S2, R, P21, P22).
+r_distinguished(I1, S1, A1, I2, S2, A2, R,    pos, 4, 1) :- state(I1, S1), state(I2, S2), amap(A1, AName, P12, _, _, P11), amap(A2, AName, P22, _, _, P21), r_eval(I1, S1, R, P11, P12), not r_eval(I2, S2, R, P21, P22).
+r_distinguished(I1, S1, A1, I2, S2, A2, R,    pos, 4, 2) :- state(I1, S1), state(I2, S2), amap(A1, AName, _, P12, _, P11), amap(A2, AName, _, P22, _, P21), r_eval(I1, S1, R, P11, P12), not r_eval(I2, S2, R, P21, P22).
+r_distinguished(I1, S1, A1, I2, S2, A2, R,    pos, 4, 3) :- state(I1, S1), state(I2, S2), amap(A1, AName, _, _, P12, P11), amap(A2, AName, _, _, P22, P21), r_eval(I1, S1, R, P11, P12), not r_eval(I2, S2, R, P21, P22).
 
 r_distinguished(I1, S1, A1, I2, S2, A2, R, neg, N1, N2) :- r_distinguished(I2, S2, A2, I1, S1, A1, R, pos, N1, N2).
 
