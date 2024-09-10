@@ -245,7 +245,9 @@ class FeaturePool:
             clingo_program += f'role_complexity({role_str}, {role.compute_complexity()}).\n'
         num_feature_evals = 0
         num_concept_evals = 0
+        num_skipped_concept_evals = 0
         num_role_evals = 0
+        num_skipped_role_evals = 0
         for problem, state_graph in self.state_graphs.items():
             problem_id = self.problem_name_to_id[problem]
             for node in state_graph.nodes.values():
@@ -261,16 +263,21 @@ class FeaturePool:
                         eval = 1 if eval else 0
                     clingo_program += f'eval({problem_id}, {node.id}, {feature_str}, {eval}).\n'
                     num_feature_evals += 1
+                all_action_args = {str(p) for action in node.children.keys() for p in action.parameters}
                 for concept_str, concept in self.concepts.items():
                     concept_str = f'"{concept_str}"'
-                    for obj in self.evaluate_concept_from_problem(concept_str, problem, node.state):
-                        if is_relevant_object_set({obj}, node.children.keys()):
-                            clingo_program += f'c_eval({problem_id}, {node.id}, {concept_str}, "{obj}").\n'
-                            num_concept_evals += 1
+                    extension = self.evaluate_concept_from_problem(concept_str, problem, node.state)
+                    if all_action_args <= extension:
+                        #log.debug(f'Concept {concept_str} does not distinguish any action arguments, skipping')
+                        num_skipped_concept_evals += 1
+                        continue
+                    for obj in extension:
+                        clingo_program += f'c_eval({problem_id}, {node.id}, {concept_str}, "{obj}").\n'
+                        num_concept_evals += 1
                 for role_str, role in self.roles.items():
                     role_str = f'"{role_str}"'
                     for obj1, obj2 in self.evaluate_role_from_problem(role_str, problem, node.state):
-                        if is_relevant_object_set({obj1, obj2}, node.children.keys()):
+                            # TODO determine irrelevant roles
                             clingo_program += f'r_eval({problem_id}, {node.id}, {role_str}, "{obj1}", "{obj2}").\n'
                             num_role_evals += 1
                 for action, children in node.children.items():
@@ -284,13 +291,6 @@ class FeaturePool:
                             params += ['nil'] * (MAX_ACTION_PARAMETERS - len(params))
                             clingo_program += f'amap({action_str}, "{action.name}", {", ".join(params)}).\n'
         log.info(f'Generated program with {num_feature_evals} feature evaluations, '
-                 f'{num_concept_evals} concept evaluations, and {num_role_evals} role evaluations')
+                 f'{num_concept_evals} concept evaluations ({num_skipped_concept_evals} skipped), '
+                 f'and {num_role_evals} role evaluations ({num_skipped_role_evals} skipped)')
         return clingo_program
-
-
-def is_relevant_object_set(objects, actions):
-    for action in actions:
-        params = {str(p) for p in action.parameters}
-        if objects <= params:
-            return True
-    return False
