@@ -1,3 +1,6 @@
+#defined c_eval/4.
+#defined r_eval/5.
+
 { c_selected(C) } :- concept(C).
 c_selected(name).
 
