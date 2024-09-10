@@ -24,7 +24,7 @@ DEFAULT_TYPE_CONFIGS = {
         'include_numerical_features': False,
         'include_concepts': True,
         'include_roles': True,
-        'include_actions': True,
+        'include_actions': False,
         'feature_generator': {
             'generate_concept_distance_numerical': False,
             'generate_count_numerical': False,
