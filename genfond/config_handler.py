@@ -16,7 +16,8 @@ DEFAULT_CONFIG = {
     'include_roles': False,
     'include_actions': False,
     'preset_features': None,
-    'feature_generator': {}
+    'feature_generator': {},
+    'prune_roles': False,
 }
 
 DEFAULT_TYPE_CONFIGS = {

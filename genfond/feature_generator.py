@@ -267,7 +267,7 @@ class FeaturePool:
                 for concept_str, concept in self.concepts.items():
                     concept_str = f'"{concept_str}"'
                     extension = self.evaluate_concept_from_problem(concept_str, problem, node.state)
-                    if all_action_args <= extension:
+                    if self.config['prune_roles'] and all_action_args <= extension:
                         #log.debug(f'Concept {concept_str} does not distinguish any action arguments, skipping')
                         num_skipped_concept_evals += 1
                         continue
