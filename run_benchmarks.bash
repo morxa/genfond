@@ -5,6 +5,7 @@ POLICY_TYPE="${POLICY_TYPE:-datalog}"
 # Set EXCLUDE if some nodes should be excluded from the slurm job, e.g., `EXCLUDE="cn-[409-415]"`
 EXCLUDE="${EXCLUDE:+--exclude=$EXCLUDE}"
 
+VERBOSE="${VERBOSE:+-v}"
 
 STAMP="$(date -Iseconds)"
 RESDIR="results-$STAMP"
@@ -13,6 +14,6 @@ mkdir -p "$RESDIR/out"
 for domain in $DOMAINS; do
   domainname=$(basename $domain)
   for ptype in $POLICY_TYPE; do
-    sbatch $EXCLUDE -J $domainname-$ptype -o $RESDIR/out/%x-%j.out genfond.bash python -m genfond --name $domainname -n 32 --max-memory 240000 --type $ptype --policy-steps 10000 --policy-iterations 10 --max-complexity 15 --dump-failed-policies -o $RESDIR/$domainname-$type.policy --stats $RESDIR/stats.csv $domain/{domain.pddl,p*}
+    sbatch $EXCLUDE -J $domainname-$ptype -o $RESDIR/out/%x-%j.out genfond.bash python -m genfond $VERBOSE --name $domainname -n 32 --max-memory 240000 --type $ptype --policy-steps 10000 --policy-iterations 10 --max-complexity 15 --dump-failed-policies -o $RESDIR/$domainname-$ptype.policy --stats $RESDIR/stats.csv $domain/{domain.pddl,p*}
   done
 done
