@@ -28,6 +28,7 @@ DEFAULT_TYPE_CONFIGS = {
         'feature_generator': {
             'generate_concept_distance_numerical': False,
             'generate_count_numerical': False,
+            'generate_til_c_role': True,
         }
     },
 }
