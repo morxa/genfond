@@ -1,6 +1,6 @@
 #!/bin/bash
 
-DOMAINS="${DOMAINS:-$(find domains/non-deterministic -mindepth 1 -maxdepth 1 -type d)}"
+DOMAINS="${DOMAINS:-$(find domains/deterministic domains/non-deterministic -mindepth 1 -maxdepth 1 -type d)}"
 POLICY_TYPE="${POLICY_TYPE:-datalog}"
 # Set EXCLUDE if some nodes should be excluded from the slurm job, e.g., `EXCLUDE="cn-[409-415]"`
 EXCLUDE="${EXCLUDE:+--exclude=$EXCLUDE}"
