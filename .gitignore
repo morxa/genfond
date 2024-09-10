@@ -3,3 +3,8 @@
 results-*
 __pycache__
 .vscode/settings.json
+bak
+failed_policy*
+genfond_env.tar
+tags
+.devcontainer
