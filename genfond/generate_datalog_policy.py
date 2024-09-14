@@ -6,6 +6,10 @@ log = logging.getLogger(__name__)
 
 
 def generate_datalog_policy(solution):
+    log.info(f'Generating policy from solution with {len(solution["good_action"])} good actions,'
+          f' {len(solution.get("f_distinguished", []))} distinguished features,'
+          f' {len(solution.get("c_distinguished", []))} distinguished concepts,'
+          f' {len(solution.get("r_distinguished", []))} distinguished roles')
     args_to_vars = dict()
     conds = dict()
     for instance, state, action in solution['good_action']:
