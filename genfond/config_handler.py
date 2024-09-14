@@ -18,6 +18,7 @@ DEFAULT_CONFIG = {
     'preset_features': None,
     'feature_generator': {},
     'prune_roles': False,
+    'use_unrestricted_features': True,
 }
 
 DEFAULT_TYPE_CONFIGS = {

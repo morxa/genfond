@@ -194,7 +194,7 @@ def main():
         solver_problems.append(problem)
         new_policy = None
         for i, all_generators in itertools.product(range(last_complexity, config['max_complexity'] + 1),
-                                                   [False, True]):
+                                                   [False, True] if config['use_unrestricted_features'] else [False]):
             if new_policy and new_policy.cost[0] <= i:
                 break
             try:
