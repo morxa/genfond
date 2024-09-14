@@ -264,6 +264,10 @@ class FeaturePool:
                     clingo_program += f'eval({problem_id}, {node.id}, {feature_str}, {eval}).\n'
                     num_feature_evals += 1
                 all_action_args = {str(p) for action in node.children.keys() for p in action.parameters}
+                if node.alive != Alive.ALIVE:
+                    # Include feature evaluations for dead states (needed for dead-end detection),
+                    # but skip concept and role evaluations
+                    continue
                 for concept_str, concept in self.concepts.items():
                     concept_str = f'"{concept_str}"'
                     extension = self.evaluate_concept_from_problem(concept_str, problem, node.state)
@@ -277,9 +281,9 @@ class FeaturePool:
                 for role_str, role in self.roles.items():
                     role_str = f'"{role_str}"'
                     for obj1, obj2 in self.evaluate_role_from_problem(role_str, problem, node.state):
-                            # TODO determine irrelevant roles
-                            clingo_program += f'r_eval({problem_id}, {node.id}, {role_str}, "{obj1}", "{obj2}").\n'
-                            num_role_evals += 1
+                        # TODO determine irrelevant roles
+                        clingo_program += f'r_eval({problem_id}, {node.id}, {role_str}, "{obj1}", "{obj2}").\n'
+                        num_role_evals += 1
                 for action, children in node.children.items():
                     action_str = f'"{action.name}({",".join([str(p) for p in action.parameters])})"'
                     for child in children:
