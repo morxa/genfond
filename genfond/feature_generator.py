@@ -197,19 +197,22 @@ class FeaturePool:
                 self.domain, self.problems[problem], state, self.config)]).to_sorted_vector()
         ])
 
+    def is_concept_informative(self, concept_str):
+        for problem, state_graph in self.state_graphs.items():
+            for node in state_graph.nodes.values():
+                extension = self.evaluate_concept_from_problem(concept_str, problem, node.state)
+                if not extension:
+                    return True
+                for action in node.children.keys():
+                    action_args = {str(p) for p in action.parameters}
+                    if not action_args <= extension:
+                        return True
+        return False
+
     def compute_uninformative_concepts(self):
         uninformative_concepts = set()
-        for concept_str, concept in self.concepts.items():
-            informative = False
-            for problem, state_graph in self.state_graphs.items():
-                for node in state_graph.nodes.values():
-                    extension = self.evaluate_concept_from_problem(concept_str, problem, node.state)
-                    for action in node.children.keys():
-                        action_args = {str(p) for p in action.parameters}
-                        if not action_args <= extension:
-                            informative = True
-                            break
-            if not informative:
+        for concept_str in self.concepts.keys():
+            if not self.is_concept_informative(concept_str):
                 uninformative_concepts.add(concept_str)
         log.info(f'Found {len(uninformative_concepts)} uninformative concept(s): {", ".join(uninformative_concepts)}')
         return uninformative_concepts
