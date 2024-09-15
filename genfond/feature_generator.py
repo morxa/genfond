@@ -116,39 +116,7 @@ class FeaturePool:
             str_gens = config['preset_features']
         else:
             if all_generators:
-                feature_generator_kwargs = {
-                    'generate_empty_boolean': True,
-                    'generate_inclusion_boolean': True,
-                    'generate_nullary_boolean': True,
-                    'generate_all_concept': True,
-                    'generate_and_concept': True,
-                    'generate_bot_concept': True,
-                    'generate_diff_concept': True,
-                    'generate_equal_concept': True,
-                    'generate_not_concept': True,
-                    'generate_one_of_concept': True,
-                    'generate_or_concept': True,
-                    'generate_primitive_concept': True,
-                    'generate_projection_concept': True,
-                    'generate_some_concept': True,
-                    'generate_subset_concept': True,
-                    'generate_top_concept': True,
-                    'generate_concept_distance_numerical': True,
-                    'generate_count_numerical': True,
-                    'generate_and_role': True,
-                    'generate_compose_role': True,
-                    'generate_diff_role': True,
-                    'generate_identity_role': True,
-                    'generate_inverse_role': True,
-                    'generate_not_role': True,
-                    'generate_or_role': True,
-                    'generate_primitive_role': True,
-                    'generate_restrict_role': True,
-                    'generate_til_c_role': True,
-                    'generate_top_role': True,
-                    'generate_transitive_closure_role': True,
-                    'generate_transitive_reflexive_closure_role': True,
-                }
+                feature_generator_kwargs = config['unrestricted_feature_generator']
             else:
                 feature_generator_kwargs = config['feature_generator']
             booleans, numericals, concepts, roles = dlplan_gen.generate_features(
