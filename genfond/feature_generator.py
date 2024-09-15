@@ -197,6 +197,23 @@ class FeaturePool:
                 self.domain, self.problems[problem], state, self.config)]).to_sorted_vector()
         ])
 
+    def compute_uninformative_concepts(self):
+        uninformative_concepts = set()
+        for concept_str, concept in self.concepts.items():
+            informative = False
+            for problem, state_graph in self.state_graphs.items():
+                for node in state_graph.nodes.values():
+                    extension = self.evaluate_concept_from_problem(concept_str, problem, node.state)
+                    for action in node.children.keys():
+                        action_args = {str(p) for p in action.parameters}
+                        if not action_args <= extension:
+                            informative = True
+                            break
+            if not informative:
+                uninformative_concepts.add(concept_str)
+        log.info(f'Found {len(uninformative_concepts)} uninformative concept(s): {", ".join(uninformative_concepts)}')
+        return uninformative_concepts
+
     def to_clingo(self):
         clingo_program = ""
         for feature_str, feature in self.features.items():
@@ -216,6 +233,7 @@ class FeaturePool:
         num_skipped_concept_evals = 0
         num_role_evals = 0
         num_skipped_role_evals = 0
+        uninformative_concepts = self.compute_uninformative_concepts() if self.config['prune_concepts'] else set()
         for problem, state_graph in self.state_graphs.items():
             problem_id = self.problem_name_to_id[problem]
             for node in state_graph.nodes.values():
@@ -235,12 +253,12 @@ class FeaturePool:
                     num_feature_evals += 1
                 all_action_args = {str(p) for action in node.children.keys() for p in action.parameters}
                 for concept_str, concept in self.concepts.items():
-                    concept_str = f'"{concept_str}"'
-                    extension = self.evaluate_concept_from_problem(concept_str, problem, node.state)
-                    if self.config['prune_roles'] and all_action_args <= extension:
-                        #log.debug(f'Concept {concept_str} does not distinguish any action arguments, skipping')
+                    if concept_str in uninformative_concepts:
+                        log.debug(f'Concept {concept_str} does not distinguish any action arguments, skipping')
                         num_skipped_concept_evals += 1
                         continue
+                    concept_str = f'"{concept_str}"'
+                    extension = self.evaluate_concept_from_problem(concept_str, problem, node.state)
                     for obj in extension:
                         clingo_program += f'c_eval({problem_id}, {node.id}, {concept_str}, "{obj}").\n'
                         num_concept_evals += 1

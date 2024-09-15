@@ -19,6 +19,7 @@ DEFAULT_CONFIG = {
     'preset_features': None,
     'feature_generator': {},
     'prune_roles': False,
+    'prune_concepts': True,
     'use_unrestricted_features': True,
     'unrestricted_feature_generator': {
         'generate_empty_boolean': True,
