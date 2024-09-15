@@ -15,6 +15,7 @@ DEFAULT_CONFIG = {
     'include_concepts': False,
     'include_roles': False,
     'include_actions': False,
+    'include_dead_states': True,
     'preset_features': None,
     'feature_generator': {},
     'prune_roles': False,
@@ -60,6 +61,7 @@ DEFAULT_TYPE_CONFIGS = {
         'include_concepts': True,
         'include_roles': True,
         'include_actions': False,
+        'include_dead_states': False,
         'feature_generator': {
             'generate_concept_distance_numerical': False,
             'generate_count_numerical': False,

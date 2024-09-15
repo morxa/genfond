@@ -222,6 +222,8 @@ class FeaturePool:
                 clingo_program += f'state({problem_id}, {node.id}).\n'
                 if node.alive == Alive.ALIVE:
                     clingo_program += f'alive({problem_id}, {node.id}).\n'
+                if node.alive != Alive.ALIVE and not self.config['include_dead_states']:
+                    continue
                 if check_formula(node.state, state_graph.problem.goal):
                     clingo_program += f'goal({problem_id}, {node.id}).\n'
                 for feature_str, feature in self.features.items():
@@ -232,10 +234,6 @@ class FeaturePool:
                     clingo_program += f'eval({problem_id}, {node.id}, {feature_str}, {eval}).\n'
                     num_feature_evals += 1
                 all_action_args = {str(p) for action in node.children.keys() for p in action.parameters}
-                if node.alive != Alive.ALIVE:
-                    # Include feature evaluations for dead states (needed for dead-end detection),
-                    # but skip concept and role evaluations
-                    continue
                 for concept_str, concept in self.concepts.items():
                     concept_str = f'"{concept_str}"'
                     extension = self.evaluate_concept_from_problem(concept_str, problem, node.state)
