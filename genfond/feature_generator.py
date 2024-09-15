@@ -292,7 +292,6 @@ class FeaturePool:
                             params = [f'"{p}"' for p in action.parameters]
                             assert len(params) <= MAX_ACTION_PARAMETERS, \
                                     f'Action {action.name} has too many parameters: {len(params)}'
-                            params += ['nil'] * (MAX_ACTION_PARAMETERS - len(params))
                             clingo_program += f'amap({action_str}, "{action.name}", {", ".join(params)}).\n'
         log.info(f'Generated program with {num_feature_evals} feature evaluations, '
                  f'{num_concept_evals} concept evaluations ({num_skipped_concept_evals} skipped), '
