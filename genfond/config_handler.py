@@ -18,7 +18,7 @@ DEFAULT_CONFIG = {
     'include_dead_states': True,
     'preset_features': None,
     'feature_generator': {},
-    'prune_roles': False,
+    'prune_roles': True,
     'prune_concepts': True,
     'use_unrestricted_features': True,
     'unrestricted_feature_generator': {

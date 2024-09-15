@@ -5,6 +5,7 @@ from pddl.logic import Predicate
 from .ground import ground_domain_predicates, ground
 from .state_space_generator import apply_effects, generate_state_space, check_formula, Alive
 import logging
+import itertools
 
 log = logging.getLogger(__name__)
 
@@ -217,6 +218,30 @@ class FeaturePool:
         log.info(f'Found {len(uninformative_concepts)} uninformative concept(s): {", ".join(uninformative_concepts)}')
         return uninformative_concepts
 
+    def is_role_informative(self, role_str):
+        for problem, state_graph in self.state_graphs.items():
+            for node in state_graph.nodes.values():
+                extension = self.evaluate_role_from_problem(role_str, problem, node.state)
+                if not extension:
+                    return True
+                log.debug(f'Role {role_str} extension: {extension}')
+                for action in node.children.keys():
+                    action_args = {str(p) for p in action.parameters}
+                    for combination in itertools.permutations(action_args, 2):
+                        log.debug(f'Checking action argument combination {combination}')
+                        if combination not in extension:
+                            log.debug(f'Action argument combination {combination} not in extension')
+                            return True
+        return False
+
+    def compute_uninformative_roles(self):
+        uninformative_roles = set()
+        for role_str in self.roles.keys():
+            if not self.is_role_informative(role_str):
+                uninformative_roles.add(role_str)
+        log.info(f'Found {len(uninformative_roles)} uninformative role(s): {", ".join(uninformative_roles)}')
+        return uninformative_roles
+
     def to_clingo(self):
         clingo_program = ""
         for feature_str, feature in self.features.items():
@@ -237,6 +262,7 @@ class FeaturePool:
         num_role_evals = 0
         num_skipped_role_evals = 0
         uninformative_concepts = self.compute_uninformative_concepts() if self.config['prune_concepts'] else set()
+        uninformative_roles = self.compute_uninformative_roles() if self.config['prune_roles'] else set()
         for problem, state_graph in self.state_graphs.items():
             problem_id = self.problem_name_to_id[problem]
             for node in state_graph.nodes.values():
@@ -257,7 +283,7 @@ class FeaturePool:
                 all_action_args = {str(p) for action in node.children.keys() for p in action.parameters}
                 for concept_str, concept in self.concepts.items():
                     if concept_str in uninformative_concepts:
-                        log.debug(f'Concept {concept_str} does not distinguish any action arguments, skipping')
+                        #log.debug(f'Concept {concept_str} does not distinguish any action arguments, skipping')
                         num_skipped_concept_evals += 1
                         continue
                     concept_str = f'"{concept_str}"'
@@ -266,9 +292,12 @@ class FeaturePool:
                         clingo_program += f'c_eval({problem_id}, {node.id}, {concept_str}, "{obj}").\n'
                         num_concept_evals += 1
                 for role_str, role in self.roles.items():
+                    if role_str in uninformative_roles:
+                        #log.debug(f'Role {role_str} does not distinguish any action argument pairs, skipping')
+                        num_skipped_role_evals += 1
+                        continue
                     role_str = f'"{role_str}"'
                     for obj1, obj2 in self.evaluate_role_from_problem(role_str, problem, node.state):
-                        # TODO determine irrelevant roles
                         clingo_program += f'r_eval({problem_id}, {node.id}, {role_str}, "{obj1}", "{obj2}").\n'
                         num_role_evals += 1
                 for action, children in node.children.items():
