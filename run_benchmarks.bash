@@ -13,7 +13,9 @@ mkdir -p "$RESDIR/out"
 
 for domain in $DOMAINS; do
   domainname=$(basename $domain)
+  domainfile=$(find $domain -name domain.pddl)
+  problemfiles=$(find $domain ! -name domain.pddl -name '*.pddl')
   for ptype in $POLICY_TYPE; do
-    sbatch $EXCLUDE -J $domainname-$ptype -o $RESDIR/out/%x-%j.out genfond.bash python -m genfond $VERBOSE --name $domainname -n 32 --max-memory 240000 --type $ptype --policy-steps 10000 --policy-iterations 10 --max-complexity 15 --dump-failed-policies -o $RESDIR/$domainname-$ptype.policy --stats $RESDIR/stats.csv $domain/{domain.pddl,p*}
+    sbatch $EXCLUDE -J $domainname-$ptype -o $RESDIR/out/%x-%j.out genfond.bash python -m genfond $VERBOSE --name $domainname -n 32 --max-memory 240000 --type $ptype --policy-steps 10000 --policy-iterations 10 --max-complexity 15 --dump-failed-policies -o $RESDIR/$domainname-$ptype.policy --stats $RESDIR/stats.csv $domainfile $problemfiles
   done
 done
