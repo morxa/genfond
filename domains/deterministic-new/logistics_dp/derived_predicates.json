@@ -1,0 +1,19 @@
+{
+    "dp_package_at_correct_city(P)": [
+        [
+            "package(P)",
+            "at(P, X)",
+            "in-city(X, C)",
+            "in-city(Y, C)",
+            "at_goal(P, Y)"
+        ],
+        [
+            "package(P)",
+            "in(P, T)",
+            "at(T, X)",
+            "in-city(X, C)",
+            "in-city(Y, C)",
+            "at_goal(P, Y)"
+        ]
+    ]
+}

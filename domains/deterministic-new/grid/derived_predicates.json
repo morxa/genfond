@@ -1,0 +1,15 @@
+{
+    "match(LP, K)": [
+        [
+            "lock-shape(LP, S)",
+            "key-shape(K, S)"
+        ]
+    ],
+    "rel(LP, P)": [
+        [
+            "match(LP, K)",
+            "at(K, P)",
+            "key(K)"
+        ]
+    ]
+}
