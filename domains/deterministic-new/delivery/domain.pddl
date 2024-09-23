@@ -24,12 +24,6 @@
         (adjacent ?x1 - cell ?x2 - cell)
     )
 
-    (:functions
-        
-    )
-
-    
-
     
     (:action pick-package
      :parameters (?t - truck ?p - package ?x - cell)
