@@ -284,7 +284,8 @@ class FeaturePool:
                 for concept_str, concept in self.concepts.items():
                     if concept_str in uninformative_concepts:
                         #log.debug(f'Concept {concept_str} does not distinguish any action arguments, skipping')
-                        num_skipped_concept_evals += 1
+                        num_skipped_concept_evals += len(
+                            self.evaluate_concept_from_problem(f'"{concept_str}"', problem, node.state))
                         continue
                     concept_str = f'"{concept_str}"'
                     extension = self.evaluate_concept_from_problem(concept_str, problem, node.state)
@@ -294,7 +295,8 @@ class FeaturePool:
                 for role_str, role in self.roles.items():
                     if role_str in uninformative_roles:
                         #log.debug(f'Role {role_str} does not distinguish any action argument pairs, skipping')
-                        num_skipped_role_evals += 1
+                        num_skipped_role_evals += len(
+                            self.evaluate_role_from_problem(f'"{role_str}"', problem, node.state))
                         continue
                     role_str = f'"{role_str}"'
                     for obj1, obj2 in self.evaluate_role_from_problem(role_str, problem, node.state):
