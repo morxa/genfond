@@ -1,4 +1,4 @@
-(define (problem grid-3)
+(define (problem visitall_x-3_y-3_r-50)
 (:domain grid-visit-all)
 (:objects 
 	loc-x0-y0
