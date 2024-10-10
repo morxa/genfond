@@ -21,6 +21,9 @@ DEFAULT_CONFIG = {
     'prune_roles': True,
     'prune_concepts': True,
     'use_unrestricted_features': True,
+    'feature_generator': {
+        'generate_til_c_role': False,
+    },
     'unrestricted_feature_generator': {
         'generate_empty_boolean': True,
         'generate_inclusion_boolean': True,
