@@ -69,7 +69,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('domain_file')
     parser.add_argument('problem_file', nargs='*')
-    parser.add_argument('--config', help='config file for parameters')
+    parser.add_argument('--config', type=argparse.FileType('r'), help='config file for parameters')
     parser.add_argument('--program-file', '-p', help='Output file for the generated program')
     parser.add_argument('--dump', help='Output for a pickle dump of the solution')
     parser.add_argument('--output', '-o', help='Output file for the resulting policy (as pickle dump)')

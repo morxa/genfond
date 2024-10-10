@@ -116,7 +116,7 @@ def main():
     parser.add_argument('--output', '-o', help='Output file for the resulting policy (as pickle dump)')
     parser.add_argument('-v', '--verbose', action='store_true')
     parser.add_argument('--stats', help='file to dump stats to')
-    parser.add_argument('--config', help='config file for parameters')
+    parser.add_argument('--config', type=argparse.FileType('r'), help='config file for parameters')
     parser.add_argument('--type',
                         choices=['exact', 'state', 'trans', 'datalog'],
                         default='state',
