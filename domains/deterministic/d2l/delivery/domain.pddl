@@ -13,10 +13,6 @@
         truck - locatable
     )
 
-    (:constants
-        
-    )
-
     (:predicates
         (at ?x1 - locatable ?x2 - cell)
         (carrying ?x1 - truck ?x2 - package)
@@ -24,13 +20,6 @@
         (adjacent ?x1 - cell ?x2 - cell)
     )
 
-    (:functions
-        
-    )
-
-    
-
-    
     (:action pick-package
      :parameters (?t - truck ?p - package ?x - cell)
      :precondition (and (at ?p ?x) (at ?t ?x) (empty ?t))
