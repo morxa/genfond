@@ -4,7 +4,7 @@
 ;;; 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define (problem delivery-5x5-2)
+(define (problem p5_2_2)
     (:domain delivery)
 
     (:objects
