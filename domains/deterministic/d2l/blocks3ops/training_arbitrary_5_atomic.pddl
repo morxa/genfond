@@ -1,4 +1,4 @@
-(define (problem BLOCKS-5-0)
+(define (problem blocks-5-0)
 (:domain blocksworld-atomic)
 (:objects a b c d e)
 

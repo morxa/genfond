@@ -1,5 +1,5 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;; Atomic-move blocksworld
+;;; atomic-move blocksworld
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define (domain blocksworld-atomic)
   (:requirements :strips)
