@@ -1,4 +1,4 @@
-(define (problem prob)
+(define (problem p04-014)
  (:domain barman)
  (:objects 
      shaker1 - shaker
