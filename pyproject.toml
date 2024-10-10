@@ -9,7 +9,7 @@ readme = "README.md"
 [tool.poetry.dependencies]
 python = "^3.10"
 pddl = "*"
-dlplan = { git = "https://github.com/rleap-project/dlplan" }
+dlplan = { git = "https://github.com/morxa/dlplan" }
 clingo = "*"
 pygraphviz = "*"
 tqdm = "*"
