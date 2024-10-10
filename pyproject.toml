@@ -9,8 +9,6 @@ readme = "README.md"
 [tool.poetry.dependencies]
 python = "^3.10"
 pddl = "*"
-pytest = "*"
-flake8 = "*"
 dlplan = { git = "https://github.com/rleap-project/dlplan" }
 clingo = "*"
 pygraphviz = "*"
@@ -22,6 +20,8 @@ pyyaml = "*"
 
 
 [tool.poetry.group.dev.dependencies]
+flake8 = "*"
+pytest = "*"
 
 [build-system]
 requires = ["poetry-core"]
