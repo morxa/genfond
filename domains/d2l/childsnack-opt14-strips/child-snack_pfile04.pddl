@@ -2,7 +2,7 @@
 ; constant factor of 1.3
 ; random seed: 101
 
-(define (problem prob-snack)
+(define (problem p04)
   (:domain child-snack)
   (:objects
     child1 child2 child3 child4 child5 child6 child7 child8 child9 - child

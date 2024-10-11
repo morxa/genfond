@@ -1,4 +1,4 @@
-(define (problem prob-snack)
+(define (problem sample02)
   (:domain child-snack)
   (:objects
     child1 child2 child3 child4 - child
