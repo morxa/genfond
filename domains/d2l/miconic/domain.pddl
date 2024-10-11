@@ -33,7 +33,7 @@
 (:action board
   :parameters (?f ?p)
   :precondition (and (floor ?f) (passenger ?p)(lift-at ?f) (origin ?p ?f))
-  :effect (boarded ?p))
+  :effect (and (boarded ?p) (not (origin ?p ?f))))
 
 (:action depart
   :parameters (?f  ?p)
