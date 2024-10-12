@@ -242,6 +242,59 @@ class FeaturePool:
         log.info(f'Found {len(uninformative_roles)} uninformative role(s): {", ".join(uninformative_roles)}')
         return uninformative_roles
 
+    def node_to_clingo(self, problem, node, stats):
+        problem_id = self.problem_name_to_id[problem.name]
+        clingo_program = ""
+        clingo_program += f'state({problem_id}, {node.id}).\n'
+        if node.alive == Alive.ALIVE:
+            clingo_program += f'alive({problem_id}, {node.id}).\n'
+        if node.alive != Alive.ALIVE and not self.config['include_dead_states']:
+            return ""
+        if check_formula(node.state, problem.goal):
+            clingo_program += f'goal({problem_id}, {node.id}).\n'
+        for feature_str, feature in self.features.items():
+            feature_str = f'"{feature_str}"'
+            eval = self.evaluate_feature_from_problem(feature_str, problem.name, node.state)
+            if type(eval) is bool:
+                eval = 1 if eval else 0
+            clingo_program += f'eval({problem_id}, {node.id}, {feature_str}, {eval}).\n'
+            stats['num_feature_evals'] += 1
+        all_action_args = {str(p) for action in node.children.keys() for p in action.parameters}
+        for concept_str, concept in self.concepts.items():
+            if concept_str in stats['uninformative_concepts']:
+                #log.debug(f'Concept {concept_str} does not distinguish any action arguments, skipping')
+                stats['num_skipped_concept_evals'] += len(
+                    self.evaluate_concept_from_problem(f'"{concept_str}"', problem.name, node.state))
+                continue
+            concept_str = f'"{concept_str}"'
+            extension = self.evaluate_concept_from_problem(concept_str, problem.name, node.state)
+            for obj in extension:
+                clingo_program += f'c_eval({problem_id}, {node.id}, {concept_str}, "{obj}").\n'
+                stats['num_concept_evals'] += 1
+        for role_str, role in self.roles.items():
+            if role_str in stats['uninformative_roles']:
+                #log.debug(f'Role {role_str} does not distinguish any action argument pairs, skipping')
+                stats['num_skipped_role_evals'] += len(
+                    self.evaluate_role_from_problem(f'"{role_str}"', problem.name, node.state))
+                continue
+            role_str = f'"{role_str}"'
+            for obj1, obj2 in self.evaluate_role_from_problem(role_str, problem.name, node.state):
+                clingo_program += f'r_eval({problem_id}, {node.id}, {role_str}, "{obj1}", "{obj2}").\n'
+                stats['num_role_evals'] += 1
+        for action, children in node.children.items():
+            action_str = f'"{action.name}({",".join([str(p) for p in action.parameters])})"'
+            for child in children:
+                clingo_program += f'trans({problem_id}, {node.id}, {action_str}, {child.id}).\n'
+                if self.concepts:
+                    params = [f'"{p}"' for p in action.parameters]
+                    assert len(params) <= MAX_ACTION_PARAMETERS, \
+                            f'Action {action.name} has too many parameters: {len(params)}'
+                    if params:
+                        clingo_program += f'amap({action_str}, "{action.name}", {", ".join(params)}).\n'
+                    else:
+                        clingo_program += f'amap({action_str}, "{action.name}").\n'
+        return clingo_program
+
     def to_clingo(self):
         clingo_program = ""
         for feature_str, feature in self.features.items():
@@ -256,65 +309,20 @@ class FeaturePool:
             role_str = f'"{role_str}"'
             clingo_program += f'role({role_str}).\n'
             clingo_program += f'role_complexity({role_str}, {role.compute_complexity()}).\n'
-        num_feature_evals = 0
-        num_concept_evals = 0
-        num_skipped_concept_evals = 0
-        num_role_evals = 0
-        num_skipped_role_evals = 0
-        uninformative_concepts = self.compute_uninformative_concepts() if self.config['prune_concepts'] else set()
-        uninformative_roles = self.compute_uninformative_roles() if self.config['prune_roles'] else set()
-        for problem, state_graph in self.state_graphs.items():
-            problem_id = self.problem_name_to_id[problem]
+        stats = {
+            'num_feature_evals': 0,
+            'num_concept_evals': 0,
+            'num_skipped_concept_evals': 0,
+            'num_role_evals': 0,
+            'num_skipped_role_evals': 0,
+            'uninformative_concepts':
+            self.compute_uninformative_concepts() if self.config['prune_concepts'] else set(),
+            'uninformative_roles': self.compute_uninformative_roles() if self.config['prune_roles'] else set(),
+        }
+        for state_graph in self.state_graphs.values():
             for node in state_graph.nodes.values():
-                clingo_program += f'state({problem_id}, {node.id}).\n'
-                if node.alive == Alive.ALIVE:
-                    clingo_program += f'alive({problem_id}, {node.id}).\n'
-                if node.alive != Alive.ALIVE and not self.config['include_dead_states']:
-                    continue
-                if check_formula(node.state, state_graph.problem.goal):
-                    clingo_program += f'goal({problem_id}, {node.id}).\n'
-                for feature_str, feature in self.features.items():
-                    feature_str = f'"{feature_str}"'
-                    eval = self.evaluate_feature_from_problem(feature_str, problem, node.state)
-                    if type(eval) is bool:
-                        eval = 1 if eval else 0
-                    clingo_program += f'eval({problem_id}, {node.id}, {feature_str}, {eval}).\n'
-                    num_feature_evals += 1
-                all_action_args = {str(p) for action in node.children.keys() for p in action.parameters}
-                for concept_str, concept in self.concepts.items():
-                    if concept_str in uninformative_concepts:
-                        #log.debug(f'Concept {concept_str} does not distinguish any action arguments, skipping')
-                        num_skipped_concept_evals += len(
-                            self.evaluate_concept_from_problem(f'"{concept_str}"', problem, node.state))
-                        continue
-                    concept_str = f'"{concept_str}"'
-                    extension = self.evaluate_concept_from_problem(concept_str, problem, node.state)
-                    for obj in extension:
-                        clingo_program += f'c_eval({problem_id}, {node.id}, {concept_str}, "{obj}").\n'
-                        num_concept_evals += 1
-                for role_str, role in self.roles.items():
-                    if role_str in uninformative_roles:
-                        #log.debug(f'Role {role_str} does not distinguish any action argument pairs, skipping')
-                        num_skipped_role_evals += len(
-                            self.evaluate_role_from_problem(f'"{role_str}"', problem, node.state))
-                        continue
-                    role_str = f'"{role_str}"'
-                    for obj1, obj2 in self.evaluate_role_from_problem(role_str, problem, node.state):
-                        clingo_program += f'r_eval({problem_id}, {node.id}, {role_str}, "{obj1}", "{obj2}").\n'
-                        num_role_evals += 1
-                for action, children in node.children.items():
-                    action_str = f'"{action.name}({",".join([str(p) for p in action.parameters])})"'
-                    for child in children:
-                        clingo_program += f'trans({problem_id}, {node.id}, {action_str}, {child.id}).\n'
-                        if self.concepts:
-                            params = [f'"{p}"' for p in action.parameters]
-                            assert len(params) <= MAX_ACTION_PARAMETERS, \
-                                    f'Action {action.name} has too many parameters: {len(params)}'
-                            if params:
-                                clingo_program += f'amap({action_str}, "{action.name}", {", ".join(params)}).\n'
-                            else:
-                                clingo_program += f'amap({action_str}, "{action.name}").\n'
-        log.info(f'Generated program with {num_feature_evals} feature evaluations, '
-                 f'{num_concept_evals} concept evaluations ({num_skipped_concept_evals} skipped), '
-                 f'and {num_role_evals} role evaluations ({num_skipped_role_evals} skipped)')
+                clingo_program += self.node_to_clingo(state_graph.problem, node, stats)
+        log.info(f'Generated program with {stats["num_feature_evals"]} feature evaluations, '
+                 f'{stats["num_concept_evals"]} concept evaluations ({stats["num_skipped_concept_evals"]} skipped), '
+                 f'and {stats["num_role_evals"]} role evaluations ({stats["num_skipped_role_evals"]} skipped)')
         return clingo_program
