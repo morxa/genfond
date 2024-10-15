@@ -99,7 +99,7 @@ class FeaturePool:
         vocabulary = construct_vocabulary_info(domain, include_actions=config['include_actions'])
         log.debug(f'Constructed vocabulary: {vocabulary}')
         self.states = dict()
-        self.state_id_to_node_id = dict()
+        self.node_id_to_state_ids = dict()
         self.state_graphs = dict()
         self.instances = dict()
         self.mappings = dict()
@@ -119,15 +119,20 @@ class FeaturePool:
             ground_actions = ground(domain, problem)
             for node in self.state_graphs[problem.name].nodes.values():
                 if config['include_actions']:
+                    self.node_id_to_state_ids[(self.problem_name_to_id[problem.name], node.id)] = dict()
                     for action in node.children.keys():
-                        new_states.add(get_augmented_state(problem, node.state, self.config, action))
+                        state_id = next_state_id
+                        next_state_id += 1
+                        self.states[state_id] = State(
+                            state_id, instance,
+                            [mapping[fact] for fact in get_augmented_state(problem, node.state, self.config, action)])
+                        self.node_id_to_state_ids[(self.problem_name_to_id[problem.name], node.id)][action] = state_id
                 else:
-                    new_states.add(get_goal_augmented_state(problem, node.state))
-            for new_state in new_states:
-                state_id = next_state_id
-                next_state_id += 1
-                self.states[state_id] = State(state_id, instance, [mapping[predicate] for predicate in new_state])
-                self.state_id_to_node_id[state_id] = (self.problem_name_to_id[problem.name], node.id)
+                    state_id = next_state_id
+                    next_state_id += 1
+                    self.states[state_id] = State(
+                        state_id, instance, [mapping[fact] for fact in get_goal_augmented_state(problem, node.state)])
+                    self.node_id_to_state_ids[(self.problem_name_to_id[problem.name], node.id)] = state_id
         factory = SyntacticElementFactory(vocabulary)
         if config.get('preset_features', None):
             str_gens = config['preset_features']
@@ -154,7 +159,7 @@ class FeaturePool:
             self.roles = {str(role): role for role in roles}
         log.debug(f'generated concepts: {", ".join(self.concepts.keys())}')
         log.debug(f'generated roles: {", ".join(self.roles.keys())}')
-        log.debug(f'generated features: {"\n".join(self.features.keys())}')
+        log.debug(f'generated features: {", ".join(self.features.keys())}')
 
     def generate_augmented_state_space(self, problem):
         return generate_state_space(self.domain, problem)
@@ -249,13 +254,25 @@ class FeaturePool:
             return ""
         if check_formula(node.state, problem.goal):
             clingo_program += f'goal({problem_id}, {node.id}).\n'
-        for feature_str, feature in self.features.items():
-            feature_str = f'"{feature_str}"'
-            eval = self.evaluate_feature_from_problem(feature_str, problem, node.state)
-            if type(eval) is bool:
-                eval = 1 if eval else 0
-            clingo_program += f'eval({problem_id}, {node.id}, {feature_str}, {eval}).\n'
-            stats['num_feature_evals'] += 1
+        if self.config['include_actions']:
+            for action, aug_state in self.node_id_to_state_ids[(problem_id, node.id)].items():
+                action_str = f'"{action.name}({",".join([str(p) for p in action.parameters])})"'
+                clingo_program += f'aug_state({problem_id}, {node.id}, {action_str}, {aug_state}).\n'
+                for feature_str, feature in self.features.items():
+                    feature_str = f'"{feature_str}"'
+                    eval = feature.evaluate(self.states[aug_state])
+                    if type(eval) is bool:
+                        eval = 1 if eval else 0
+                    clingo_program += f'eval({aug_state}, {feature_str}, {eval}).\n'
+                    stats['num_feature_evals'] += 1
+        else:
+            for feature_str, feature in self.features.items():
+                feature_str = f'"{feature_str}"'
+                eval = feature.evaluate(self.states[self.node_id_to_state_ids[(problem_id, node.id)]])
+                if type(eval) is bool:
+                    eval = 1 if eval else 0
+                clingo_program += f'eval({problem_id}, {node.id}, {feature_str}, {eval}).\n'
+                stats['num_feature_evals'] += 1
         all_action_args = {str(p) for action in node.children.keys() for p in action.parameters}
         for concept_str, concept in self.concepts.items():
             if concept_str in stats['uninformative_concepts']:

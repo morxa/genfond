@@ -169,3 +169,17 @@ def test_features_with_augmented_states(blocks_clear):
                                          problem.init, unstack10) == False
     assert feature_pool.evaluate_feature('b_empty(c_and(c_primitive(clear_G,0),c_primitive(aparam1,0)))', problem,
                                          problem.init, unstack01) == True
+
+
+def test_augmented_states_to_clingo(blocks_clear):
+    domain, problem = blocks_clear
+    ground_actions = ground(domain, problem)
+    config = ConfigHandler()
+    config['include_actions'] = True
+    config['max_complexity'] = 4
+    feature_pool = FeaturePool(domain, [problem], config=config)
+    clingo_program = feature_pool.to_clingo()
+    print(f'full program:\n{clingo_program}')
+    assert 'aug_state(0, 0, "unstack(b1,b0)", 0).' in clingo_program
+    assert 'eval(0, "b_empty(c_and(c_primitive(clear_G,0),c_primitive(aparam1,0)))", 0).' in clingo_program
+    assert 'trans(0, 0, "unstack(b1,b0)", 1).' in clingo_program
