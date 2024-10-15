@@ -250,7 +250,7 @@ test = ["pytest"]
 type = "git"
 url = "https://github.com/morxa/dlplan"
 reference = "HEAD"
-resolved_reference = "167b337ce61d4cd882274e05e21dcce24ab1fba8"
+resolved_reference = "302b86899939a90fd1cc4821510d518b15ec4954"
 
 [[package]]
 name = "exceptiongroup"
