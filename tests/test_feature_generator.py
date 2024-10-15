@@ -20,26 +20,27 @@ def test_generate_features_simple_blocks(simple_blocks):
     on_ab = frozenset([Predicate('on', a, b)])
     #print('\n'.join([f'{k} = {feature_pool.evaluate_concept(k, on_ab)}' for k in feature_pool.concepts.keys()]))
     #print('\n'.join([f'{k} = {feature_pool.evaluate_feature(k, on_ab)}' for k in feature_pool.features.keys()]))
-    assert feature_pool.evaluate_feature('b_empty(c_primitive(holding,0))', on_ab) is True
-    assert feature_pool.evaluate_feature('b_empty(r_primitive(on,0,1))', on_ab) is False
-    assert feature_pool.evaluate_feature('n_count(c_primitive(holding,0))', on_ab) == 0
-    assert feature_pool.evaluate_feature('n_count(r_primitive(on,0,1))', on_ab) == 1
-    assert feature_pool.evaluate_feature('n_count(r_primitive(on_G,0,1))', on_ab) == 1
-    assert feature_pool.evaluate_feature('n_count(r_transitive_reflexive_closure(r_primitive(on,0,1)))', on_ab) == 4
+    assert feature_pool.evaluate_feature('b_empty(c_primitive(holding,0))', problem, on_ab) is True
+    assert feature_pool.evaluate_feature('b_empty(r_primitive(on,0,1))', problem, on_ab) is False
+    assert feature_pool.evaluate_feature('n_count(c_primitive(holding,0))', problem, on_ab) == 0
+    assert feature_pool.evaluate_feature('n_count(r_primitive(on,0,1))', problem, on_ab) == 1
+    assert feature_pool.evaluate_feature('n_count(r_primitive(on_G,0,1))', problem, on_ab) == 1
+    assert feature_pool.evaluate_feature('n_count(r_transitive_reflexive_closure(r_primitive(on,0,1)))', problem,
+                                         on_ab) == 4
     holding_a = frozenset([Predicate('holding', a)])
-    assert feature_pool.evaluate_feature('b_empty(c_primitive(holding,0))', holding_a) is False
-    assert feature_pool.evaluate_feature('b_empty(r_primitive(on,0,1))', holding_a) is True
-    assert feature_pool.evaluate_feature('n_count(c_primitive(holding,0))', holding_a) == 1
-    assert feature_pool.evaluate_feature('n_count(r_primitive(on,0,1))', holding_a) == 0
-    assert feature_pool.evaluate_feature('n_count(r_primitive(on_G,0,1))', holding_a) == 1
-    assert feature_pool.evaluate_feature('n_count(r_transitive_reflexive_closure(r_primitive(on,0,1)))',
+    assert feature_pool.evaluate_feature('b_empty(c_primitive(holding,0))', problem, holding_a) is False
+    assert feature_pool.evaluate_feature('b_empty(r_primitive(on,0,1))', problem, holding_a) is True
+    assert feature_pool.evaluate_feature('n_count(c_primitive(holding,0))', problem, holding_a) == 1
+    assert feature_pool.evaluate_feature('n_count(r_primitive(on,0,1))', problem, holding_a) == 0
+    assert feature_pool.evaluate_feature('n_count(r_primitive(on_G,0,1))', problem, holding_a) == 1
+    assert feature_pool.evaluate_feature('n_count(r_transitive_reflexive_closure(r_primitive(on,0,1)))', problem,
                                          holding_a) == 3
-    assert feature_pool.evaluate_concept('c_top', on_ab) == {a.name, b.name, c.name}
-    assert feature_pool.evaluate_concept('c_primitive(holding,0)', on_ab) == set()
-    assert feature_pool.evaluate_concept('c_primitive(holding,0)', holding_a) == {a.name}
-    assert feature_pool.evaluate_role('r_primitive(on,0,1)', on_ab) == {(a.name, b.name)}
-    assert feature_pool.evaluate_role('r_primitive(on,0,1)', holding_a) == set()
-    assert feature_pool.evaluate_role('r_primitive(on_G,0,1)', on_ab) == {(a.name, c.name)}
+    assert feature_pool.evaluate_concept('c_top', problem, on_ab) == {a.name, b.name, c.name}
+    assert feature_pool.evaluate_concept('c_primitive(holding,0)', problem, on_ab) == set()
+    assert feature_pool.evaluate_concept('c_primitive(holding,0)', problem, holding_a) == {a.name}
+    assert feature_pool.evaluate_role('r_primitive(on,0,1)', problem, on_ab) == {(a.name, b.name)}
+    assert feature_pool.evaluate_role('r_primitive(on,0,1)', problem, holding_a) == set()
+    assert feature_pool.evaluate_role('r_primitive(on_G,0,1)', problem, on_ab) == {(a.name, c.name)}
 
 
 @pytest.mark.skip(reason='r_and is not generated')
@@ -56,20 +57,24 @@ def test_generate_features_fond_blocks(fond_blocks):
     assert len(gstates) > 0
     a, b, c, table = constants('A B C Table')
     istate = feature_pool.state_graphs[problem.name].root.state
-    assert feature_pool.evaluate_feature('n_count(r_primitive(on,0,1))', istate) == 3
-    assert feature_pool.evaluate_feature('n_count(c_primitive(clear,0))', istate) == 3
-    assert feature_pool.evaluate_feature('n_count(c_some(r_primitive(on,0,1),c_one_of(Table)))', istate) == 2
-    assert feature_pool.evaluate_feature('n_count(r_and(r_primitive(on,0,1),r_primitive(on_G,0,1)))', istate) == 0
+    assert feature_pool.evaluate_feature('n_count(r_primitive(on,0,1))', problem, istate) == 3
+    assert feature_pool.evaluate_feature('n_count(c_primitive(clear,0))', problem, istate) == 3
+    assert feature_pool.evaluate_feature('n_count(c_some(r_primitive(on,0,1),c_one_of(Table)))', problem, istate) == 2
+    assert feature_pool.evaluate_feature('n_count(r_and(r_primitive(on,0,1),r_primitive(on_G,0,1)))', problem,
+                                         istate) == 0
     cta_puton = get_action(ground_actions, 'puton', (c, table, a))
     cta_puton_state = next(iter(apply_action_effects(istate, cta_puton)))
-    assert feature_pool.evaluate_feature('n_count(c_primitive(clear,0))', cta_puton_state) == 4
-    assert feature_pool.evaluate_feature('n_count(c_some(r_primitive(on,0,1),c_one_of(Table)))', cta_puton_state) == 3
-    assert feature_pool.evaluate_feature('n_count(r_and(r_primitive(on,0,1),r_primitive(on_G,0,1)))',
+    assert feature_pool.evaluate_feature('n_count(c_primitive(clear,0))', problem, cta_puton_state) == 4
+    assert feature_pool.evaluate_feature('n_count(c_some(r_primitive(on,0,1),c_one_of(Table)))', problem,
+                                         cta_puton_state) == 3
+    assert feature_pool.evaluate_feature('n_count(r_and(r_primitive(on,0,1),r_primitive(on_G,0,1)))', problem,
                                          cta_puton_state) == 0
-    assert feature_pool.evaluate_feature('n_count(r_and(r_primitive(on,0,1),r_primitive(on_G,0,1)))', gstates[0]) == 1
-    assert feature_pool.evaluate_concept('c_primitive(clear,0)', istate) == {table.name, b.name, c.name}
-    assert feature_pool.evaluate_concept('c_some(r_primitive(on,0,1),c_one_of(Table))', istate) == {a.name, b.name}
-    assert feature_pool.evaluate_role('r_and(r_primitive(on,0,1),r_primitive(on_G,0,1))',
+    assert feature_pool.evaluate_feature('n_count(r_and(r_primitive(on,0,1),r_primitive(on_G,0,1)))', problem,
+                                         gstates[0]) == 1
+    assert feature_pool.evaluate_concept('c_primitive(clear,0)', problem, istate) == {table.name, b.name, c.name}
+    assert feature_pool.evaluate_concept('c_some(r_primitive(on,0,1),c_one_of(Table))', problem,
+                                         istate) == {a.name, b.name}
+    assert feature_pool.evaluate_role('r_and(r_primitive(on,0,1),r_primitive(on_G,0,1))', problem,
                                       gstates[0]) == {(b.name, a.name)}
 
 
@@ -146,3 +151,21 @@ def test_features_clingo_upper_case(fond_blocks):
     clingo_program = feature_pool.to_clingo()
     # Omit the target state as it might vary.
     assert 'trans(0, 0, "puton(B,C,Table)"' in clingo_program
+
+
+def test_features_with_augmented_states(blocks_clear):
+    domain, problem = blocks_clear
+    ground_actions = ground(domain, problem)
+    config = ConfigHandler()
+    config['include_actions'] = True
+    config['max_complexity'] = 4
+    feature_pool = FeaturePool(domain, [problem], config=config)
+    b0, b1 = constants('b0 b1')
+    unstack10 = get_action(ground_actions, 'unstack', (b1, b0))
+    unstack01 = get_action(ground_actions, 'unstack', (b0, b1))
+    for feature in feature_pool.features.keys():
+        print(f'{feature} = {feature_pool.evaluate_feature(feature, problem, problem.init, unstack10)}')
+    assert feature_pool.evaluate_feature('b_empty(c_and(c_primitive(clear_G,0),c_primitive(aparam1,0)))', problem,
+                                         problem.init, unstack10) == False
+    assert feature_pool.evaluate_feature('b_empty(c_and(c_primitive(clear_G,0),c_primitive(aparam1,0)))', problem,
+                                         problem.init, unstack01) == True

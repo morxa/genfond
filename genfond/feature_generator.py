@@ -12,12 +12,12 @@ log = logging.getLogger(__name__)
 MAX_ACTION_PARAMETERS = 4
 
 
-def get_predicate_name_from_action(action):
-    return f'A_{action.name}'
+def get_aparam_predicate_name(i):
+    return f'aparam{i}'
 
 
-def get_predicate_from_action(action):
-    return Predicate(get_predicate_name_from_action(action), *action.parameters)
+def get_aparam_predicate(action, i):
+    return Predicate(get_aparam_predicate_name(i), action.parameters[i])
 
 
 def construct_vocabulary_info(domain, include_actions=False):
@@ -28,11 +28,13 @@ def construct_vocabulary_info(domain, include_actions=False):
         # TODO some predicates may be static.
         vocabulary.add_predicate(predicate.name, predicate.arity)
         vocabulary.add_predicate(f'{predicate.name}_G', predicate.arity)
+    max_arity = max([len(action.parameters) for action in domain.actions])
     if include_actions:
-        for action in domain.actions:
-            action_predicate = get_predicate_name_from_action(action)
-            assert action_predicate not in [p.name for p in domain.predicates]
-            vocabulary.add_predicate(action_predicate, len(action.parameters))
+        for i in range(max_arity):
+            log.debug(f'Adding action parameter predicate {get_aparam_predicate_name(i)}')
+            aparam_pred = get_aparam_predicate_name(i)
+            assert aparam_pred not in [p.name for p in domain.predicates]
+            vocabulary.add_predicate(aparam_pred, 1)
     for constant in domain.constants:
         vocabulary.add_constant(constant.name)
     return vocabulary
@@ -58,17 +60,23 @@ def construct_instance_info(vocabulary, domain, problem, problem_id, include_act
         map[goal_predicate] = instance.add_atom(goal_predicate.name, [str(t) for t in predicate.terms])
     if include_actions:
         for action in ground(domain, problem):
-            map[get_predicate_from_action(action)] = instance.add_atom(get_predicate_name_from_action(action),
-                                                                       [str(t) for t in action.parameters])
+            for i, param in enumerate(action.parameters):
+                map[get_aparam_predicate(action, i)] = instance.add_atom(get_aparam_predicate_name(i), [str(param)])
     return instance, map
 
 
-def get_augmented_state(domain, problem, state, config):
-    augmented_state = set(state | _get_state_from_goal(problem.goal))
+def get_goal_augmented_state(problem, state):
+    return frozenset(state | _get_state_from_goal(problem.goal))
+
+
+def get_augmented_state(problem, state, config, action=None):
+    assert not config['include_actions'] or action, 'Action must be provided when including actions'
+    augmented_state = get_goal_augmented_state(problem, state)
     if config['include_actions']:
-        for action in ground(domain, problem):
-            if check_formula(state, action.precondition):
-                augmented_state.add(get_predicate_from_action(action))
+        param_atoms = {get_aparam_predicate(action, i) for i, _ in enumerate(action.parameters)}
+        augmented_state |= param_atoms
+    action_str = f'"{action.name}({",".join([str(p) for p in action.parameters])})"' if action else 'None'
+    log.debug(f'Generated augmented state (action={action_str}): [{", ".join([str(p) for p in augmented_state])}]')
     return frozenset(augmented_state)
 
 
@@ -89,10 +97,13 @@ class FeaturePool:
         self.config = config
         self.problem_name_to_id = {problem.name: i for i, problem in enumerate(problems)}
         vocabulary = construct_vocabulary_info(domain, include_actions=config['include_actions'])
+        log.debug(f'Constructed vocabulary: {vocabulary}')
         self.states = dict()
+        self.state_id_to_node_id = dict()
         self.state_graphs = dict()
-        self.goal_states = dict()
         self.instances = dict()
+        self.mappings = dict()
+        next_state_id = 0
         if not max_complexity:
             max_complexity = config['max_complexity']
         for problem in problems:
@@ -102,16 +113,21 @@ class FeaturePool:
                                                         self.problem_name_to_id[problem.name],
                                                         include_actions=config['include_actions'])
             self.state_graphs[problem.name] = generate_state_space(domain, problem)
-            self.goal_states[problem.name] = _get_state_from_goal(problem.goal)
             self.instances[problem.name] = instance
-            pddl_states = set()
+            self.mappings[problem.name] = mapping
+            new_states = set()
             ground_actions = ground(domain, problem)
             for node in self.state_graphs[problem.name].nodes.values():
-                pddl_states.add(get_augmented_state(domain, problem, node.state, config))
-            self.states[problem.name] = {
-                state: State(-1, instance, [mapping[predicate] for predicate in state])
-                for state in pddl_states
-            }
+                if config['include_actions']:
+                    for action in node.children.keys():
+                        new_states.add(get_augmented_state(problem, node.state, self.config, action))
+                else:
+                    new_states.add(get_goal_augmented_state(problem, node.state))
+            for new_state in new_states:
+                state_id = next_state_id
+                next_state_id += 1
+                self.states[state_id] = State(state_id, instance, [mapping[predicate] for predicate in new_state])
+                self.state_id_to_node_id[state_id] = (self.problem_name_to_id[problem.name], node.id)
         factory = SyntacticElementFactory(vocabulary)
         if config.get('preset_features', None):
             str_gens = config['preset_features']
@@ -120,9 +136,9 @@ class FeaturePool:
                 feature_generator_kwargs = config['unrestricted_feature_generator']
             else:
                 feature_generator_kwargs = config['feature_generator']
-            booleans, numericals, concepts, roles = dlplan_gen.generate_features(
-                factory, [state for state in self.states[problem.name].values() for problem in problems],
-                *5 * [max_complexity], 3600, 10000, **feature_generator_kwargs)
+            booleans, numericals, concepts, roles = dlplan_gen.generate_features(factory, list(self.states.values()),
+                                                                                 *5 * [max_complexity], 3600, 10000,
+                                                                                 **feature_generator_kwargs)
         self.features = {}
         self.concepts = {}
         self.roles = {}
@@ -138,54 +154,36 @@ class FeaturePool:
             self.roles = {str(role): role for role in roles}
         log.debug(f'generated concepts: {", ".join(self.concepts.keys())}')
         log.debug(f'generated roles: {", ".join(self.roles.keys())}')
-        log.debug(f'generated features: {", ".join(self.features.keys())}')
+        log.debug(f'generated features: {"\n".join(self.features.keys())}')
 
-    def evaluate_feature(self, feature, state):
-        # Try to guess which problem the state belongs to.
-        problems = [
-            problem for (problem, states) in self.states.items()
-            if get_augmented_state(self.domain, self.problems[problem], state, self.config) in states
-        ]
-        assert len(problems) == 1, \
-            'Cannot determine which problem the state belongs to,' \
-            f' found {len(problems)} matching problems'
-        return self.evaluate_feature_from_problem(feature, problems[0], state)
+    def generate_augmented_state_space(self, problem):
+        return generate_state_space(self.domain, problem)
 
-    def evaluate_concept(self, concept, state):
-        # Try to guess which problem the state belongs to.
-        problems = [
-            problem for (problem, states) in self.states.items()
-            if get_augmented_state(self.domain, self.problems[problem], state, self.config) in states
-        ]
-        assert len(problems) == 1, \
-            'Cannot determine which problem the state belongs to,' \
-            f' found {len(problems)} matching problems'
-        return self.evaluate_concept_from_problem(concept, problems[0], state)
+    def evaluate_concept(self, concept, problem, state):
+        return self.evaluate_concept_from_problem(concept, problem, state)
 
-    def evaluate_role(self, role, state):
-        # Try to guess which problem the state belongs to.
-        problems = [
-            problem for (problem, states) in self.states.items()
-            if get_augmented_state(self.domain, self.problems[problem], state, self.config) in states
-        ]
-        assert len(problems) == 1, \
-            'Cannot determine which problem the state belongs to,' \
-            f' found {len(problems)} matching problems'
-        return self.evaluate_role_from_problem(role, problems[0], state)
+    def evaluate_role(self, role, problem, state):
+        return self.evaluate_role_from_problem(role, problem, state)
 
-    def evaluate_feature_from_problem(self, feature, problem, state):
+    def evaluate_feature(self, feature, problem, state, action=None):
+        return self.evaluate_feature_from_problem(feature, problem, state, action)
+
+    def get_augmented_dlplan_state(self, problem, state, action=None):
+        return State(
+            -1, self.instances[problem.name],
+            [self.mappings[problem.name][fact] for fact in get_augmented_state(problem, state, self.config, action)])
+
+    def evaluate_feature_from_problem(self, feature, problem, state, action=None):
         feature = feature.strip('"')
-        return self.features[feature].evaluate(self.states[problem][get_augmented_state(
-            self.domain, self.problems[problem], state, self.config)])
+        return self.features[feature].evaluate(self.get_augmented_dlplan_state(problem, state, action))
 
     def evaluate_role_from_problem(self, role, problem, state):
         role = role.strip('"')
-        return set([(self.obj_id_to_obj(problem, id1), self.obj_id_to_obj(problem, id2))
-                    for id1, id2 in self.roles[role].evaluate(self.states[problem][get_augmented_state(
-                        self.domain, self.problems[problem], state, self.config)]).to_sorted_vector()])
+        return set([(self.obj_id_to_obj(problem, id1), self.obj_id_to_obj(problem, id2)) for id1, id2 in
+                    self.roles[role].evaluate(self.get_augmented_dlplan_state(problem, state)).to_sorted_vector()])
 
     def obj_id_to_obj(self, problem, obj_id):
-        for obj in self.instances[problem].get_objects():
+        for obj in self.instances[problem.name].get_objects():
             if obj_id == obj.get_index():
                 return obj.get_name()
         return None
@@ -193,15 +191,14 @@ class FeaturePool:
     def evaluate_concept_from_problem(self, concept, problem, state):
         concept = concept.strip('"')
         return set([
-            self.obj_id_to_obj(problem, id)
-            for id in self.concepts[concept].evaluate(self.states[problem][get_augmented_state(
-                self.domain, self.problems[problem], state, self.config)]).to_sorted_vector()
+            self.obj_id_to_obj(problem, id) for id in self.concepts[concept].evaluate(
+                self.get_augmented_dlplan_state(problem, state)).to_sorted_vector()
         ])
 
     def is_concept_informative(self, concept_str):
         for problem, state_graph in self.state_graphs.items():
             for node in state_graph.nodes.values():
-                extension = self.evaluate_concept_from_problem(concept_str, problem, node.state)
+                extension = self.evaluate_concept_from_problem(concept_str, self.problems[problem], node.state)
                 if not extension:
                     return True
                 for action in node.children.keys():
@@ -221,7 +218,7 @@ class FeaturePool:
     def is_role_informative(self, role_str):
         for problem, state_graph in self.state_graphs.items():
             for node in state_graph.nodes.values():
-                extension = self.evaluate_role_from_problem(role_str, problem, node.state)
+                extension = self.evaluate_role_from_problem(role_str, self.problems[problem], node.state)
                 if not extension:
                     return True
                 log.debug(f'Role {role_str} extension: {extension}')
@@ -254,7 +251,7 @@ class FeaturePool:
             clingo_program += f'goal({problem_id}, {node.id}).\n'
         for feature_str, feature in self.features.items():
             feature_str = f'"{feature_str}"'
-            eval = self.evaluate_feature_from_problem(feature_str, problem.name, node.state)
+            eval = self.evaluate_feature_from_problem(feature_str, problem, node.state)
             if type(eval) is bool:
                 eval = 1 if eval else 0
             clingo_program += f'eval({problem_id}, {node.id}, {feature_str}, {eval}).\n'
@@ -264,10 +261,10 @@ class FeaturePool:
             if concept_str in stats['uninformative_concepts']:
                 #log.debug(f'Concept {concept_str} does not distinguish any action arguments, skipping')
                 stats['num_skipped_concept_evals'] += len(
-                    self.evaluate_concept_from_problem(f'"{concept_str}"', problem.name, node.state))
+                    self.evaluate_concept_from_problem(f'"{concept_str}"', problem, node.state))
                 continue
             concept_str = f'"{concept_str}"'
-            extension = self.evaluate_concept_from_problem(concept_str, problem.name, node.state)
+            extension = self.evaluate_concept_from_problem(concept_str, problem, node.state)
             for obj in extension:
                 clingo_program += f'c_eval({problem_id}, {node.id}, {concept_str}, "{obj}").\n'
                 stats['num_concept_evals'] += 1
@@ -275,10 +272,10 @@ class FeaturePool:
             if role_str in stats['uninformative_roles']:
                 #log.debug(f'Role {role_str} does not distinguish any action argument pairs, skipping')
                 stats['num_skipped_role_evals'] += len(
-                    self.evaluate_role_from_problem(f'"{role_str}"', problem.name, node.state))
+                    self.evaluate_role_from_problem(f'"{role_str}"', problem, node.state))
                 continue
             role_str = f'"{role_str}"'
-            for obj1, obj2 in self.evaluate_role_from_problem(role_str, problem.name, node.state):
+            for obj1, obj2 in self.evaluate_role_from_problem(role_str, problem, node.state):
                 clingo_program += f'r_eval({problem_id}, {node.id}, {role_str}, "{obj1}", "{obj2}").\n'
                 stats['num_role_evals'] += 1
         for action, children in node.children.items():

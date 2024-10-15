@@ -13,8 +13,7 @@ log = logging.getLogger(__name__)
 
 def eval_state(instance, mapping, features, domain, problem, state, config):
     try:
-        fstate = State(-1, instance,
-                       [mapping[predicate] for predicate in get_augmented_state(domain, problem, state, config)])
+        fstate = State(-1, instance, [mapping[predicate] for predicate in get_augmented_state(problem, state, config)])
     except KeyError as e:
         log.critical(f'Cannot find predicate in mapping {"\n".join(f"{k}: {v}" for k, v in mapping.items())}: {e}')
         raise
