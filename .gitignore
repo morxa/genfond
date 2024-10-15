@@ -9,3 +9,4 @@ genfond_env.tar
 tags
 .devcontainer
 saved
+domains/deterministic/sokoban-base
