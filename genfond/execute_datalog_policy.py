@@ -39,7 +39,7 @@ def execute_datalog_policy(domain, problem, datalog_policy, config):
     roles = dict()
     features = dict()
     for rule in datalog_policy.rules:
-        for cond, _ in rule.conds.items():
+        for cond, _ in (rule.conds | rule.aug_conds).items():
             if cond.startswith('b_'):
                 features[cond] = factory.parse_boolean(cond)
             elif cond.startswith('n_'):
@@ -63,8 +63,10 @@ def execute_datalog_policy(domain, problem, datalog_policy, config):
         log.info(f'New state: {state_string(state)}')
         found_rule = False
 
-        eval = eval_state(instance, mapping, concepts | roles, domain, problem, state, config)
-        bool_eval = bool_eval_state(instance, mapping, features, domain, problem, state, config)
+        eval = eval_state(instance, mapping, concepts | roles, domain, problem, state,
+                          config | {'include_actions': False})
+        bool_eval = bool_eval_state(instance, mapping, features, domain, problem, state,
+                                    config | {'include_actions': False})
 
         for i, rule in enumerate(datalog_policy.rules):
             log.debug(f'Checking rule {i}: {rule}')
@@ -115,6 +117,18 @@ def execute_datalog_policy(domain, problem, datalog_policy, config):
                 grounded_action = ground_action(domain, problem, rule.name, object_combination)
                 if grounded_action and check_formula(state, grounded_action.precondition):
                     action = grounded_action
+                    break
+
+            if not action:
+                log.debug(f'... Rule not applicable! No matching action found!')
+                continue
+
+            # aug_state = get_augmented_state(problem, state, config, action)
+            aug_bool_eval = bool_eval_state(instance, mapping, features, domain, problem, state, config, action)
+            for cond, val in rule.aug_conds.items():
+                if aug_bool_eval[cond] != val:
+                    log.debug(f'... Rule not applicable! Augmented state does not satisfy condition {cond}')
+                    action = None
                     break
 
             if not action:

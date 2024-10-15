@@ -11,9 +11,10 @@ import logging
 log = logging.getLogger(__name__)
 
 
-def eval_state(instance, mapping, features, domain, problem, state, config):
+def eval_state(instance, mapping, features, domain, problem, state, config, action=None):
     try:
-        fstate = State(-1, instance, [mapping[predicate] for predicate in get_augmented_state(problem, state, config)])
+        fstate = State(-1, instance,
+                       [mapping[predicate] for predicate in get_augmented_state(problem, state, config, action)])
     except KeyError as e:
         log.critical(f'Cannot find predicate in mapping {"\n".join(f"{k}: {v}" for k, v in mapping.items())}: {e}')
         raise
@@ -23,8 +24,8 @@ def eval_state(instance, mapping, features, domain, problem, state, config):
     return feature_eval
 
 
-def bool_eval_state(instance, mapping, features, domain, problem, state, config):
-    feature_eval = eval_state(instance, mapping, features, domain, problem, state, config)
+def bool_eval_state(instance, mapping, features, domain, problem, state, config, action=None):
+    feature_eval = eval_state(instance, mapping, features, domain, problem, state, config, action)
     log.debug(f'feature eval: {feature_eval}')
     bool_feature_eval = dict()
     for feature, eval in feature_eval.items():

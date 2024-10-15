@@ -1,6 +1,7 @@
 from genfond.datalog_policy import DatalogPolicyRule, DatalogPolicy, Cond
 from genfond.execute_datalog_policy import execute_datalog_policy
 from genfond.config_handler import ConfigHandler
+import pytest
 
 
 def test_block_clear_all(blocks_clear):
@@ -123,3 +124,21 @@ def test_blocks3ops(blocks3ops):
     config = ConfigHandler()
     config['policy_steps'] = 10
     execute_datalog_policy(domain, problem, policy, config)
+
+
+def test_execute_datalog_policy_with_augmented_states(blocks_clear):
+    domain, problem = blocks_clear
+    policy = DatalogPolicy([
+        DatalogPolicyRule('unstack(X, Y)',
+                          aug_conds={'b_empty(c_and(c_primitive(clear_G,0),c_primitive(aparam1,0)))': Cond.FALSE})
+    ])
+    config = ConfigHandler()
+    config['include_actions'] = True
+    config['policy_steps'] = 1
+    execute_datalog_policy(domain, problem, policy, config)
+    policy = DatalogPolicy([
+        DatalogPolicyRule('unstack(X, Y)',
+                          aug_conds={'b_empty(c_and(c_primitive(clear_G,0),c_primitive(aparam0,0)))': Cond.FALSE})
+    ])
+    with pytest.raises(RuntimeError):
+        execute_datalog_policy(domain, problem, policy, config)
