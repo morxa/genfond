@@ -1,4 +1,4 @@
-(define (problem prob)
+(define (problem p_s-22_n-11_l-10)
  (:domain spanner)
  (:objects 
      bob - man
