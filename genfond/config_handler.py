@@ -20,6 +20,7 @@ DEFAULT_CONFIG = {
     'feature_generator': {},
     'prune_roles': True,
     'prune_concepts': True,
+    'prune_features': True,
     'use_unrestricted_features': True,
     'feature_generator': {
         'generate_til_c_role': False,
@@ -62,9 +63,9 @@ DEFAULT_CONFIG = {
 DEFAULT_TYPE_CONFIGS = {
     'datalog': {
         'include_numerical_features': False,
-        'include_concepts': True,
-        'include_roles': True,
-        'include_actions': False,
+        'include_concepts': False,
+        'include_roles': False,
+        'include_actions': True,
         'include_dead_states': False,
         'feature_generator': {
             'generate_concept_distance_numerical': False,
