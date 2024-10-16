@@ -82,6 +82,7 @@ def test_features_to_clingo(simple_blocks):
     domain, problem = simple_blocks
     config = ConfigHandler()
     config['max_complexity'] = 2
+    config['prune_features'] = False
     feature_pool = FeaturePool(domain, [problem], config=config)
     clingo_program = feature_pool.to_clingo()
     print(f'full program:\n{clingo_program}')

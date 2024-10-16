@@ -101,6 +101,7 @@ class FeaturePool:
         self.states = dict()
         self.node_id_to_state_ids = dict()
         self.node_id_to_aug_state_ids = dict()
+        self.state_id_to_node = dict()
         self.state_graphs = dict()
         self.instances = dict()
         self.mappings = dict()
@@ -129,12 +130,14 @@ class FeaturePool:
                             [mapping[fact] for fact in get_augmented_state(problem, node.state, self.config, action)])
                         self.node_id_to_aug_state_ids[(self.problem_name_to_id[problem.name],
                                                        node.id)][action] = state_id
+                        self.state_id_to_node[state_id] = node
                 if config['include_pristine_states']:
                     state_id = next_state_id
                     next_state_id += 1
                     self.states[state_id] = State(
                         state_id, instance, [mapping[fact] for fact in get_goal_augmented_state(problem, node.state)])
                     self.node_id_to_state_ids[(self.problem_name_to_id[problem.name], node.id)] = state_id
+                    self.state_id_to_node[state_id] = node
         factory = SyntacticElementFactory(vocabulary)
         if config.get('preset_features', None):
             str_gens = config['preset_features']
@@ -246,6 +249,30 @@ class FeaturePool:
         log.info(f'Found {len(uninformative_roles)} uninformative role(s): {", ".join(uninformative_roles)}')
         return uninformative_roles
 
+    def is_feature_informative(self, feature):
+        has_false = False
+        has_true = False
+        for state_id, state in self.states.items():
+            node = self.state_id_to_node[state_id]
+            if node.goal or node.alive != Alive.ALIVE and not self.config['include_dead_states']:
+                continue
+            eval = feature.evaluate(state)
+            if eval:
+                has_true = True
+            else:
+                has_false = True
+            if has_true and has_false:
+                return True
+        return has_true and has_false
+
+    def compute_uninformative_features(self):
+        uninformative_features = set()
+        for feature_str, feature in self.features.items():
+            if not self.is_feature_informative(feature):
+                uninformative_features.add(feature_str)
+        log.info(f'Found {len(uninformative_features)} uninformative feature(s): {", ".join(uninformative_features)}')
+        return uninformative_features
+
     def node_to_clingo(self, problem, node, stats):
         problem_id = self.problem_name_to_id[problem.name]
         clingo_program = ""
@@ -261,6 +288,9 @@ class FeaturePool:
                 action_str = f'"{action.name}({",".join([str(p) for p in action.parameters])})"'
                 clingo_program += f'aug_state({problem_id}, {node.id}, {action_str}, {aug_state}).\n'
                 for feature_str, feature in self.features.items():
+                    if feature_str in stats['uninformative_features']:
+                        stats['num_skipped_feature_evals'] += 1
+                        continue
                     feature_str = f'"{feature_str}"'
                     eval = feature.evaluate(self.states[aug_state])
                     if type(eval) is bool:
@@ -269,6 +299,9 @@ class FeaturePool:
                     stats['num_feature_evals'] += 1
         if self.config['include_pristine_states']:
             for feature_str, feature in self.features.items():
+                if feature_str in stats['uninformative_features']:
+                    stats['num_skipped_feature_evals'] += 1
+                    continue
                 feature_str = f'"{feature_str}"'
                 eval = feature.evaluate(self.states[self.node_id_to_state_ids[(problem_id, node.id)]])
                 if type(eval) is bool:
@@ -313,6 +346,19 @@ class FeaturePool:
         return clingo_program
 
     def to_clingo(self):
+        stats = {
+            'num_skipped_feature_evals': 0,
+            'num_feature_evals': 0,
+            'num_concept_evals': 0,
+            'num_skipped_concept_evals': 0,
+            'num_role_evals': 0,
+            'num_skipped_role_evals': 0,
+            'uninformative_features':
+            self.compute_uninformative_features() if self.config['prune_features'] else set(),
+            'uninformative_concepts':
+            self.compute_uninformative_concepts() if self.config['prune_concepts'] else set(),
+            'uninformative_roles': self.compute_uninformative_roles() if self.config['prune_roles'] else set(),
+        }
         clingo_program = ""
         for feature_str, feature in self.features.items():
             feature_str = f'"{feature_str}"'
@@ -326,20 +372,11 @@ class FeaturePool:
             role_str = f'"{role_str}"'
             clingo_program += f'role({role_str}).\n'
             clingo_program += f'role_complexity({role_str}, {role.compute_complexity()}).\n'
-        stats = {
-            'num_feature_evals': 0,
-            'num_concept_evals': 0,
-            'num_skipped_concept_evals': 0,
-            'num_role_evals': 0,
-            'num_skipped_role_evals': 0,
-            'uninformative_concepts':
-            self.compute_uninformative_concepts() if self.config['prune_concepts'] else set(),
-            'uninformative_roles': self.compute_uninformative_roles() if self.config['prune_roles'] else set(),
-        }
         for state_graph in self.state_graphs.values():
             for node in state_graph.nodes.values():
                 clingo_program += self.node_to_clingo(state_graph.problem, node, stats)
-        log.info(f'Generated program with {stats["num_feature_evals"]} feature evaluations, '
-                 f'{stats["num_concept_evals"]} concept evaluations ({stats["num_skipped_concept_evals"]} skipped), '
-                 f'and {stats["num_role_evals"]} role evaluations ({stats["num_skipped_role_evals"]} skipped)')
+        log.info(
+            f'Generated program with {stats["num_feature_evals"]} feature evaluations ({stats["num_skipped_feature_evals"]} skipped), '
+            f'{stats["num_concept_evals"]} concept evaluations ({stats["num_skipped_concept_evals"]} skipped), '
+            f'and {stats["num_role_evals"]} role evaluations ({stats["num_skipped_role_evals"]} skipped)')
         return clingo_program

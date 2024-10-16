@@ -80,6 +80,7 @@ class StateSpaceNode:
         self.id = id
         self.children = dict()
         self.alive = Alive.UNKNOWN
+        self.goal = False
         self.parents = set()
 
     def __str__(self):
@@ -114,6 +115,7 @@ class StateSpaceGraph:
                     if new_node:
                         if check_formula(new_node.state, problem.goal):
                             new_node.alive = Alive.ALIVE
+                            new_node.goal = True
                         queue.append(new_node)
         compute_alive(self.nodes.values())
         if prune:
