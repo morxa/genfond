@@ -4,7 +4,7 @@
 ;;; 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define (problem reward-20x20)
+(define (problem p20x20_4)
     (:domain reward-strips)
 
     (:objects
