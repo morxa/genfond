@@ -69,10 +69,13 @@ def solve(
         solve_prog = 'solve.lp'
         policy_type = PolicyType.EXACT
     elif type == 'datalog':
-        solve_prog = 'solve_datalog.lp'
+        if config['include_actions']:
+            solve_prog = 'solve_datalog_actions.lp'
+        else:
+            solve_prog = 'solve_datalog.lp'
         policy_type = PolicyType.DATALOG
     else:
-        raise ValueError(f'Unknown constraint type {constraint_type}')
+        raise ValueError(f'Unknown constraint type {type}')
     solver = Solver(asp_instance,
                     config['num_threads'],
                     max_cost=max_cost,

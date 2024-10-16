@@ -117,19 +117,21 @@ def execute_datalog_policy(domain, problem, datalog_policy, config):
                 grounded_action = ground_action(domain, problem, rule.name, object_combination)
                 if grounded_action and check_formula(state, grounded_action.precondition):
                     action = grounded_action
-                    break
+                    # aug_state = get_augmented_state(problem, state, config, action)
+                    aug_bool_eval = bool_eval_state(instance, mapping, features, domain, problem, state, config,
+                                                    action)
+                    for cond, val in rule.aug_conds.items():
+                        if aug_bool_eval[cond] != val:
+                            log.debug(f'... Rule not applicable! Augmented state does not satisfy condition {cond}'
+                                      f'(valuation is {aug_bool_eval[cond]} instead of {val})')
+                            action = None
+                            break
+                    if action:
+                        break
 
             if not action:
                 log.debug(f'... Rule not applicable! No matching action found!')
                 continue
-
-            # aug_state = get_augmented_state(problem, state, config, action)
-            aug_bool_eval = bool_eval_state(instance, mapping, features, domain, problem, state, config, action)
-            for cond, val in rule.aug_conds.items():
-                if aug_bool_eval[cond] != val:
-                    log.debug(f'... Rule not applicable! Augmented state does not satisfy condition {cond}')
-                    action = None
-                    break
 
             if not action:
                 log.debug(f'... Rule not applicable! No matching action found!')

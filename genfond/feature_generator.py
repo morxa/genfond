@@ -31,7 +31,7 @@ def construct_vocabulary_info(domain, include_actions=False):
     max_arity = max([len(action.parameters) for action in domain.actions])
     if include_actions:
         for i in range(max_arity):
-            log.debug(f'Adding action parameter predicate {get_aparam_predicate_name(i)}')
+            #log.debug(f'Adding action parameter predicate {get_aparam_predicate_name(i)}')
             aparam_pred = get_aparam_predicate_name(i)
             assert aparam_pred not in [p.name for p in domain.predicates]
             vocabulary.add_predicate(aparam_pred, 1)
@@ -100,6 +100,7 @@ class FeaturePool:
         log.debug(f'Constructed vocabulary: {vocabulary}')
         self.states = dict()
         self.node_id_to_state_ids = dict()
+        self.node_id_to_aug_state_ids = dict()
         self.state_graphs = dict()
         self.instances = dict()
         self.mappings = dict()
@@ -119,15 +120,16 @@ class FeaturePool:
             ground_actions = ground(domain, problem)
             for node in self.state_graphs[problem.name].nodes.values():
                 if config['include_actions']:
-                    self.node_id_to_state_ids[(self.problem_name_to_id[problem.name], node.id)] = dict()
+                    self.node_id_to_aug_state_ids[(self.problem_name_to_id[problem.name], node.id)] = dict()
                     for action in node.children.keys():
                         state_id = next_state_id
                         next_state_id += 1
                         self.states[state_id] = State(
                             state_id, instance,
                             [mapping[fact] for fact in get_augmented_state(problem, node.state, self.config, action)])
-                        self.node_id_to_state_ids[(self.problem_name_to_id[problem.name], node.id)][action] = state_id
-                else:
+                        self.node_id_to_aug_state_ids[(self.problem_name_to_id[problem.name],
+                                                       node.id)][action] = state_id
+                if config['include_pristine_states']:
                     state_id = next_state_id
                     next_state_id += 1
                     self.states[state_id] = State(
@@ -255,7 +257,7 @@ class FeaturePool:
         if check_formula(node.state, problem.goal):
             clingo_program += f'goal({problem_id}, {node.id}).\n'
         if self.config['include_actions']:
-            for action, aug_state in self.node_id_to_state_ids[(problem_id, node.id)].items():
+            for action, aug_state in self.node_id_to_aug_state_ids[(problem_id, node.id)].items():
                 action_str = f'"{action.name}({",".join([str(p) for p in action.parameters])})"'
                 clingo_program += f'aug_state({problem_id}, {node.id}, {action_str}, {aug_state}).\n'
                 for feature_str, feature in self.features.items():
@@ -265,7 +267,7 @@ class FeaturePool:
                         eval = 1 if eval else 0
                     clingo_program += f'eval({aug_state}, {feature_str}, {eval}).\n'
                     stats['num_feature_evals'] += 1
-        else:
+        if self.config['include_pristine_states']:
             for feature_str, feature in self.features.items():
                 feature_str = f'"{feature_str}"'
                 eval = feature.evaluate(self.states[self.node_id_to_state_ids[(problem_id, node.id)]])
@@ -297,6 +299,7 @@ class FeaturePool:
                 stats['num_role_evals'] += 1
         for action, children in node.children.items():
             action_str = f'"{action.name}({",".join([str(p) for p in action.parameters])})"'
+            clingo_program += f'aname({action_str}, "{action.name}").\n'
             for child in children:
                 clingo_program += f'trans({problem_id}, {node.id}, {action_str}, {child.id}).\n'
                 if self.concepts:

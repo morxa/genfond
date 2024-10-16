@@ -109,7 +109,10 @@ def main():
         solve_prog = 'solve.lp'
         policy_type = PolicyType.EXACT
     elif args.type == 'datalog':
-        solve_prog = 'solve_datalog.lp'
+        if config['include_actions']:
+            solve_prog = 'solve_datalog_actions.lp'
+        else:
+            solve_prog = 'solve_datalog.lp'
         policy_type = PolicyType.DATALOG
     else:
         raise ValueError(f'Unknown constraint type {args.type}')

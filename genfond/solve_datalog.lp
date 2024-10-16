@@ -23,11 +23,11 @@ safe_state(I, S) :- goal(I, S).
 safe_state(I, S1) :- alive(I, S1), safe_state(I, S2) : good_trans(I, S1, _, S2).
 :- alive(I, S), not safe_state(I, S).
 
-aname(A, AName) :- amap(A, AName).
-aname(A, AName) :- amap(A, AName, _).
-aname(A, AName) :- amap(A, AName, _, _).
-aname(A, AName) :- amap(A, AName, _, _, _).
-aname(A, AName) :- amap(A, AName, _, _, _, _).
+%aname(A, AName) :- amap(A, AName).
+%aname(A, AName) :- amap(A, AName, _).
+%aname(A, AName) :- amap(A, AName, _, _).
+%aname(A, AName) :- amap(A, AName, _, _, _).
+%aname(A, AName) :- amap(A, AName, _, _, _, _).
 
 % action arity 1
 c_distinguished(I1, S1, A1, I2, S2, A2, C, 1) :- alive(I1, S1), alive(I2, S2), amap(A1, AName, P1), amap(A2, AName, P2), c_eval(I1, S1, C, P1), not c_eval(I2, S2, C, P2).
