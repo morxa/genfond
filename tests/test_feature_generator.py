@@ -133,14 +133,26 @@ def test_concepts_to_clingo(simple_blocks):
     assert 'concept("c_not(c_primitive(holding,0))").' in clingo_program
     assert 'concept_complexity("c_not(c_primitive(holding,0))", 2).' in clingo_program
     assert 'state(0, 0).' in clingo_program
-    assert 'c_eval(0, 0, "c_top", "a").' in clingo_program
-    assert 'c_eval(0, 0, "c_top", "b").' in clingo_program
-    assert 'c_eval(0, 0, "c_top", "c").' in clingo_program
     assert 'state(0, 1).' in clingo_program
-    assert 'c_eval(0, 1, "c_primitive(holding,0)", "a").' in clingo_program
     assert 'state(0, 2).' in clingo_program
+    assert 'state(0, 3).' in clingo_program
     assert 'trans(0, 0, "pick(a,b)", 1).' in clingo_program
     assert 'trans(0, 1, "put(a,b)", 0).' in clingo_program
+    assert 'trans(0, 1, "put(a,a)", 2)' in clingo_program
+    assert 'trans(0, 1, "put(a,c)", 3)' in clingo_program
+    assert 'c_eval(0, 0, "c_top", "a").' in clingo_program
+    assert 'c_eval(0, 0, "c_top", "b").' in clingo_program
+    assert 'c_eval(0, 0, "c_top", "c").' not in clingo_program
+    assert 'c_eval(0, 1, "c_primitive(holding,0)", "a").' in clingo_program
+    assert 'c_eval(0, 1, "c_top", "a").' in clingo_program
+    assert 'c_eval(0, 1, "c_top", "b").' in clingo_program
+    assert 'c_eval(0, 1, "c_top", "c").' in clingo_program
+    assert 'c_eval(0, 2, "c_top", "a").' in clingo_program
+    assert 'c_eval(0, 2, "c_top", "b").' not in clingo_program
+    assert 'c_eval(0, 2, "c_top", "c").' not in clingo_program
+    assert 'c_eval(0, 3, "c_top", "a").' in clingo_program
+    assert 'c_eval(0, 3, "c_top", "b").' not in clingo_program
+    assert 'c_eval(0, 3, "c_top", "c").' in clingo_program
     assert not re.search(r'^eval.*', clingo_program, re.MULTILINE)
 
 

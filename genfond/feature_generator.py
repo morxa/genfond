@@ -318,8 +318,11 @@ class FeaturePool:
             concept_str = f'"{concept_str}"'
             extension = self.evaluate_concept_from_problem(concept_str, problem, node.state)
             for obj in extension:
-                clingo_program += f'c_eval({problem_id}, {node.id}, {concept_str}, "{obj}").\n'
-                stats['num_concept_evals'] += 1
+                if obj in all_action_args:
+                    clingo_program += f'c_eval({problem_id}, {node.id}, {concept_str}, "{obj}").\n'
+                    stats['num_concept_evals'] += 1
+                else:
+                    stats['num_skipped_concept_evals'] += 1
         for role_str, role in self.roles.items():
             if role_str in stats['uninformative_roles']:
                 #log.debug(f'Role {role_str} does not distinguish any action argument pairs, skipping')
@@ -328,8 +331,11 @@ class FeaturePool:
                 continue
             role_str = f'"{role_str}"'
             for obj1, obj2 in self.evaluate_role_from_problem(role_str, problem, node.state):
-                clingo_program += f'r_eval({problem_id}, {node.id}, {role_str}, "{obj1}", "{obj2}").\n'
-                stats['num_role_evals'] += 1
+                if obj1 in all_action_args and obj2 in all_action_args:
+                    clingo_program += f'r_eval({problem_id}, {node.id}, {role_str}, "{obj1}", "{obj2}").\n'
+                    stats['num_role_evals'] += 1
+                else:
+                    stats['num_skipped_role_evals'] += 1
         for action, children in node.children.items():
             action_str = f'"{action.name}({",".join([str(p) for p in action.parameters])})"'
             clingo_program += f'aname({action_str}, "{action.name}").\n'

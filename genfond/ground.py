@@ -66,7 +66,7 @@ def ground(domain, problem):
             op = ground_action(domain, problem, action, grounding)
             if op:
                 operators.append(op)
-    return operators
+    return sorted(operators, key=lambda a: (a.name, a.parameters))
 
 
 def ground_domain_predicates(domain, problem):
