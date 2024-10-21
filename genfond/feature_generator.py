@@ -105,7 +105,7 @@ class FeaturePool:
         self.state_graphs = dict()
         self.instances = dict()
         self.mappings = dict()
-        next_state_id = 0
+        self.next_state_id = 0
         if not max_complexity:
             max_complexity = config['max_complexity']
         for problem in problems:
@@ -117,27 +117,11 @@ class FeaturePool:
             self.state_graphs[problem.name] = generate_state_space(domain, problem)
             self.instances[problem.name] = instance
             self.mappings[problem.name] = mapping
-            new_states = set()
-            ground_actions = ground(domain, problem)
             for node in self.state_graphs[problem.name].nodes.values():
                 if config['include_actions']:
-                    self.node_id_to_aug_state_ids[(self.problem_name_to_id[problem.name], node.id)] = dict()
-                    for action in node.children.keys():
-                        state_id = next_state_id
-                        next_state_id += 1
-                        self.states[state_id] = State(
-                            state_id, instance,
-                            [mapping[fact] for fact in get_augmented_state(problem, node.state, self.config, action)])
-                        self.node_id_to_aug_state_ids[(self.problem_name_to_id[problem.name],
-                                                       node.id)][action] = state_id
-                        self.state_id_to_node[state_id] = node
+                    self.node_to_augmented_state(problem, node)
                 if config['include_pristine_states']:
-                    state_id = next_state_id
-                    next_state_id += 1
-                    self.states[state_id] = State(
-                        state_id, instance, [mapping[fact] for fact in get_goal_augmented_state(problem, node.state)])
-                    self.node_id_to_state_ids[(self.problem_name_to_id[problem.name], node.id)] = state_id
-                    self.state_id_to_node[state_id] = node
+                    self.node_to_state(problem, node)
         factory = SyntacticElementFactory(vocabulary)
         if config.get('preset_features', None):
             str_gens = config['preset_features']
@@ -165,6 +149,27 @@ class FeaturePool:
         log.debug(f'generated concepts: {", ".join(self.concepts.keys())}')
         log.debug(f'generated roles: {", ".join(self.roles.keys())}')
         log.debug(f'generated features: {", ".join(self.features.keys())}')
+
+    def node_to_augmented_state(self, problem, node):
+        self.node_id_to_aug_state_ids.setdefault((self.problem_name_to_id[problem.name], node.id), dict())
+        for action in node.children.keys():
+            state_id = self.next_state_id
+            self.next_state_id += 1
+            self.states[state_id] = State(state_id, self.instances[problem.name], [
+                self.mappings[problem.name][fact]
+                for fact in get_augmented_state(problem, node.state, self.config, action)
+            ])
+            self.node_id_to_aug_state_ids[(self.problem_name_to_id[problem.name], node.id)][action] = state_id
+            self.state_id_to_node[state_id] = node
+
+    def node_to_state(self, problem, node):
+        state_id = self.next_state_id
+        self.next_state_id += 1
+        self.states[state_id] = State(
+            state_id, self.instances[problem.name],
+            [self.mappings[problem.name][fact] for fact in get_goal_augmented_state(problem, node.state)])
+        self.node_id_to_state_ids[(self.problem_name_to_id[problem.name], node.id)] = state_id
+        self.state_id_to_node[state_id] = node
 
     def generate_augmented_state_space(self, problem):
         return generate_state_space(self.domain, problem)
