@@ -187,8 +187,8 @@ def main():
             log.info(f'Testing policy on {problem.name} {config["policy_iterations"]} times ...')
             # Execute policy policy_iterations times
             for _ in tqdm.trange(config['policy_iterations'], disable=None):
-                execute_policy(domain, problem, policy, config)
-            log.info(f'Policy already solves {problem.name}')
+                plan = execute_policy(domain, problem, policy, config)
+            log.info(f'Policy already solves {problem.name} (plan length {len(plan)})')
             verified.append(problem)
             continue
         except RuntimeError:
