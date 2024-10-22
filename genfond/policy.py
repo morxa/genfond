@@ -38,6 +38,19 @@ def cond_to_str(feature, val):
         raise ValueError(f'Unexpected value {val} for feature {feature}')
 
 
+def eff_to_str(feature, val):
+    if val == Effect.SET:
+        return f'{feature}'
+    elif val == Effect.UNSET:
+        return f'¬{feature}'
+    elif val == Effect.INCREASE:
+        return f'↑{feature}'
+    elif val == Effect.DECREASE:
+        return f'↓{feature}'
+    else:
+        raise ValueError(f'Unexpected value {val} for feature {feature}')
+
+
 class PolicyRule:
 
     def __init__(self, conds, effs):
@@ -53,18 +66,7 @@ class PolicyRule:
             s_conds.append(cond_to_str(feature, val))
         s_effs = []
         for eff in self.effs:
-            s_eff = []
-            for feature, val in eff:
-                if val == Effect.SET:
-                    s_eff.append(f'{feature}')
-                elif val == Effect.UNSET:
-                    s_eff.append(f'¬{feature}')
-                elif val == Effect.INCREASE:
-                    s_eff.append(f'↑{feature}')
-                elif val == Effect.DECREASE:
-                    s_eff.append(f'↓{feature}')
-                else:
-                    raise ValueError(f'Unknown feature type {feature}')
+            s_eff = [eff_to_str(feature, val) for feature, val in eff]
             s_effs.append(' ∧ '.join(s_eff))
         return f'{{ {" ∧ ".join(sorted(s_conds))} }}  ⇒  {{ {" ; ".join(sorted(s_effs))} }}'
 
@@ -81,18 +83,7 @@ class StateConstraint:
         return self.conds == other.conds
 
     def __repr__(self):
-        s_conds = []
-        for feature, val in self.conds.items():
-            if val == Cond.TRUE:
-                s_conds.append(f'{feature}')
-            elif val == Cond.FALSE:
-                s_conds.append(f'¬{feature}')
-            elif val == Cond.POSITIVE:
-                s_conds.append(f'{feature} > 0')
-            elif val == Cond.ZERO:
-                s_conds.append(f'{feature} = 0')
-            else:
-                raise ValueError(f'Unknown feature type {feature}')
+        s_conds = [cond_to_str(feature, val) for feature, val in self.conds.items()]
         return f'{{ {" ∧ ".join(sorted(s_conds))} }}'
 
     def __hash__(self):
