@@ -71,6 +71,8 @@ def solve(
     elif type == 'datalog':
         if config['include_actions']:
             solve_prog = 'solve_datalog_actions.lp'
+        elif config['include_action_params']:
+            solve_prog = 'solve_datalog_action_params.lp'
         else:
             solve_prog = 'solve_datalog.lp'
         policy_type = PolicyType.DATALOG

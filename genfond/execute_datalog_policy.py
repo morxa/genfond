@@ -1,10 +1,10 @@
 import itertools
 import logging
 import random
-from dlplan.core import SyntacticElementFactory
+from dlplan.core import SyntacticElementFactory, State
 from pddl.logic.terms import Constant
 from .execute_rule_policy import eval_state, bool_eval_state, state_satisfies_rule_conds
-from .feature_generator import construct_vocabulary_info, construct_instance_info, _get_state_from_goal, get_action_augmented_state
+from .feature_generator import construct_vocabulary_info, construct_instance_info, _get_state_from_goal, get_action_augmented_state, get_param_augmented_state
 from .ground import ground_action
 from .state_space_generator import check_formula, apply_action_effects
 
@@ -35,7 +35,7 @@ def execute_datalog_policy(domain, problem, datalog_policy, config):
     roles = dict()
     features = dict()
     for rule in datalog_policy.rules:
-        for cond, _ in (rule.conds | rule.aug_conds).items():
+        for cond, _ in (rule.conds | rule.aug_conds | {cond[0]: None for cond in rule.diff_conds}).items():
             if cond.startswith('b_'):
                 features[cond] = factory.parse_boolean(cond)
             elif cond.startswith('n_'):
@@ -111,7 +111,13 @@ def execute_datalog_policy(domain, problem, datalog_policy, config):
                 object_combination = tuple(
                     next(c for c in problem.objects | domain.constants if c.name == o) for o in object_combination)
                 grounded_action = ground_action(domain, problem, rule.name, object_combination)
-                if grounded_action and check_formula(state, grounded_action.precondition):
+                if not grounded_action:
+                    log.debug(f'... Rule not applicable! No matching action found!')
+                    continue
+                elif not check_formula(state, grounded_action.precondition):
+                    log.debug(f'... Rule not applicable! Precondition not satisfied!')
+                    continue
+                else:
                     action = grounded_action
                     # aug_state = get_augmented_state(problem, state, config, action)
                     aug_bool_eval = bool_eval_state(instance, mapping, features, domain, problem, state, config,
@@ -122,6 +128,27 @@ def execute_datalog_policy(domain, problem, datalog_policy, config):
                                       f'(valuation is {aug_bool_eval[cond]} instead of {val})')
                             action = None
                             break
+                    log.debug(f'... Checking {len(rule.diff_conds)} diff conditions')
+                    for feature, param1, param2, diff in rule.diff_conds:
+                        log.info(f'Checking diff condition {feature}({param1},{param2})={diff}')
+                        assert diff in [-1, 0, 1], f'Invalid diff value: {diff}'
+                        aug_state1 = State(-1, instance, [
+                            mapping[fact]
+                            for fact in get_param_augmented_state(problem, state, param1, object_combination[param1])
+                        ])
+                        aug_state2 = State(-1, instance, [
+                            mapping[fact]
+                            for fact in get_param_augmented_state(problem, state, param2, object_combination[param2])
+                        ])
+                        eval1 = features[feature].evaluate(aug_state1)
+                        eval2 = features[feature].evaluate(aug_state2)
+                        eval_diff = 1 if eval1 < eval2 else -1 if eval1 > eval2 else 0
+                        if eval_diff != diff:
+                            log.debug(f'... Rule not applicable! Augmented state does not satisfy condition {feature} '
+                                      f'(valuation is {eval_diff} instead of {diff})')
+                            action = None
+                            break
+
                     if action:
                         break
 

@@ -183,8 +183,6 @@ class FeaturePool:
                     self.next_state_id += 1
                     self.states[fstate] = State(state_id, self.instances[problem.name],
                                                 [self.mappings[problem.name][fact] for fact in fstate])
-                else:
-                    log.info('Found existing state')
                 self.node_id_to_aug_state_ids[(self.problem_name_to_id[problem.name], node.id)][action].append(fstate)
                 self.state_id_to_node.setdefault(fstate, []).append(node)
 
@@ -332,22 +330,6 @@ class FeaturePool:
                         eval = 1 if eval else 0
                     clingo_program += f'eval({aug_state_id}, {feature_str}, {eval}).\n'
                     stats['num_feature_evals'] += 1
-        if self.config['include_action_params']:
-            for action, aug_states in self.node_id_to_aug_state_ids[(problem_id, node.id)].items():
-                action_str = f'"{action.name}({",".join([str(p) for p in action.parameters])})"'
-                for i, aug_state in enumerate(aug_states):
-                    aug_state_id = self.states[aug_state].get_index()
-                    clingo_program += f'aug_state({problem_id}, {node.id}, {action_str}, {i}, {aug_state_id}).\n'
-                    for feature_str, feature in self.features.items():
-                        if feature_str in stats['uninformative_features']:
-                            stats['num_skipped_feature_evals'] += 1
-                            continue
-                        feature_str = f'"{feature_str}"'
-                        eval = feature.evaluate(self.states[aug_state])
-                        if type(eval) is bool:
-                            eval = 1 if eval else 0
-                        clingo_program += f'eval({aug_state_id}, {feature_str}, {eval}).\n'
-                        stats['num_feature_evals'] += 1
         if self.config['include_pristine_states']:
             for feature_str, feature in self.features.items():
                 if feature_str in stats['uninformative_features']:
@@ -359,6 +341,24 @@ class FeaturePool:
                     eval = 1 if eval else 0
                 clingo_program += f'eval({problem_id}, {node.id}, {feature_str}, {eval}).\n'
                 stats['num_feature_evals'] += 1
+        if self.config['include_action_params']:
+            for action, aug_states in self.node_id_to_aug_state_ids[(problem_id, node.id)].items():
+                action_str = f'"{action.name}({",".join([str(p) for p in action.parameters])})"'
+                for i, aug_state in enumerate(aug_states):
+                    aug_state_id = self.states[aug_state].get_index()
+                    clingo_program += f'aug_state({problem_id}, {node.id}, {action_str}, {i}, {aug_state_id}).\n'
+                    for feature_str, feature in self.features.items():
+                        if feature_str in stats['uninformative_features']:
+                            stats['num_skipped_feature_evals'] += 1
+                            continue
+                        if not get_aparam_predicate_name(0) in feature_str:
+                            continue
+                        feature_str = f'"{feature_str}"'
+                        eval = feature.evaluate(self.states[aug_state])
+                        if type(eval) is bool:
+                            eval = 1 if eval else 0
+                        clingo_program += f'aug_eval({aug_state_id}, {feature_str}, {eval}).\n'
+                        stats['num_feature_evals'] += 1
         all_action_args = {str(p) for action in node.children.keys() for p in action.parameters}
         for concept_str, concept in self.concepts.items():
             if concept_str in stats['uninformative_concepts']:

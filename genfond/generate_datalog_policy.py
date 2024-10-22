@@ -1,5 +1,6 @@
 import re
-from genfond.datalog_policy import DatalogPolicyRule, DatalogPolicy, Cond, split_action_string
+from genfond.datalog_policy import DatalogPolicyRule, DatalogPolicy, split_action_string
+from genfond.policy import Cond, Effect
 import logging
 
 log = logging.getLogger(__name__)
@@ -47,27 +48,39 @@ def generate_datalog_policy(solution):
     aug_bool_eval_dict = dict()
     for i, s, a, f, v in solution.get('aug_bool_eval', []):
         aug_bool_eval_dict[(i, s, a, f)] = v
-    rules = []
+    rules = set()
     dist_features = dict()
     aug_dist_features = dict()
     for instance, state, _, _, feature in solution.get('f_distinguished', []):
         dist_features.setdefault((instance, state), []).append(feature)
     for instance, state, action, _, _, _, feature in solution.get('aug_dist', []):
         aug_dist_features.setdefault((instance, state, action), []).append(feature)
+    diff_conds = dict()
+    for instance, state, action, param1, param2, feature, diff in solution.get(f'fdiff', []):
+        diff_conds.setdefault((instance, state, action), []).append((feature, param1, param2, diff))
     state_conds = dict()
     for instance, state, action in solution['good_action']:
         state_cond = dict()
         aug_state_cond = dict()
         for f in dist_features.get((instance, state), []):
             v = bool_eval_dict[(instance, state, f)]
-            log.debug(f'Adding condition {f}={v}')
+            log.debug(f'Adding state condition {f}={v}')
             state_cond[f] = _eval_to_cond(f, v)
         state_conds[(instance, state, action)] = state_cond
         for f in aug_dist_features.get((instance, state, action), []):
             v = aug_bool_eval_dict[(instance, state, action, f)]
             log.debug(f'Adding augmented condition {f}={v}')
             aug_state_cond[f] = _eval_to_cond(f, v)
-        conds[(instance, state, action)] = {'concepts': [], 'roles': [], 'aug_conds': aug_state_cond}
+        diff_cond = []
+        for f, param1, param2, v in diff_conds.get((instance, state, action), []):
+            log.debug(f'Adding diff condition {f}({param1},{param2})={v}')
+            diff_cond.append((f, param1, param2, v))
+        conds[(instance, state, action)] = {
+            'concepts': [],
+            'roles': [],
+            'aug_conds': aug_state_cond,
+            'diff_conds': diff_cond
+        }
     log.debug(f'state_conds: {state_conds}')
     for instance, state, action, _, _, _, concept, pos, argnum in solution.get('c_distinguished', []):
         action = action.strip('"')
@@ -102,6 +115,7 @@ def generate_datalog_policy(solution):
                                  concepts=cond_dict['concepts'],
                                  roles=cond_dict['roles'],
                                  conds=state_conds[key],
-                                 aug_conds=cond_dict['aug_conds'])
-        rules.append(rule)
-    return DatalogPolicy(rules, cost=solution['cost'])
+                                 aug_conds=cond_dict['aug_conds'],
+                                 diff_conds=cond_dict['diff_conds'])
+        rules.add(rule)
+    return DatalogPolicy(list(rules), cost=solution['cost'])

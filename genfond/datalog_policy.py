@@ -22,7 +22,7 @@ def split_action_string(action):
 
 class DatalogPolicyRule:
 
-    def __init__(self, head, concepts=None, roles=None, conds=None, aug_conds=None):
+    def __init__(self, head, concepts=None, roles=None, conds=None, aug_conds=None, diff_conds=None):
         if not concepts:
             concepts = []
         if not roles:
@@ -31,6 +31,8 @@ class DatalogPolicyRule:
             conds = []
         if not aug_conds:
             aug_conds = []
+        if not diff_conds:
+            diff_conds = []
         self.name, self.parameters = split_action_string(head)
         concepts_by_parameter = {name: [] for name in self.parameters}
         roles_by_parameter = {}
@@ -48,6 +50,7 @@ class DatalogPolicyRule:
         self.roles_by_parameter = {params: frozenset(roles) for params, roles in roles_by_parameter.items()}
         self.conds = frozendict(conds)
         self.aug_conds = frozendict(aug_conds)
+        self.diff_conds = diff_conds
 
     def __eq__(self, other):
         if self.name != other.name:
@@ -57,6 +60,8 @@ class DatalogPolicyRule:
         if self.conds != other.conds:
             return False
         if self.aug_conds != other.aug_conds:
+            return False
+        if self.diff_conds != other.diff_conds:
             return False
         for p_self, p_other in zip(self.parameters, other.parameters):
             if self.concepts_by_parameter[p_self] != other.concepts_by_parameter[p_other]:
@@ -80,7 +85,18 @@ class DatalogPolicyRule:
         for parameters, roles in self.roles_by_parameter.items():
             roles_conds.extend([f'{parameters[0]} {role} {parameters[1]}' for role in roles])
         roles_conds.sort()
-        conds = state_conds + aug_state_conds + concept_conds + roles_conds
+        diff_conds = []
+        for feature, param1, param2, diff in self.diff_conds:
+            if diff == 1:
+                diff_conds.append(f'{feature}({param1},{param2}) > 0')
+            elif diff == -1:
+                diff_conds.append(f'{feature}({param1},{param2}) < 0')
+            elif diff == 0:
+                diff_conds.append(f'{feature}({param1},{param2}) = 0')
+            else:
+                raise ValueError(f'Invalid diff value: {diff}')
+        diff_conds.sort()
+        conds = state_conds + aug_state_conds + concept_conds + roles_conds + diff_conds
         return f'{self.name}({', '.join(self.parameters)}){f" :- {', '.join(conds)}" if conds else ""}.'
 
     def __hash__(self):
