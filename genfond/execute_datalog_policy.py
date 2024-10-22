@@ -117,40 +117,39 @@ def execute_datalog_policy(domain, problem, datalog_policy, config):
                 elif not check_formula(state, grounded_action.precondition):
                     log.debug(f'... Rule not applicable! Precondition not satisfied!')
                     continue
-                else:
-                    action = grounded_action
-                    # aug_state = get_augmented_state(problem, state, config, action)
-                    aug_bool_eval = bool_eval_state(instance, mapping, features, domain, problem, state, config,
-                                                    action)
-                    for cond, val in rule.aug_conds.items():
-                        if aug_bool_eval[cond] != val:
-                            log.debug(f'... Rule not applicable! Augmented state does not satisfy condition {cond}'
-                                      f'(valuation is {aug_bool_eval[cond]} instead of {val})')
-                            action = None
-                            break
-                    log.debug(f'... Checking {len(rule.diff_conds)} diff conditions')
-                    for feature, param1, param2, diff in rule.diff_conds:
-                        log.info(f'Checking diff condition {feature}({param1},{param2})={diff}')
-                        assert diff in [-1, 0, 1], f'Invalid diff value: {diff}'
-                        aug_state1 = State(-1, instance, [
-                            mapping[fact]
-                            for fact in get_param_augmented_state(problem, state, param1, object_combination[param1])
-                        ])
-                        aug_state2 = State(-1, instance, [
-                            mapping[fact]
-                            for fact in get_param_augmented_state(problem, state, param2, object_combination[param2])
-                        ])
-                        eval1 = features[feature].evaluate(aug_state1)
-                        eval2 = features[feature].evaluate(aug_state2)
-                        eval_diff = 1 if eval1 < eval2 else -1 if eval1 > eval2 else 0
-                        if eval_diff != diff:
-                            log.debug(f'... Rule not applicable! Augmented state does not satisfy condition {feature} '
-                                      f'(valuation is {eval_diff} instead of {diff})')
-                            action = None
-                            break
-
-                    if action:
+                action = grounded_action
+                # aug_state = get_augmented_state(problem, state, config, action)
+                aug_bool_eval = bool_eval_state(instance, mapping, features, domain, problem, state, config,
+                                                action)
+                for cond, val in rule.aug_conds.items():
+                    if aug_bool_eval[cond] != val:
+                        log.debug(f'... Rule not applicable! Augmented state does not satisfy condition {cond}'
+                                  f'(valuation is {aug_bool_eval[cond]} instead of {val})')
+                        action = None
                         break
+                log.debug(f'... Checking {len(rule.diff_conds)} diff conditions')
+                for feature, param1, param2, diff in rule.diff_conds:
+                    log.info(f'Checking diff condition {feature}({param1},{param2})={diff}')
+                    assert diff in [-1, 0, 1], f'Invalid diff value: {diff}'
+                    aug_state1 = State(-1, instance, [
+                        mapping[fact]
+                        for fact in get_param_augmented_state(problem, state, param1, object_combination[param1])
+                    ])
+                    aug_state2 = State(-1, instance, [
+                        mapping[fact]
+                        for fact in get_param_augmented_state(problem, state, param2, object_combination[param2])
+                    ])
+                    eval1 = features[feature].evaluate(aug_state1)
+                    eval2 = features[feature].evaluate(aug_state2)
+                    eval_diff = 1 if eval1 < eval2 else -1 if eval1 > eval2 else 0
+                    if eval_diff != diff:
+                        log.debug(f'... Rule not applicable! Augmented state does not satisfy condition {feature} '
+                                  f'(valuation is {eval_diff} instead of {diff})')
+                        action = None
+                        break
+
+                if action:
+                    break
 
             if not action:
                 log.debug(f'... Rule not applicable! No matching action found!')
