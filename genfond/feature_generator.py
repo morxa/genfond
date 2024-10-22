@@ -16,11 +16,11 @@ def get_aparam_predicate_name(i):
     return f'aparam{i}'
 
 
-def get_aparam_predicate(action, i):
-    return Predicate(get_aparam_predicate_name(i), action.parameters[i])
+def get_aparam_predicate(i, param):
+    return Predicate(get_aparam_predicate_name(i), param)
 
 
-def construct_vocabulary_info(domain, include_actions=False):
+def construct_vocabulary_info(domain, config):
     vocabulary = VocabularyInfo()
     for predicate in domain.predicates:
         assert f'{predicate.name}_G' not in [p.name for p in domain.predicates]
@@ -29,7 +29,7 @@ def construct_vocabulary_info(domain, include_actions=False):
         vocabulary.add_predicate(predicate.name, predicate.arity)
         vocabulary.add_predicate(f'{predicate.name}_G', predicate.arity)
     max_arity = max([len(action.parameters) for action in domain.actions])
-    if include_actions:
+    if config['include_actions'] or config['include_action_params']:
         for i in range(max_arity):
             #log.debug(f'Adding action parameter predicate {get_aparam_predicate_name(i)}')
             aparam_pred = get_aparam_predicate_name(i)
@@ -49,7 +49,7 @@ def _get_state_from_goal(goal_formula):
     return goal_state
 
 
-def construct_instance_info(vocabulary, domain, problem, problem_id, include_actions=False):
+def construct_instance_info(vocabulary, domain, problem, problem_id, config):
     instance = InstanceInfo(problem_id, vocabulary)
     map = dict()
     for object in problem.objects:
@@ -58,10 +58,14 @@ def construct_instance_info(vocabulary, domain, problem, problem_id, include_act
         map[predicate] = instance.add_atom(predicate.name, [str(t) for t in predicate.terms])
         goal_predicate = Predicate(f'{predicate.name}_G', *predicate.terms)
         map[goal_predicate] = instance.add_atom(goal_predicate.name, [str(t) for t in predicate.terms])
-    if include_actions:
+    if config['include_actions']:
         for action in ground(domain, problem):
             for i, param in enumerate(action.parameters):
-                map[get_aparam_predicate(action, i)] = instance.add_atom(get_aparam_predicate_name(i), [str(param)])
+                map[get_aparam_predicate(i, param)] = instance.add_atom(get_aparam_predicate_name(i), [str(param)])
+    if config['include_action_params']:
+        for action in ground(domain, problem):
+            for i, param in enumerate(action.parameters):
+                map[get_aparam_predicate(0, param)] = instance.add_atom(get_aparam_predicate_name(0), [str(param)])
     return instance, map
 
 
@@ -69,11 +73,19 @@ def get_goal_augmented_state(problem, state):
     return frozenset(state | _get_state_from_goal(problem.goal))
 
 
-def get_augmented_state(problem, state, config, action=None):
+def get_param_augmented_state(problem, state, param_index, param):
+    augmented_state = set(get_goal_augmented_state(problem, state))
+    augmented_state.add(get_aparam_predicate(0, param))  # Always use 0 as we do not need the index
+    #action_str = f'"{action.name}({",".join([str(p) for p in action.parameters])})"'
+    #log.debug(f'Generated augmented state (action={action_str}): [{", ".join([str(p) for p in augmented_state])}]')
+    return frozenset(augmented_state)
+
+
+def get_action_augmented_state(problem, state, config, action=None):
     assert not config['include_actions'] or action, 'Action must be provided when including actions'
     augmented_state = get_goal_augmented_state(problem, state)
     if config['include_actions']:
-        param_atoms = {get_aparam_predicate(action, i) for i, _ in enumerate(action.parameters)}
+        param_atoms = {get_aparam_predicate(i, action.parameters[i]) for i, _ in enumerate(action.parameters)}
         augmented_state |= param_atoms
     action_str = f'"{action.name}({",".join([str(p) for p in action.parameters])})"' if action else 'None'
     log.debug(f'Generated augmented state (action={action_str}): [{", ".join([str(p) for p in augmented_state])}]')
@@ -96,7 +108,7 @@ class FeaturePool:
         self.problems = {problem.name: problem for problem in problems}
         self.config = config
         self.problem_name_to_id = {problem.name: i for i, problem in enumerate(problems)}
-        vocabulary = construct_vocabulary_info(domain, include_actions=config['include_actions'])
+        vocabulary = construct_vocabulary_info(domain, config)
         log.debug(f'Constructed vocabulary: {vocabulary}')
         self.states = dict()
         self.node_id_to_state_ids = dict()
@@ -109,17 +121,16 @@ class FeaturePool:
         if not max_complexity:
             max_complexity = config['max_complexity']
         for problem in problems:
-            instance, mapping = construct_instance_info(vocabulary,
-                                                        domain,
-                                                        problem,
-                                                        self.problem_name_to_id[problem.name],
-                                                        include_actions=config['include_actions'])
+            instance, mapping = construct_instance_info(vocabulary, domain, problem,
+                                                        self.problem_name_to_id[problem.name], config)
             self.state_graphs[problem.name] = generate_state_space(domain, problem)
             self.instances[problem.name] = instance
             self.mappings[problem.name] = mapping
             for node in self.state_graphs[problem.name].nodes.values():
                 if config['include_actions']:
-                    self.node_to_augmented_state(problem, node)
+                    self.node_to_action_augmented_state(problem, node)
+                elif config['include_action_params']:
+                    self.node_to_param_augmented_state(problem, node)
                 if config['include_pristine_states']:
                     self.node_to_state(problem, node)
         factory = SyntacticElementFactory(vocabulary)
@@ -150,26 +161,41 @@ class FeaturePool:
         log.debug(f'generated roles: {", ".join(self.roles.keys())}')
         log.debug(f'generated features: {", ".join(self.features.keys())}')
 
-    def node_to_augmented_state(self, problem, node):
+    def node_to_action_augmented_state(self, problem, node):
         self.node_id_to_aug_state_ids.setdefault((self.problem_name_to_id[problem.name], node.id), dict())
         for action in node.children.keys():
+            fstate = get_action_augmented_state(problem, node.state, self.config, action)
             state_id = self.next_state_id
             self.next_state_id += 1
-            self.states[state_id] = State(state_id, self.instances[problem.name], [
-                self.mappings[problem.name][fact]
-                for fact in get_augmented_state(problem, node.state, self.config, action)
-            ])
-            self.node_id_to_aug_state_ids[(self.problem_name_to_id[problem.name], node.id)][action] = state_id
-            self.state_id_to_node[state_id] = node
+            self.states[fstate] = State(state_id, self.instances[problem.name],
+                                        [self.mappings[problem.name][fact] for fact in fstate])
+            self.node_id_to_aug_state_ids[(self.problem_name_to_id[problem.name], node.id)][action] = fstate
+            self.state_id_to_node.setdefault(fstate, []).append(node)
+
+    def node_to_param_augmented_state(self, problem, node):
+        self.node_id_to_aug_state_ids.setdefault((self.problem_name_to_id[problem.name], node.id), dict())
+        for action in node.children.keys():
+            self.node_id_to_aug_state_ids[(self.problem_name_to_id[problem.name], node.id)][action] = []
+            for i, param in enumerate(action.parameters):
+                fstate = get_param_augmented_state(problem, node.state, i, param)
+                if fstate not in self.states:
+                    state_id = self.next_state_id
+                    self.next_state_id += 1
+                    self.states[fstate] = State(state_id, self.instances[problem.name],
+                                                [self.mappings[problem.name][fact] for fact in fstate])
+                else:
+                    log.info('Found existing state')
+                self.node_id_to_aug_state_ids[(self.problem_name_to_id[problem.name], node.id)][action].append(fstate)
+                self.state_id_to_node.setdefault(fstate, []).append(node)
 
     def node_to_state(self, problem, node):
         state_id = self.next_state_id
         self.next_state_id += 1
-        self.states[state_id] = State(
-            state_id, self.instances[problem.name],
-            [self.mappings[problem.name][fact] for fact in get_goal_augmented_state(problem, node.state)])
-        self.node_id_to_state_ids[(self.problem_name_to_id[problem.name], node.id)] = state_id
-        self.state_id_to_node[state_id] = node
+        fstate = get_goal_augmented_state(problem, node.state)
+        self.states[fstate] = State(state_id, self.instances[problem.name],
+                                    [self.mappings[problem.name][fact] for fact in fstate])
+        self.node_id_to_state_ids[(self.problem_name_to_id[problem.name], node.id)] = fstate
+        self.state_id_to_node.setdefault(fstate, []).append(node)
 
     def generate_augmented_state_space(self, problem):
         return generate_state_space(self.domain, problem)
@@ -184,9 +210,10 @@ class FeaturePool:
         return self.evaluate_feature_from_problem(feature, problem, state, action)
 
     def get_augmented_dlplan_state(self, problem, state, action=None):
-        return State(
-            -1, self.instances[problem.name],
-            [self.mappings[problem.name][fact] for fact in get_augmented_state(problem, state, self.config, action)])
+        return State(-1, self.instances[problem.name], [
+            self.mappings[problem.name][fact]
+            for fact in get_action_augmented_state(problem, state, self.config, action)
+        ])
 
     def evaluate_feature_from_problem(self, feature, problem, state, action=None):
         feature = feature.strip('"')
@@ -257,9 +284,11 @@ class FeaturePool:
     def is_feature_informative(self, feature):
         has_false = False
         has_true = False
-        for state_id, state in self.states.items():
-            node = self.state_id_to_node[state_id]
-            if node.goal or node.alive != Alive.ALIVE and not self.config['include_dead_states']:
+        for fstate, state in self.states.items():
+            if all([
+                    node.goal or node.alive != Alive.ALIVE and not self.config['include_dead_states']
+                    for node in self.state_id_to_node[fstate]
+            ]):
                 continue
             eval = feature.evaluate(state)
             if eval:
@@ -290,8 +319,9 @@ class FeaturePool:
             clingo_program += f'goal({problem_id}, {node.id}).\n'
         if self.config['include_actions']:
             for action, aug_state in self.node_id_to_aug_state_ids[(problem_id, node.id)].items():
+                aug_state_id = self.states[aug_state].get_index()
                 action_str = f'"{action.name}({",".join([str(p) for p in action.parameters])})"'
-                clingo_program += f'aug_state({problem_id}, {node.id}, {action_str}, {aug_state}).\n'
+                clingo_program += f'aug_state({problem_id}, {node.id}, {action_str}, {aug_state_id}).\n'
                 for feature_str, feature in self.features.items():
                     if feature_str in stats['uninformative_features']:
                         stats['num_skipped_feature_evals'] += 1
@@ -300,8 +330,24 @@ class FeaturePool:
                     eval = feature.evaluate(self.states[aug_state])
                     if type(eval) is bool:
                         eval = 1 if eval else 0
-                    clingo_program += f'eval({aug_state}, {feature_str}, {eval}).\n'
+                    clingo_program += f'eval({aug_state_id}, {feature_str}, {eval}).\n'
                     stats['num_feature_evals'] += 1
+        if self.config['include_action_params']:
+            for action, aug_states in self.node_id_to_aug_state_ids[(problem_id, node.id)].items():
+                action_str = f'"{action.name}({",".join([str(p) for p in action.parameters])})"'
+                for i, aug_state in enumerate(aug_states):
+                    aug_state_id = self.states[aug_state].get_index()
+                    clingo_program += f'aug_state({problem_id}, {node.id}, {action_str}, {i}, {aug_state_id}).\n'
+                    for feature_str, feature in self.features.items():
+                        if feature_str in stats['uninformative_features']:
+                            stats['num_skipped_feature_evals'] += 1
+                            continue
+                        feature_str = f'"{feature_str}"'
+                        eval = feature.evaluate(self.states[aug_state])
+                        if type(eval) is bool:
+                            eval = 1 if eval else 0
+                        clingo_program += f'eval({aug_state_id}, {feature_str}, {eval}).\n'
+                        stats['num_feature_evals'] += 1
         if self.config['include_pristine_states']:
             for feature_str, feature in self.features.items():
                 if feature_str in stats['uninformative_features']:

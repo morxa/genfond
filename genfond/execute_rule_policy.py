@@ -1,6 +1,6 @@
 from .policy import Effect, PolicyType
 from .generate_rule_policy import feature_eval_to_cond
-from .feature_generator import construct_vocabulary_info, construct_instance_info, get_augmented_state, _get_state_from_goal
+from .feature_generator import construct_vocabulary_info, construct_instance_info, get_action_augmented_state, _get_state_from_goal
 from .ground import ground
 from dlplan.core import SyntacticElementFactory, State
 from .state_space_generator import check_formula, apply_action_effects
@@ -13,8 +13,9 @@ log = logging.getLogger(__name__)
 
 def eval_state(instance, mapping, features, domain, problem, state, config, action=None):
     try:
-        fstate = State(-1, instance,
-                       [mapping[predicate] for predicate in get_augmented_state(problem, state, config, action)])
+        fstate = State(
+            -1, instance,
+            [mapping[predicate] for predicate in get_action_augmented_state(problem, state, config, action)])
     except KeyError as e:
         log.critical(f'Cannot find predicate in mapping {"\n".join(f"{k}: {v}" for k, v in mapping.items())}: {e}')
         raise

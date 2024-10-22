@@ -15,6 +15,7 @@ DEFAULT_CONFIG = {
     'include_concepts': False,
     'include_roles': False,
     'include_actions': False,
+    'include_action_params': False,
     'include_pristine_states': True,
     'include_dead_states': True,
     'preset_features': None,
