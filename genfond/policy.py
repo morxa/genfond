@@ -25,7 +25,9 @@ class PolicyType(Enum):
     DATALOG = 3
 
 
-def cond_to_str(feature, val):
+def cond_to_str(feature, val, param_sub=None):
+    if param_sub:
+        feature = feature.replace('c_primitive(aparam0,0)', param_sub)
     if val == Cond.TRUE:
         return f'{feature}'
     elif val == Cond.FALSE:

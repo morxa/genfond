@@ -6,6 +6,7 @@ from frozendict import frozendict
 log = logging.getLogger(__name__)
 
 ACTION_REGEX = r'^([^(]+)\(([^(]*)\)$'
+RULE_VARS = ['P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z']
 
 
 def split_action_string(action):
@@ -75,7 +76,7 @@ class DatalogPolicyRule:
 
     def __repr__(self):
         state_conds = [cond_to_str(cond, val) for cond, val in self.conds.items()]
-        aug_state_conds = [cond_to_str(cond, val) for cond, val in self.aug_conds.items()]
+        aug_state_conds = [cond_to_str(cond, val[1], RULE_VARS[val[0]]) for cond, val in self.aug_conds.items()]
         state_conds.sort()
         concept_conds = []
         roles_conds = []
@@ -88,11 +89,11 @@ class DatalogPolicyRule:
         diff_conds = []
         for feature, param1, param2, diff in self.diff_conds:
             if diff == 1:
-                diff_conds.append(f'{feature}({param1},{param2}) > 0')
+                diff_conds.append(f'{feature}({RULE_VARS[param1]},{RULE_VARS[param2]}) > 0')
             elif diff == -1:
-                diff_conds.append(f'{feature}({param1},{param2}) < 0')
+                diff_conds.append(f'{feature}({RULE_VARS[param1]},{RULE_VARS[param2]}) < 0')
             elif diff == 0:
-                diff_conds.append(f'{feature}({param1},{param2}) = 0')
+                diff_conds.append(f'{feature}({RULE_VARS[param1]},{RULE_VARS[param2]}) = 0')
             else:
                 raise ValueError(f'Invalid diff value: {diff}')
         diff_conds.sort()
