@@ -23,17 +23,26 @@ def split_action_string(action):
 
 class DatalogPolicyRule:
 
-    def __init__(self, head, concepts=None, roles=None, conds=None, aug_conds=None, diff_conds=None):
+    def __init__(self,
+                 head,
+                 concepts=None,
+                 roles=None,
+                 conds=None,
+                 state_aug_conds=None,
+                 param_aug_conds=None,
+                 param_diff_conds=None):
         if not concepts:
             concepts = []
         if not roles:
             roles = []
         if not conds:
             conds = []
-        if not aug_conds:
-            aug_conds = []
-        if not diff_conds:
-            diff_conds = []
+        if not state_aug_conds:
+            state_aug_conds = []
+        if not param_aug_conds:
+            param_aug_conds = []
+        if not param_diff_conds:
+            param_diff_conds = []
         self.name, self.parameters = split_action_string(head)
         concepts_by_parameter = {name: [] for name in self.parameters}
         roles_by_parameter = {}
@@ -50,8 +59,9 @@ class DatalogPolicyRule:
         self.concepts_by_parameter = {name: frozenset(concepts) for name, concepts in concepts_by_parameter.items()}
         self.roles_by_parameter = {params: frozenset(roles) for params, roles in roles_by_parameter.items()}
         self.conds = frozendict(conds)
-        self.aug_conds = frozendict(aug_conds)
-        self.diff_conds = diff_conds
+        self.state_aug_conds = frozendict(state_aug_conds)
+        self.param_aug_conds = frozendict(param_aug_conds)
+        self.param_diff_conds = frozenset(param_diff_conds)
 
     def __eq__(self, other):
         if self.name != other.name:
@@ -60,9 +70,11 @@ class DatalogPolicyRule:
             return False
         if self.conds != other.conds:
             return False
-        if self.aug_conds != other.aug_conds:
+        if self.state_aug_conds != other.state_aug_conds:
             return False
-        if self.diff_conds != other.diff_conds:
+        if self.param_aug_conds != other.param_aug_conds:
+            return False
+        if self.param_diff_conds != other.param_diff_conds:
             return False
         for p_self, p_other in zip(self.parameters, other.parameters):
             if self.concepts_by_parameter[p_self] != other.concepts_by_parameter[p_other]:
@@ -75,29 +87,34 @@ class DatalogPolicyRule:
         return True
 
     def __repr__(self):
-        state_conds = [cond_to_str(cond, val) for cond, val in self.conds.items()]
-        aug_state_conds = [cond_to_str(cond, val[1], RULE_VARS[val[0]]) for cond, val in self.aug_conds.items()]
-        state_conds.sort()
-        concept_conds = []
-        roles_conds = []
+        state_cond_strs = [cond_to_str(cond, val) for cond, val in self.conds.items()]
+        state_cond_strs.sort()
+        state_aug_cond_strs = [cond_to_str(cond, val) for cond, val in self.state_aug_conds.items()]
+        state_aug_cond_strs.sort()
+        param_aug_cond_strs = [
+            cond_to_str(cond, val[1], RULE_VARS[val[0]]) for cond, val in self.param_aug_conds.items()
+        ]
+        param_aug_cond_strs.sort()
+        concept_cond_strs = []
+        roles_cond_strs = []
         for parameter, concepts in self.concepts_by_parameter.items():
-            concept_conds.extend([f'{parameter} ∊ {concept}' for concept in concepts])
-        concept_conds.sort()
+            concept_cond_strs.extend([f'{parameter} ∊ {concept}' for concept in concepts])
+        concept_cond_strs.sort()
         for parameters, roles in self.roles_by_parameter.items():
-            roles_conds.extend([f'{parameters[0]} {role} {parameters[1]}' for role in roles])
-        roles_conds.sort()
-        diff_conds = []
-        for feature, param1, param2, diff in self.diff_conds:
+            roles_cond_strs.extend([f'{parameters[0]} {role} {parameters[1]}' for role in roles])
+        roles_cond_strs.sort()
+        diff_cond_strs = []
+        for feature, param1, param2, diff in self.param_diff_conds:
             if diff == 1:
-                diff_conds.append(f'{feature}({RULE_VARS[param1]},{RULE_VARS[param2]}) > 0')
+                diff_cond_strs.append(f'{feature}({RULE_VARS[param1]},{RULE_VARS[param2]}) > 0')
             elif diff == -1:
-                diff_conds.append(f'{feature}({RULE_VARS[param1]},{RULE_VARS[param2]}) < 0')
+                diff_cond_strs.append(f'{feature}({RULE_VARS[param1]},{RULE_VARS[param2]}) < 0')
             elif diff == 0:
-                diff_conds.append(f'{feature}({RULE_VARS[param1]},{RULE_VARS[param2]}) = 0')
+                diff_cond_strs.append(f'{feature}({RULE_VARS[param1]},{RULE_VARS[param2]}) = 0')
             else:
                 raise ValueError(f'Invalid diff value: {diff}')
-        diff_conds.sort()
-        conds = state_conds + aug_state_conds + concept_conds + roles_conds + diff_conds
+        diff_cond_strs.sort()
+        conds = state_cond_strs + state_aug_cond_strs + concept_cond_strs + roles_cond_strs + diff_cond_strs
         return f'{self.name}({', '.join(self.parameters)}){f" :- {', '.join(conds)}" if conds else ""}.'
 
     def __hash__(self):
@@ -105,7 +122,9 @@ class DatalogPolicyRule:
             self.name,
             len(self.parameters),
             self.conds,
-            self.aug_conds,
+            self.state_aug_conds,
+            self.param_aug_conds,
+            self.param_diff_conds,
             *tuple(self.concepts_by_parameter[p] for p in self.parameters),
             *tuple((params, roles) for params, roles in self.roles_by_parameter.items()),
         ))

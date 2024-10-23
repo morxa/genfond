@@ -36,7 +36,10 @@ def execute_datalog_policy(domain, problem, datalog_policy, config):
     roles = dict()
     features = dict()
     for rule in datalog_policy.rules:
-        for cond, _ in (rule.conds | rule.aug_conds | {cond[0]: None for cond in rule.diff_conds}).items():
+        for cond, _ in (rule.conds | rule.state_aug_conds | rule.param_aug_conds | {
+                cond[0]: None
+                for cond in rule.param_diff_conds
+        }).items():
             if cond.startswith('b_'):
                 features[cond] = factory.parse_boolean(cond)
             elif cond.startswith('n_'):
@@ -127,35 +130,31 @@ def execute_datalog_policy(domain, problem, datalog_policy, config):
                 action = grounded_action
                 # aug_state = get_augmented_state(problem, state, config, action)
 
-                if config['include_actions']:
-                    for cond, val in rule.aug_conds.items():
-                        aug_bool_eval = bool_eval_state(instance, mapping, features, domain, problem, state, config,
-                                                        action)
-                        if aug_bool_eval[cond] != val:
-                            log.debug(f'... Rule not applicable! Augmented state does not satisfy condition {cond}'
-                                      f'(valuation is {aug_bool_eval[cond]} instead of {val})')
-                            action = None
-                            continue
-                elif config['include_action_params']:
-                    for cond, pval in rule.aug_conds.items():
-                        param_index, val = pval
-                        param = action.parameters[param_index]
-                        aug_fstate = get_param_augmented_state(problem, state, param_index, param)
-                        aug_state = State(-1, instance, [mapping[fact] for fact in aug_fstate])
-                        eval = feature_eval_to_cond(cond, features[cond].evaluate(aug_state))
-                        if eval != val:
-                            log.debug('... Rule not applicable! '
-                                      f'Augmented state [{", ".join([str(f) for f in aug_fstate])}] '
-                                      'does not satisfy condition {cond} on {param}'
-                                      f' (valuation is {eval} instead of {val})')
-                            action = None
-                            break
-                else:
-                    raise TypeError('Invalid config: rule has augmented conditions but config does not include them')
+                for cond, val in rule.state_aug_conds.items():
+                    aug_bool_eval = bool_eval_state(instance, mapping, features, domain, problem, state, config,
+                                                    action)
+                    if aug_bool_eval[cond] != val:
+                        log.debug(f'... Rule not applicable! Augmented state does not satisfy condition {cond}'
+                                  f'(valuation is {aug_bool_eval[cond]} instead of {val})')
+                        action = None
+                        break
+                for cond, pval in rule.param_aug_conds.items():
+                    param_index, val = pval
+                    param = action.parameters[param_index]
+                    aug_fstate = get_param_augmented_state(problem, state, param_index, param)
+                    aug_state = State(-1, instance, [mapping[fact] for fact in aug_fstate])
+                    eval = feature_eval_to_cond(cond, features[cond].evaluate(aug_state))
+                    if eval != val:
+                        log.debug('... Rule not applicable! '
+                                  f'Augmented state [{", ".join([str(f) for f in aug_fstate])}] '
+                                  'does not satisfy condition {cond} on {param}'
+                                  f' (valuation is {eval} instead of {val})')
+                        action = None
+                        break
                 if not action:
                     continue
-                log.debug(f'... Checking {len(rule.diff_conds)} diff conditions')
-                for feature, param1, param2, diff in rule.diff_conds:
+                log.debug(f'... Checking {len(rule.param_diff_conds)} diff conditions')
+                for feature, param1, param2, diff in rule.param_diff_conds:
                     log.info(f'Checking diff condition {feature}({param1},{param2})={diff}')
                     assert diff in [-1, 0, 1], f'Invalid diff value: {diff}'
                     aug_state1 = State(-1, instance, [

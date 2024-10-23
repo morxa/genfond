@@ -27,9 +27,9 @@ aug_dist(I1, S1, A1, I2, S2, A2, F) :- alive(I1, S1), alive(I2, S2), aug_state(I
 
 #minimize { Cost,F : selected(F), feature_complexity(F, Cost) }.
 
-#show aug_dist(I1, S1, A1, I2, S2, A2, F) : aug_dist(I1, S1, A1, I2, S2, A2, F), selected(F).
+#show state_aug_dist(I1, S1, A1, I2, S2, A2, F) : aug_dist(I1, S1, A1, I2, S2, A2, F), selected(F).
 #show good_action/3.
-#show aug_bool_eval(I, S, A, F, V) : aug_state(I, S, A, T), aug_bool_eval(T, F, V), selected(F).
+#show state_aug_bool_eval(I, S, A, F, V) : aug_state(I, S, A, T), aug_bool_eval(T, F, V), selected(F).
 %#show bool_eval(I, S, F, V) : alive(I, S), bool_eval(I, S, F, V), selected(F).
 %#show f_distinguished(I1, S1, I2, S2, F) : f_distinguished(I1, S1, I2, S2, F), selected(F).
 

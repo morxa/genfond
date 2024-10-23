@@ -32,7 +32,7 @@ dist(I1, S1, A1, I2, S2, A2, F) :- alive(I1, S1), alive(I2, S2), aname(A1, AName
 #show bool_eval(I, S, F, 1) : alive(I, S), eval(I, S, F, V), V > 0, selected(F).
 #show aug_bool_eval(I, S, A, P, F, 0) : alive(I, S), aug_state(I, S, A, P, T), aug_eval(T, F, 0), selected(F).
 #show aug_bool_eval(I, S, A, P, F, 1) : alive(I, S), aug_state(I, S, A, P, T), aug_eval(T, F, V), V > 0, selected(F).
-#show aug_fdist(I1, S1, A1, P, I2, S2, A2, F) : aug_fdist(I1, S1, A1, P, I2, S2, A2, F), selected(F).
+#show param_aug_dist(I1, S1, A1, P, I2, S2, A2, F) : aug_fdist(I1, S1, A1, P, I2, S2, A2, F), selected(F).
 #show f_distinguished(I1, S1, I2, S2, F) : fdist(I1, S1, I2, S2, F), selected(F).
 %#show f_distinguished(I2, S2, I1, S1, F) : fdist(I1, S1, I2, S2, F), selected(F).
 #show good_trans/4.
