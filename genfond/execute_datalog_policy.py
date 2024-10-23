@@ -51,11 +51,17 @@ def execute_datalog_policy(domain, problem, datalog_policy, config):
                 roles[role] = factory.parse_role(role)
 
     state = problem.init
+    seen_states = []
     goal_state = _get_state_from_goal(problem.goal)
     num_steps = 0
     actions_taken = []
     max_steps = config['policy_steps']
     while not check_formula(state, problem.goal) and (max_steps <= 0 or num_steps < max_steps):
+        if config['abort_on_cycle']:
+            if state in seen_states:
+                log.error('Cycle detected!')
+                raise RuntimeError('Cycle detected!')
+            seen_states.append(state)
         log.debug('-' * 80)
         log.info(f'New state: {state_string(state)}')
         found_rule = False
