@@ -7,7 +7,7 @@ from .state_space_generator import apply_effects, generate_state_space, check_fo
 import logging
 import itertools
 
-log = logging.getLogger(__name__)
+log = logging.getLogger('genfond.feature_generation')
 
 MAX_ACTION_PARAMETERS = 4
 

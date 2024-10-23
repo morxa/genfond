@@ -3,7 +3,7 @@ import re
 from .policy import Cond, cond_to_str
 from frozendict import frozendict
 
-log = logging.getLogger(__name__)
+log = logging.getLogger('genfond.policy.datalog')
 
 ACTION_REGEX = r'^([^(]+)\(([^(]*)\)$'
 RULE_VARS = ['P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z']

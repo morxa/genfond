@@ -8,7 +8,7 @@ import random
 
 import logging
 
-log = logging.getLogger(__name__)
+log = logging.getLogger('genfond.execution.rule')
 
 
 def eval_state(instance, mapping, features, domain, problem, state, config, action=None):

@@ -9,7 +9,7 @@ from .ground import ground_action
 from .state_space_generator import check_formula, apply_action_effects
 from .generate_rule_policy import feature_eval_to_cond
 
-log = logging.getLogger(__name__)
+log = logging.getLogger('genfond.execution.datalog')
 
 
 def get_next_state(states):

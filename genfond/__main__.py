@@ -19,7 +19,7 @@ import itertools
 from filelock import FileLock
 import csv
 
-log = logging.getLogger(__name__)
+log = logging.getLogger('genfond')
 
 
 def solve(
@@ -146,17 +146,12 @@ def main():
     args = parser.parse_args()
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO,
                         format='%(asctime)s %(levelname)-8s %(message)s')
-    logging.getLogger('genfond.generate_rule_policy').setLevel(logging.ERROR)
-    if not args.verbose:
-        logging.getLogger('genfond.execute_policy').setLevel(logging.CRITICAL)
-        logging.getLogger('genfond.execute_datalog_policy').setLevel(logging.CRITICAL)
-        logging.getLogger('genfond.execute_rule_policy').setLevel(logging.CRITICAL)
-    else:
-        logging.getLogger('genfond.execute_policy').setLevel(logging.WARN)
-        logging.getLogger('genfond.execute_datalog_policy').setLevel(logging.WARN)
-        logging.getLogger('genfond.execute_rule_policy').setLevel(logging.WARN)
     signal.signal(signal.SIGINT, signal_handler)
     config = ConfigHandler(args.config, args.type, vars(args))
+    for component, loglevel in config['log'].items():
+        component = f'genfond.{component}'
+        log.info(f'Setting log level for {component} to {loglevel}')
+        logging.getLogger(component).setLevel(loglevel)
     if config['max_memory']:
         _, hard = resource.getrlimit(resource.RLIMIT_AS)
         resource.setrlimit(resource.RLIMIT_AS, (config['max_memory'] * 1024 * 1024, hard))

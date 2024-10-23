@@ -3,7 +3,7 @@ from genfond.datalog_policy import DatalogPolicyRule, DatalogPolicy, split_actio
 from genfond.policy import Cond, Effect
 import logging
 
-log = logging.getLogger(__name__)
+log = logging.getLogger('genfond.generation.datalog')
 
 
 def eval_to_cond(f, v):

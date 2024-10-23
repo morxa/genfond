@@ -1,7 +1,7 @@
 from .policy import Policy, PolicyRule, Cond, Effect, PolicyType, StateConstraint
 import logging
 
-log = logging.getLogger(__name__)
+log = logging.getLogger('genfond.generation.rule')
 
 
 def trans_deltas_to_effects(instance, state, trans_deltas):
