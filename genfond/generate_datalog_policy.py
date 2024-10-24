@@ -27,7 +27,7 @@ def eval_to_cond(f, v):
 
 def generate_datalog_policy(solution):
     log.info(
-        f'Generating policy from solution with {len(solution["good_action"])}/{len(solution["trans"])} good actions,'
+        f'Generating policy from solution with {len(solution["good_action"])}/{len(solution.get("trans", []) or "?")} good actions,'
         f' {len(solution.get("f_distinguished", []))} distinguished features,'
         f' {len(solution.get("c_distinguished", []))} distinguished concepts,'
         f' {len(solution.get("r_distinguished", []))} distinguished roles')
