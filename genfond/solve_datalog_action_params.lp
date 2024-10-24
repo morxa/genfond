@@ -3,7 +3,7 @@
 { selected(F) } :- feature(F).
 
 safe_state(I, S) :- goal(I, S).
-safe_state(I, S1) :- alive(I, S1), safe_state(I, S2) : good_trans(I, S1, _, S2).
+safe_state(I, S1) :- alive(I, S1), good_trans(I, S1, _, _), safe_state(I, S2) : good_trans(I, S1, _, S2).
 :- alive(I, S), not safe_state(I, S).
 
 1 { good_trans(I, S1, A, S2) : trans(I, S1, A, S2), alive(I, S2) } :- alive(I, S1), not goal(I, S1).
