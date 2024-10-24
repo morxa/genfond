@@ -36,6 +36,9 @@ aug_d2(I1, S1, A1, P1, P2, I2, S2, A2, F) :- alive(I1, S1), alive(I2, S2), aname
 #show f_distinguished(I1, S1, I2, S2, F) : fdist(I1, S1, I2, S2, F), selected(F).
 %#show f_distinguished(I2, S2, I1, S1, F) : fdist(I1, S1, I2, S2, F), selected(F).
 #show good_trans/4.
+#show trans/4.
+#show safe_state/2.
+#show goal/2.
 #show good_action(I, S, A) : good_trans(I, S, A, _).
 
 #minimize { C,F : selected(F), feature_complexity(F, C) }.

@@ -26,10 +26,14 @@ def eval_to_cond(f, v):
 
 
 def generate_datalog_policy(solution):
-    log.info(f'Generating policy from solution with {len(solution["good_action"])} good actions,'
-             f' {len(solution.get("f_distinguished", []))} distinguished features,'
-             f' {len(solution.get("c_distinguished", []))} distinguished concepts,'
-             f' {len(solution.get("r_distinguished", []))} distinguished roles')
+    log.info(
+        f'Generating policy from solution with {len(solution["good_action"])}/{len(solution["trans"])} good actions,'
+        f' {len(solution.get("f_distinguished", []))} distinguished features,'
+        f' {len(solution.get("c_distinguished", []))} distinguished concepts,'
+        f' {len(solution.get("r_distinguished", []))} distinguished roles')
+    log.debug(f'goals: {solution.get("goal", [])}')
+    log.debug(f'safe states: {sorted(solution.get("safe_state", []))}')
+    log.debug(f'good_trans: {sorted(solution.get("good_trans", []))}')
     args_to_vars = dict()
     conds = dict()
     for instance, state, action in solution['good_action']:
