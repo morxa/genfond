@@ -155,7 +155,7 @@ def execute_datalog_policy(domain, problem, datalog_policy, config):
                     continue
                 log.debug(f'... Checking {len(rule.param_diff_conds)} diff conditions')
                 for feature, param1, param2, diff in rule.param_diff_conds:
-                    log.info(f'Checking diff condition {feature}({param1},{param2})={diff}')
+                    log.debug(f'Checking diff condition {feature}({param1},{param2})={diff}')
                     assert diff in [-1, 0, 1], f'Invalid diff value: {diff}'
                     aug_state1 = State(-1, instance, [
                         mapping[fact]
@@ -185,7 +185,8 @@ def execute_datalog_policy(domain, problem, datalog_policy, config):
                 log.debug(f'... Rule not applicable! No matching action found!')
                 continue
 
-            log.info(f'... Found action {action_string(action)}  matching rule {i}: {rule}')
+            log.info(f'... Found action {action_string(action)}  matching rule {i}:')
+            log.info(f'{rule}')
             log.info(f'Applying action {action_string(action)}')
             found_rule = True
             state = get_next_state(apply_action_effects(state, action))
