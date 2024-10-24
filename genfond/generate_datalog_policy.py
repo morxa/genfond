@@ -58,10 +58,10 @@ def generate_datalog_policy(solution):
         dist_features.setdefault((instance, state), []).append(feature)
     for instance, state, action, _, _, _, feature in solution.get('state_aug_dist', []):
         state_aug_dist_features.setdefault((instance, state, action), []).append(feature)
-    for instance, state, action, param, _, _, _, feature in solution.get('param_aug_dist', []):
+    for instance, state, action, param, feature in solution.get('param_aug_dist', []):
         param_aug_dist_features.setdefault((instance, state, action), []).append((feature, param))
     diff_conds = dict()
-    for instance, state, action, param1, param2, feature, diff in solution.get(f'fdiff', []):
+    for instance, state, action, param1, param2, feature, diff in solution.get(f'aug_d2', []):
         diff_conds.setdefault((instance, state, action), []).append((feature, param1, param2, diff))
     state_conds = dict()
     for instance, state, action in solution['good_action']:
@@ -79,11 +79,11 @@ def generate_datalog_policy(solution):
             state_aug_cond[f] = eval_to_cond(f, v)
         for f, p in param_aug_dist_features.get((instance, state, action), []):
             v = aug_bool_eval_dict[(instance, state, action, p, f)]
-            log.debug(f'Adding augmented condition {f}={v} for param {p}')
+            log.debug(f'({instance}, {state}, {action}): Adding augmented condition {f}={v} for param {p}')
             param_aug_cond[f] = (p, eval_to_cond(f, v))
         diff_cond = []
         for f, param1, param2, v in diff_conds.get((instance, state, action), []):
-            log.debug(f'Adding diff condition {f}({param1},{param2})={v}')
+            log.debug(f'({instance}, {state}, {action}): Adding diff condition {f}({param1},{param2})={v}')
             diff_cond.append((f, param1, param2, v))
         conds[(instance, state, action)] = {
             'concepts': [],
