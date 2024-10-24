@@ -159,24 +159,23 @@ def generate_state_space(domain, problem):
     return StateSpaceGraph(domain, problem)
 
 
-def can_reach_goal(node, goal_nodes, seen=None):
-    if not seen:
-        seen = []
-    if node in goal_nodes:
-        return True
-    if node.alive == Alive.DEAD:
-        return False
-    if node.alive == Alive.ALIVE:
-        return True
-    if node in seen:
-        return False
-    seen.append(node)
-    for children in node.children.values():
-        if any(child.alive == Alive.DEAD for child in children):
+def can_reach_goal(node, goal_nodes):
+    seen = set()
+    stack = [node]
+    while stack:
+        current_node = stack.pop()
+        if current_node in goal_nodes:
+            return True
+        if current_node.alive == Alive.DEAD:
             continue
-        for child in children:
-            if can_reach_goal(child, goal_nodes, seen):
-                return True
+        if current_node.alive == Alive.ALIVE:
+            return True
+        if current_node in seen:
+            continue
+        seen.add(current_node)
+        for children in current_node.children.values():
+            if all(child.alive != Alive.DEAD for child in children):
+                stack.extend(children)
     return False
 
 
