@@ -122,6 +122,7 @@ def main():
     parser.add_argument('-v', '--verbose', action='store_true')
     parser.add_argument('--stats', help='file to dump stats to')
     parser.add_argument('--config', type=argparse.FileType('r'), help='config file for parameters')
+    parser.add_argument('--dump-config', action='store_true', help='dump config to stdout and exit')
     parser.add_argument('--type',
                         choices=['exact', 'state', 'trans', 'datalog'],
                         default='state',
@@ -148,6 +149,9 @@ def main():
                         format='%(asctime)s %(levelname)-8s %(message)s')
     signal.signal(signal.SIGINT, signal_handler)
     config = ConfigHandler(args.config, args.type, vars(args))
+    if args.dump_config:
+        print(config.dump())
+        sys.exit(0)
     for component, loglevel in config['log'].items():
         component = f'genfond.{component}'
         log.info(f'Setting log level for {component} to {loglevel}')

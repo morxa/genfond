@@ -94,3 +94,8 @@ class ConfigHandler(dict):
         if override:
             # Only override values that are already in the config that have been set to a non-None value
             mergedeep.merge(self, {k: v for k, v in override.items() if k in self and v is not None})
+
+    def dump(self):
+        dump = dict()
+        mergedeep.merge(dump, self)
+        return yaml.dump(dump, default_flow_style=False)
