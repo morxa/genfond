@@ -31,6 +31,7 @@ def solve(
     max_cost=None,
     all_generators=True,
     enforce_highest_complexity=False,
+    dump_clingo_program=None,
 ):
     stats = dict()
     log.debug('Generating feature pool ...')
@@ -45,6 +46,9 @@ def solve(
     log.debug('Generating ASP instance ...')
     asp_instance = feature_pool.to_clingo()
     log.debug(f'ASP instance:\n{asp_instance}')
+    if dump_clingo_program:
+        with open(dump_clingo_program, 'w') as f:
+            f.write(asp_instance)
     state_counts = [len(sg.nodes) for sg in feature_pool.state_graphs.values()]
     edge_counts = [len(node.children) for sg in feature_pool.state_graphs.values() for node in sg.nodes.values()]
     stats['numStates'] = sum(state_counts)
@@ -104,7 +108,7 @@ def main():
     parser.add_argument('-v', '--verbose', action='store_true')
     parser.add_argument('--stats', help='file to dump stats to')
     parser.add_argument('--config', type=argparse.FileType('r'), help='config file for parameters')
-    parser.add_argument('--dump-config', action='store_true', help='dump config to stdout and exit')
+    parser.add_argument('--dump-clingo-program', help='dump clingo program to file')
     parser.add_argument('--type', choices=DEFAULT_TYPE_CONFIGS.keys(), help='generate policies of the given type')
     config_args = parser.add_argument_group('config', 'Overwrite config parameters')
     config_args.add_argument('--min-complexity', type=int, help='start policy search with this max complexity')
@@ -163,7 +167,12 @@ def main():
     failure_reason = ''
     queue.sort(key=lambda p: len(p.objects))
     if args.one_shot:
-        solution = solve(domain, problems, config=config, complexity=config['max_complexity'], all_generators=False)
+        solution = solve(domain,
+                         problems,
+                         config=config,
+                         complexity=config['max_complexity'],
+                         all_generators=False,
+                         dump_clingo_program=args.dump_clingo_program)
         if solution:
             policy, stats = solution
         else:
@@ -204,6 +213,7 @@ def main():
                     all_generators=all_generators,
                     max_cost=new_policy.cost[0] - 1 if new_policy else None,
                     enforce_highest_complexity=True if i > last_complexity else False,
+                    dump_clingo_program=args.dump_clingo_program,
                 )
             except (RuntimeError, MemoryError) as e:
                 if 'Id out of range' in str(e):
