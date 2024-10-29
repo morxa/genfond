@@ -6,7 +6,7 @@ from genfond.rule_policy import Policy
 from genfond.datalog_policy import DatalogPolicy
 from genfond.generate_policy import generate_policy
 from genfond.execute_policy import execute_policy
-from genfond.config_handler import ConfigHandler
+from genfond.config_handler import ConfigHandler, DEFAULT_TYPE_CONFIGS
 import logging
 import sys
 import pddl
@@ -104,9 +104,7 @@ def main():
     parser.add_argument('--stats', help='file to dump stats to')
     parser.add_argument('--config', type=argparse.FileType('r'), help='config file for parameters')
     parser.add_argument('--dump-config', action='store_true', help='dump config to stdout and exit')
-    parser.add_argument('--type',
-                        choices=['exact', 'state', 'trans', 'datalog', 'datalog-actions', 'datalog-action-params'],
-                        help='generate policies of the given type')
+    parser.add_argument('--type', choices=DEFAULT_TYPE_CONFIGS.keys(), help='generate policies of the given type')
     config_args = parser.add_argument_group('config', 'Overwrite config parameters')
     config_args.add_argument('--min-complexity', type=int, help='start policy search with this max complexity')
     config_args.add_argument('--max-complexity', type=int, help='stop policy search with this max complexity')
