@@ -21,11 +21,10 @@ safe_state(I, S1) :- alive(I, S1), good_trans(I, S1, _), safe_state(I, S2) : goo
 
 #minimize { C,F : selected(F), feature_complexity(F, C) }.
 
-#show good_trans/3.
+#show good_action(I, S1, A) : good_trans(I, S1, S2), trans(I, S1, A, S2).
 #show selected/1.
-#show state/2.
 #show bool_eval(I, S, F, V) : bool_eval(I, S, F, V), selected(F).
-#show good_trans_delta(I, S1, S2, F, D) : trans_delta(I, S1, S2, F, D), selected(F).
+#show good_trans_delta(I, S1, A, S2, F, D) : good_trans(I, S1, S2), trans_delta(I, S1, S2, F, D), selected(F), trans(I, S1, A, S2).
 
 #program limit_feature_cost(c).
 :- #sum { C,F : selected(F), feature_complexity(F, C) } > c.

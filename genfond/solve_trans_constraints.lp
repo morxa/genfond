@@ -12,4 +12,5 @@ bad_trans(I, S1, S2) :- bad_trans(I, S1, _, S2).
 bad_trans_delta(I, S1, S2, F, D) :- bad_trans(I, S1, S2), selected(F), trans_delta(I, S1, S2, F, D).
 
 #show bad_trans/3.
-#show bad_trans_delta/5.
+#show bad_action(I, S1, A): trans(I, S1, A, S2), bad_trans(I, S1, S2).
+#show bad_trans_delta(I, S1, A, S2, F, D) : bad_trans(I, S1, S2), selected(F), trans_delta(I, S1, S2, F, D), trans(I, S1, A, S2).

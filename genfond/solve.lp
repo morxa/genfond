@@ -4,8 +4,6 @@ trans_delta(I, S1, A, S2, F, 0) :-  trans(I, S1, A, S2), eval(I, S1, F, V), eval
 trans_delta(I, S1, A, S2, F, 1) :-  trans(I, S1, A, S2), eval(I, S1, F, V1), eval(I, S2, F, V2), V2 > V1.
 trans_delta(I, S1, S2, F, D) :- trans_delta(I, S1, _, S2, F, D).
 
-good_trans_delta(I, S1, S2, F, D) :- good_trans(I, S1, S2), selected(F), trans_delta(I, S1, S2, F, D).
-
 % Select good actions among the possible transition.
 % Select at least one for each alive non-goal state.
 1 { good_action(I, S, A) : trans(I, S, A, _) } :- alive(I, S), not goal(I, S).
@@ -37,11 +35,10 @@ safe_state(I, S) :- alive(I, S), safe_action(I, S, A) : good_action(I, S, A).
 #minimize { C@3,F : selected(F), feature_complexity(F, C) }.
 
 #show good_trans/3.
+#show good_action/3.
 #show selected/1.
-#show state/2.
 #show bool_eval(I, S, F, V) : bool_eval(I, S, F, V), selected(F).
-#show trans_delta(I, S1, S2, F, D) : trans_delta(I, S1, A, S2, F, D), selected(F).
-#show good_trans_delta/5.
+#show good_trans_delta(I, S1, A, S2, F, D) : good_trans(I, S1, S2), selected(F), trans_delta(I, S1, S2, F, D), trans(I, S1, A, S2).
 
 #program limit_feature_cost(c).
 :- #sum { C,F : selected(F), feature_complexity(F, C) } > c.

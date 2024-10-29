@@ -32,7 +32,7 @@ def test_solver_choose_good_trans():
     assert solver.solve()
     assert solver.solution['good_trans'] == {(0, 0, 2)}
     assert solver.solution['selected'] == {'g'}
-    assert solver.solution['trans_delta'] == {(0, 0, 1, 'g', 0), (0, 0, 2, 'g', 1)}
+    assert solver.solution['good_trans_delta'] == {(0, 0, 'b', 2, 'g', 1)}
 
 
 def test_solver_two_conflicting_actions():
@@ -85,10 +85,18 @@ def test_solver_two_conflicting_actions():
     assert solver.solve()
     assert solver.solution['good_trans'] == {(0, 0, 0), (0, 0, 1), (0, 1, 3), (0, 3, 4)}
     assert solver.solution['selected'] == {'f', 'g'}
-    assert solver.solution['trans_delta'] == {(0, 0, 0, 'f', 0), (0, 0, 0, 'g', 0), (0, 0, 1, 'f', 1), (0, 0, 1, 'g',
-                                                                                                        0),
-                                              (0, 0, 2, 'f', 1), (0, 0, 2, 'g', 0), (0, 1, 3, 'f', 1),
-                                              (0, 1, 3, 'g', 0), (0, 3, 4, 'f', 1), (0, 3, 4, 'g', 1)}
+    assert solver.solution['good_trans_delta'] == {
+        (0, 0, 'a', 0, 'f', 0),
+        (0, 0, 'a', 0, 'g', 0),
+        (0, 0, 'a', 1, 'f', 1),
+        (0, 0, 'a', 1, 'g', 0),
+        (0, 0, 'b', 1, 'f', 1),
+        (0, 0, 'b', 1, 'g', 0),
+        (0, 1, 'c', 3, 'f', 1),
+        (0, 1, 'c', 3, 'g', 0),
+        (0, 3, 'd', 4, 'f', 1),
+        (0, 3, 'd', 4, 'g', 1),
+    }
 
 
 def test_solver_feature_selection():
@@ -154,7 +162,7 @@ def test_solver_equiv():
     assert solver.solve()
     assert solver.solution['selected'] == {'f'}
     assert solver.solution['good_trans'] == {(0, 0, 1), (1, 0, 1)}
-    assert solver.solution['trans_delta'] == {(0, 0, 1, 'f', 1), (1, 0, 1, 'f', 1)}
+    assert solver.solution['good_trans_delta'] == {(0, 0, 'a', 1, 'f', 1), (1, 0, 'b', 1, 'f', 1)}
 
 
 def test_solver_equiv2(program_with_nontriv_equiv):
@@ -255,8 +263,14 @@ def test_solver_bool_equiv2(simple_program):
 def test_solver_generate_policy(simple_program):
     solver = Solver(simple_program)
     assert solver.solve()
-    assert solver.solution['good_trans_delta'] == {(0, 0, 1, 'b_g', 0), (0, 0, 1, 'b_h', 0), (0, 1, 3, 'b_g', 0),
-                                                   (0, 1, 3, 'b_h', 0), (0, 3, 4, 'b_g', 0), (0, 3, 4, 'b_h', 1)}
+    assert solver.solution['good_trans_delta'] == {
+        (0, 0, 'a', 1, 'b_g', 0),
+        (0, 0, 'a', 1, 'b_h', 0),
+        (0, 1, 'b', 3, 'b_g', 0),
+        (0, 1, 'b', 3, 'b_h', 0),
+        (0, 3, 'a', 4, 'b_g', 0),
+        (0, 3, 'a', 4, 'b_h', 1),
+    }
     policy = generate_policy(solver.solution)
     print(policy)
     assert policy.rules == {
@@ -274,16 +288,23 @@ def test_solver_generate_policy(simple_program):
 def test_solver_policy_nontriv_equiv(program_with_nontriv_equiv):
     solver = Solver(program_with_nontriv_equiv)
     assert solver.solve()
-    assert solver.solution['good_trans'] == {(0, 0, 0), (0, 0, 1), (0, 0, 2), (0, 1, 'g1'), (0, 2, 'g2'), (0, 1, 0),
-                                             (0, 2, 0)}
-    assert solver.solution['trans_delta'] == {
-        (0, 0, 0, 'b_g', 0),
-        (0, 0, 1, 'b_g', 0),
-        (0, 0, 2, 'b_g', 0),
-        (0, 1, 0, 'b_g', 0),
-        (0, 2, 0, 'b_g', 0),
-        (0, 1, 'g1', 'b_g', 1),
-        (0, 2, 'g2', 'b_g', 1),
+    assert solver.solution['good_trans'] == {
+        (0, 0, 0),
+        (0, 0, 1),
+        (0, 0, 2),
+        (0, 1, 'g1'),
+        (0, 2, 'g2'),
+        (0, 1, 0),
+        (0, 2, 0),
+    }
+    assert solver.solution['good_trans_delta'] == {
+        (0, 0, 'a', 0, 'b_g', 0),
+        (0, 0, 'a', 1, 'b_g', 0),
+        (0, 0, 'a', 2, 'b_g', 0),
+        (0, 1, 'b', 0, 'b_g', 0),
+        (0, 2, 'b', 0, 'b_g', 0),
+        (0, 1, 'b', 'g1', 'b_g', 1),
+        (0, 2, 'b', 'g2', 'b_g', 1),
     }
     policy = generate_policy(solver.solution)
     assert policy.rules == {
