@@ -26,7 +26,6 @@ log = logging.getLogger('genfond')
 def solve(
     domain,
     problems,
-    type,
     config,
     complexity,
     max_cost=None,
@@ -45,6 +44,7 @@ def solve(
     stats['featurePoolSize'] = len(feature_pool.features)
     log.debug('Generating ASP instance ...')
     asp_instance = feature_pool.to_clingo()
+    log.debug(f'ASP instance:\n{asp_instance}')
     state_counts = [len(sg.nodes) for sg in feature_pool.state_graphs.values()]
     edge_counts = [len(node.children) for sg in feature_pool.state_graphs.values() for node in sg.nodes.values()]
     stats['numStates'] = sum(state_counts)
@@ -60,30 +60,11 @@ def solve(
             "enforced " if enforce_highest_complexity else "",
             complexity, f' max cost {max_cost},' if max_cost else '', " + ".join([str(s) for s in state_counts]),
             sum(state_counts)))
-    if type == 'state':
-        solve_prog = 'solve_state_constraints.lp'
-        policy_type = PolicyType.CONSTRAINED
-    elif type == 'trans':
-        solve_prog = 'solve_trans_constraints.lp'
-        policy_type = PolicyType.CONSTRAINED
-    elif not type or type == 'exact':
-        solve_prog = 'solve.lp'
-        policy_type = PolicyType.EXACT
-    elif type == 'datalog':
-        if config['include_actions']:
-            solve_prog = 'solve_datalog_actions.lp'
-        elif config['include_action_params']:
-            solve_prog = 'solve_datalog_action_params.lp'
-        else:
-            solve_prog = 'solve_datalog.lp'
-        policy_type = PolicyType.DATALOG
-    else:
-        raise ValueError(f'Unknown constraint type {type}')
     solver = Solver(asp_instance,
                     config['num_threads'],
                     max_cost=max_cost,
                     min_feature_complexity=complexity if enforce_highest_complexity else None,
-                    solve_prog=solve_prog)
+                    solve_prog=config['solve_prog'])
     if not solver.solve():
         log.info('No solution found')
         return None
@@ -93,12 +74,11 @@ def solve(
         'clingoRules': solver.statistics['problem']['lp']['rules'],
         'clingoCpuTime': solver.statistics['summary']['times']['cpu'],
     }
-    log.debug(f'ASP instance:\n{asp_instance}')
     log.debug(f'Solution: {solution}')
     log.debug(f'f_selected: {solution.get("f_selected", [])}')
     log.debug(f'f_distinguished: {solution.get("f_distinguished", [])}')
     try:
-        policy = generate_policy(solution, policy_type=policy_type)
+        policy = generate_policy(solution, policy_type=PolicyType[config['policy_type']])
     except KeyError as e:
         log.error(f'Error during policy generation: {e}')
         raise
@@ -125,8 +105,7 @@ def main():
     parser.add_argument('--config', type=argparse.FileType('r'), help='config file for parameters')
     parser.add_argument('--dump-config', action='store_true', help='dump config to stdout and exit')
     parser.add_argument('--type',
-                        choices=['exact', 'state', 'trans', 'datalog'],
-                        default='state',
+                        choices=['exact', 'state', 'trans', 'datalog', 'datalog-actions', 'datalog-action-params'],
                         help='generate policies of the given type')
     config_args = parser.add_argument_group('config', 'Overwrite config parameters')
     config_args.add_argument('--min-complexity', type=int, help='start policy search with this max complexity')
@@ -174,7 +153,7 @@ def main():
     name = args.name if args.name else domain.name
     log.info('Starting policy generation for domain {}'.format(name))
     log.info(f'Generating policies of type {args.type}')
-    if args.type == 'datalog':
+    if PolicyType[config['policy_type']] == PolicyType.DATALOG:
         policy = DatalogPolicy({}, {})
     else:
         policy = Policy({}, {})
@@ -209,7 +188,6 @@ def main():
                 solution = solve(
                     domain,
                     solver_problems,
-                    type=args.type,
                     config=config,
                     complexity=i,
                     all_generators=all_generators,

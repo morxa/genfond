@@ -24,7 +24,7 @@ DEFAULT_CONFIG = {
     'feature_generator': {},
     'prune_roles': True,
     'prune_concepts': True,
-    'prune_features': True,
+    'prune_features': False,
     'use_unrestricted_features': True,
     'feature_generator': {
         'generate_til_c_role': False,
@@ -69,6 +69,8 @@ DEFAULT_CONFIG = {
 
 DEFAULT_TYPE_CONFIGS = {
     'datalog': {
+        'policy_type': 'DATALOG',
+        'solve_prog': 'solve_datalog.lp',
         'include_numerical_features': False,
         'include_concepts': True,
         'include_roles': True,
@@ -79,6 +81,34 @@ DEFAULT_TYPE_CONFIGS = {
             'generate_count_numerical': False,
             'generate_til_c_role': True,
         }
+    },
+    'datalog-action-params': {
+        'policy_type': 'DATALOG',
+        'solve_prog': 'solve_datalog_action_params.lp',
+        'include_action_params': True,
+        'include_roles': False,
+        'include_concepts': False,
+    },
+    'datalog-actions': {
+        'policy_type': 'DATALOG',
+        'solve_prog': 'solve_datalog_actions.lp',
+        'include_pristine_states': False,
+        'include_actions': True,
+        'include_roles': False,
+        'include_concepts': False,
+        'include_action_params': False,
+    },
+    'exact': {
+        'policy_type': 'EXACT',
+        'solve_prog': 'solve.lp',
+    },
+    'state': {
+        'policy_type': 'CONSTRAINED',
+        'solve_prog': 'solve_state_constraints.lp',
+    },
+    'trans': {
+        'policy_type': 'CONSTRAINED',
+        'solve_prog': 'solve_trans_constraints.lp',
     },
 }
 
