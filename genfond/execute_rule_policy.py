@@ -82,9 +82,9 @@ def state_string(state):
 def execute_rule_policy(domain, problem, policy, config):
     log.info(
         f'Executing policy:\n{policy}\nin {domain.name} for problem {problem.name} with features {policy.features}')
-    vocabulary = construct_vocabulary_info(domain)
+    vocabulary = construct_vocabulary_info(domain, config)
     factory = SyntacticElementFactory(vocabulary)
-    instance, mapping = construct_instance_info(vocabulary, domain, problem, 0)
+    instance, mapping = construct_instance_info(vocabulary, domain, problem, 0, config)
     features = dict()
     for feature in policy.features:
         if feature.startswith("b_"):
