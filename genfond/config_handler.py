@@ -110,6 +110,10 @@ DEFAULT_TYPE_CONFIGS = {
         'policy_type': 'CONSTRAINED',
         'solve_prog': 'solve_trans_constraints.lp',
     },
+    'd2l': {
+        'policy_type': 'EXACT',
+        'solve_prog': 'solve_d2l.lp',
+    }
 }
 
 
