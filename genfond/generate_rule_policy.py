@@ -1,4 +1,5 @@
-from .policy import Policy, PolicyRule, Cond, Effect, PolicyType, StateConstraint
+from .policy import PolicyType
+from .rule_policy import Policy, PolicyRule, Cond, Effect, StateConstraint
 import logging
 
 log = logging.getLogger('genfond.generation.rule')

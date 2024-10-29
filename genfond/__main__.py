@@ -1,7 +1,8 @@
 import argparse
 from genfond.feature_generator import FeaturePool
 from genfond.solver import Solver
-from genfond.policy import Policy, PolicyType
+from genfond.policy import PolicyType
+from genfond.rule_policy import Policy
 from genfond.datalog_policy import DatalogPolicy
 from genfond.generate_policy import generate_policy
 from genfond.execute_policy import execute_policy

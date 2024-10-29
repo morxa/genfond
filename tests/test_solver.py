@@ -1,5 +1,5 @@
 from genfond.solver import Solver
-from genfond.policy import Cond, Effect, PolicyRule
+from genfond.rule_policy import Cond, Effect, PolicyRule
 from genfond.generate_policy import generate_policy
 
 

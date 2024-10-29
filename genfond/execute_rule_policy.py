@@ -1,4 +1,5 @@
-from .policy import Effect, PolicyType
+from .policy import PolicyType
+from .rule_policy import Effect
 from .generate_rule_policy import feature_eval_to_cond
 from .feature_generator import construct_vocabulary_info, construct_instance_info, get_action_augmented_state, _get_state_from_goal
 from .ground import ground
