@@ -3,7 +3,7 @@ import mergedeep
 
 DEFAULT_CONFIG = {
     'min_complexity': 2,
-    'max_complexity': 9,
+    'max_complexity': 15,
     'policy_iterations': 100,
     'abort_on_cycle': False,
     'policy_steps': 10000,
@@ -70,6 +70,8 @@ DEFAULT_CONFIG = {
 DEFAULT_TYPE_CONFIGS = {
     'datalog': {
         'policy_type': 'DATALOG',
+        'policy_iterations': 1,
+        'abort_on_cycle': True,
         'solve_prog': 'solve_datalog.lp',
         'include_numerical_features': False,
         'include_concepts': True,
@@ -84,6 +86,8 @@ DEFAULT_TYPE_CONFIGS = {
     },
     'datalog-action-params': {
         'policy_type': 'DATALOG',
+        'policy_iterations': 1,
+        'abort_on_cycle': True,
         'solve_prog': 'solve_datalog_action_params.lp',
         'include_action_params': True,
         'include_roles': False,
@@ -91,6 +95,8 @@ DEFAULT_TYPE_CONFIGS = {
     },
     'datalog-actions': {
         'policy_type': 'DATALOG',
+        'policy_iterations': 1,
+        'abort_on_cycle': True,
         'solve_prog': 'solve_datalog_actions.lp',
         'include_pristine_states': False,
         'include_actions': True,
@@ -112,6 +118,8 @@ DEFAULT_TYPE_CONFIGS = {
     },
     'd2l': {
         'policy_type': 'EXACT',
+        'policy_iterations': 1,
+        'abort_on_cycle': True,
         'solve_prog': 'solve_d2l.lp',
     }
 }
