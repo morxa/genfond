@@ -108,6 +108,7 @@ def main():
     parser.add_argument('-v', '--verbose', action='store_true')
     parser.add_argument('--stats', help='file to dump stats to')
     parser.add_argument('--config', type=argparse.FileType('r'), help='config file for parameters')
+    parser.add_argument('--dump-config', help='dump effective config to file')
     parser.add_argument('--dump-clingo-program', help='dump clingo program to file')
     parser.add_argument('--type', choices=DEFAULT_TYPE_CONFIGS.keys(), help='generate policies of the given type')
     config_args = parser.add_argument_group('config', 'Overwrite config parameters')
@@ -133,8 +134,8 @@ def main():
     signal.signal(signal.SIGINT, signal_handler)
     config = ConfigHandler(args.config, args.type, vars(args))
     if args.dump_config:
-        print(config.dump())
-        sys.exit(0)
+        with open(args.dump_config, 'w') as f:
+            f.write(config.dump())
     for component, loglevel in config['log'].items():
         component = f'genfond.{component}'
         log.info(f'Setting log level for {component} to {loglevel}')
