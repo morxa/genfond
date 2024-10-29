@@ -98,6 +98,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('domain_file')
     parser.add_argument('problem_file', nargs='*')
+    parser.add_argument('--one-shot', action='store_true', help='solve all problems at once')
     parser.add_argument('--name', help='Name of the problem set (default: domain name)')
     parser.add_argument('--output', '-o', help='Output file for the resulting policy (as pickle dump)')
     parser.add_argument('-v', '--verbose', action='store_true')
@@ -161,6 +162,18 @@ def main():
     queue = problems.copy()
     failure_reason = ''
     queue.sort(key=lambda p: len(p.objects))
+    if args.one_shot:
+        solution = solve(domain, problems, config=config, complexity=config['max_complexity'], all_generators=False)
+        if solution:
+            policy, stats = solution
+        else:
+            log.error('No policy found')
+            sys.exit(1)
+        log.info(f'Policy:\n{policy}')
+        if args.output:
+            with open(args.output, 'wb') as f:
+                pickle.dump(policy, f)
+        sys.exit(0)
     for problem in queue:
         try:
             log.info(f'Testing policy on {problem.name} {config["policy_iterations"]} times ...')
