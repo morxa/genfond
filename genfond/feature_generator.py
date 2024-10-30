@@ -394,12 +394,8 @@ class FeaturePool:
                 clingo_program += f'trans({problem_id}, {node.id}, {action_str}, {child.id}).\n'
                 if self.concepts:
                     params = [f'"{p}"' for p in action.parameters]
-                    assert len(params) <= MAX_ACTION_PARAMETERS, \
-                            f'Action {action.name} has too many parameters: {len(params)}'
-                    if params:
-                        clingo_program += f'amap({action_str}, "{action.name}", {", ".join(params)}).\n'
-                    else:
-                        clingo_program += f'amap({action_str}, "{action.name}").\n'
+                    for i, p in enumerate(params):
+                        clingo_program += f'aparam({action_str}, {i}, {p}).\n'
         return clingo_program
 
     def to_clingo(self):

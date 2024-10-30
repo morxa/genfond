@@ -43,7 +43,7 @@ def generate_datalog_policy(solution):
         vars = RULE_VARS.copy()
         for i, parameter in enumerate(parameters):
             if parameter not in arg_to_var:
-                arg_to_var[i + 1] = vars.pop(0)
+                arg_to_var[i] = vars.pop(0)
         args_to_vars[(instance, state, action)] = arg_to_var
     bool_eval_dict = dict()
     for i, s, f, v in solution.get('bool_eval', []):
