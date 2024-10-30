@@ -11,7 +11,7 @@ aug_bool_eval(T, F, 0) :- eval(T, F, 0).
 good_action(I, S, A) :- good_trans(I, S, A, _).
 
 safe_state(I, S) :- goal(I, S).
-safe_state(I, S1) :- alive(I, S1), safe_state(I, S2) : good_trans(I, S1, _, S2).
+safe_state(I, S1) :- alive(I, S1), good_trans(I, S1, _, _), safe_state(I, S2) : good_trans(I, S1, _, S2).
 :- alive(I, S), not safe_state(I, S).
 
 aug_dist(I1, S1, A1, I2, S2, A2, F) :- alive(I1, S1), alive(I2, S2), aug_state(I1, S1, A1, T1), aug_state(I2, S2, A2, T2),
