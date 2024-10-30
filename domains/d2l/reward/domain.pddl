@@ -9,11 +9,6 @@
     (:types
         cell - object
     )
-
-    (:constants
-        
-    )
-
     (:predicates
         (at ?x1 - cell)
         (reward ?x1 - cell)
@@ -21,14 +16,6 @@
         (picked ?x1 - cell)
         (adjacent ?x1 - cell ?x2 - cell)
     )
-
-    (:functions
-        
-    )
-
-    
-
-    
     (:action move
      :parameters (?from - cell ?to - cell)
      :precondition (and (adjacent ?from ?to) (at ?from) (unblocked ?to))
