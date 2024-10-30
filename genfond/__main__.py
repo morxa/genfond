@@ -284,7 +284,7 @@ def main():
     log.info('Verifying policy ...')
     for problem in tqdm.tqdm([p for p in problems if p not in verified], disable=None):
         try:
-            for _ in tqdm.trange(args.policy_iterations, leave=False, disable=None):
+            for _ in tqdm.trange(config['policy_iterations'], leave=False, disable=None):
                 execute_policy(domain, problem, policy, config)
             succs.append(problem)
         except RuntimeError:
