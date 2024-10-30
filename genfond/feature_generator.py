@@ -135,7 +135,10 @@ class FeaturePool:
                     self.node_to_state(problem, node)
         factory = SyntacticElementFactory(vocabulary)
         if config.get('preset_features', None):
-            str_gens = config['preset_features']
+            booleans = [factory.parse_boolean(f) for f in config['preset_features'].get('booleans', [])]
+            numericals = [factory.parse_numerical(f) for f in config['preset_features'].get('numericals', [])]
+            concepts = [factory.parse_concept(c) for c in config['preset_features'].get('concepts', [])]
+            roles = [factory.parse_role(r) for r in config['preset_features'].get('roles', [])]
         else:
             if all_generators:
                 feature_generator_kwargs = config['unrestricted_feature_generator']
