@@ -168,12 +168,17 @@ def main():
     failure_reason = ''
     queue.sort(key=lambda p: len(p.objects))
     if args.one_shot:
+        solve_cpu_time_start = time.process_time()
         solution = solve(domain,
                          problems,
                          config=config,
                          complexity=config['max_complexity'],
                          all_generators=False,
                          dump_clingo_program=args.dump_clingo_program)
+        solve_cpu_time = time.process_time() - solve_cpu_time_start
+        log.info(f'CPU time: {solve_cpu_time:.2f}s')
+        mem_usage = (resource.getrusage(resource.RUSAGE_SELF).ru_maxrss) / 1024
+        log.info('Memory usage: {:.2f}MB'.format(mem_usage))
         if solution:
             policy, stats = solution
         else:
