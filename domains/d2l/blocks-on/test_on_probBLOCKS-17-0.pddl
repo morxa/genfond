@@ -1,4 +1,4 @@
-(define (problem blocks-17-0)
+(define (problem p-17-0)
 (:domain blocks)
 (:objects c d e f b i j a n o k m p h g l q )
 (:init (clear q) (clear l) (clear g) (clear h) (clear p) (ontable m)
