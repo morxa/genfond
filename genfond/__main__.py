@@ -31,7 +31,6 @@ def solve(
     max_cost=None,
     all_generators=True,
     enforce_highest_complexity=False,
-    dump_clingo_program=None,
 ):
     stats = dict()
     log.debug('Generating feature pool ...')
@@ -46,8 +45,8 @@ def solve(
     log.debug('Generating ASP instance ...')
     asp_instance = feature_pool.to_clingo()
     log.debug(f'ASP instance:\n{asp_instance}')
-    if dump_clingo_program:
-        with open(dump_clingo_program, 'w') as f:
+    if config.get('dump_clingo_program', None):
+        with open(config['dump_clingo_program'], 'w') as f:
             f.write(asp_instance)
     state_counts = [len(sg.nodes) for sg in feature_pool.state_graphs.values()]
     edge_counts = [len(node.children) for sg in feature_pool.state_graphs.values() for node in sg.nodes.values()]
@@ -98,65 +97,7 @@ def signal_handler(sig, frame):
     os.kill(os.getpid(), signal.SIGTERM)
 
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('domain_file')
-    parser.add_argument('problem_file', nargs='*')
-    parser.add_argument('--one-shot', action='store_true', help='solve all problems at once')
-    parser.add_argument('--name', help='Name of the problem set (default: domain name)')
-    parser.add_argument('--output', '-o', help='Output file for the resulting policy (as pickle dump)')
-    parser.add_argument('-v', '--verbose', action='store_true')
-    parser.add_argument('--stats', help='file to dump stats to')
-    parser.add_argument('--config', type=argparse.FileType('r'), help='config file for parameters')
-    parser.add_argument('--dump-config', help='dump effective config to file')
-    parser.add_argument('--dump-clingo-program', help='dump clingo program to file')
-    parser.add_argument('--type', choices=DEFAULT_TYPE_CONFIGS.keys(), help='generate policies of the given type')
-    config_args = parser.add_argument_group('config', 'Overwrite config parameters')
-    config_args.add_argument('--min-complexity', type=int, help='start policy search with this max complexity')
-    config_args.add_argument('--max-complexity', type=int, help='stop policy search with this max complexity')
-    config_args.add_argument('-i', '--policy-iterations', type=int, help='number of policy iterations for testing')
-    config_args.add_argument('--policy-steps',
-                             type=int,
-                             help='number of steps to execute policy for testing (0 for no limit)')
-    config_args.add_argument('-n',
-                             '--num-threads',
-                             type=int,
-                             help='number of threads to use; "None" uses all available threads')
-    config_args.add_argument('--max-memory', type=int, help='maximum memory to use in MB')
-    config_args.add_argument('--dump-failed-policies', action='store_true', help='dump failed policies to file')
-    config_args.add_argument('--keep-going', action='store_true', help='keep going after one training problem failed')
-    config_args.add_argument('--continue-after-error',
-                             action='store_true',
-                             help='continue after error in policy execution')
-    args = parser.parse_args()
-    logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO,
-                        format='%(asctime)s %(levelname)-8s %(message)s')
-    signal.signal(signal.SIGINT, signal_handler)
-    config = ConfigHandler(args.config, args.type, vars(args))
-    if args.dump_config:
-        with open(args.dump_config, 'w') as f:
-            f.write(config.dump())
-    for component, loglevel in config['log'].items():
-        component = f'genfond.{component}'
-        log.info(f'Setting log level for {component} to {loglevel}')
-        logging.getLogger(component).setLevel(loglevel)
-    if config['max_memory']:
-        _, hard = resource.getrlimit(resource.RLIMIT_AS)
-        resource.setrlimit(resource.RLIMIT_AS, (config['max_memory'] * 1024 * 1024, hard))
-    total_wall_time_start = time.perf_counter()
-    total_cpu_time_start = time.process_time()
-    total_solve_cpu_time = 0
-    best_solve_cpu_time = 0
-    best_solve_wall_time = 0
-    log.info('Parsing domain ...')
-    domain = pddl.parse_domain(args.domain_file)
-    log.info('Parsing problems ...')
-    problems = []
-    for f in tqdm.tqdm(args.problem_file, disable=None):
-        problems.append(pddl.parse_problem(f))
-    name = args.name if args.name else domain.name
-    log.info('Starting policy generation for domain {}'.format(name))
-    log.info(f'Generating policies of type {args.type}')
+def solve_iteratively(domain, problems, config):
     if PolicyType[config['policy_type']] == PolicyType.DATALOG:
         policy = DatalogPolicy({}, {})
     else:
@@ -166,29 +107,11 @@ def main():
     verified = []
     queue = problems.copy()
     failure_reason = ''
+    total_solve_cpu_time = 0
+    best_solve_cpu_time = 0
+    best_solve_wall_time = 0
+    stats = dict()
     queue.sort(key=lambda p: len(p.objects))
-    if args.one_shot:
-        solve_cpu_time_start = time.process_time()
-        solution = solve(domain,
-                         problems,
-                         config=config,
-                         complexity=config['max_complexity'],
-                         all_generators=False,
-                         dump_clingo_program=args.dump_clingo_program)
-        solve_cpu_time = time.process_time() - solve_cpu_time_start
-        log.info(f'CPU time: {solve_cpu_time:.2f}s')
-        mem_usage = (resource.getrusage(resource.RUSAGE_SELF).ru_maxrss) / 1024
-        log.info('Memory usage: {:.2f}MB'.format(mem_usage))
-        if solution:
-            policy, stats = solution
-        else:
-            log.error('No policy found')
-            sys.exit(1)
-        log.info(f'Policy:\n{policy}')
-        if args.output:
-            with open(args.output, 'wb') as f:
-                pickle.dump(policy, f)
-        sys.exit(0)
     for problem in queue:
         try:
             log.info(f'Testing policy on {problem.name} {config["policy_iterations"]} times ...')
@@ -219,7 +142,6 @@ def main():
                     all_generators=all_generators,
                     max_cost=new_policy.cost[0] - 1 if new_policy else None,
                     enforce_highest_complexity=True if i > last_complexity else False,
-                    dump_clingo_program=args.dump_clingo_program,
                 )
             except (RuntimeError, MemoryError) as e:
                 if 'Id out of range' in str(e):
@@ -269,12 +191,9 @@ def main():
                 best_solve_wall_time = solve_wall_time
                 best_solve_cpu_time = solve_cpu_time
             elif not new_policy:
-                failure_reason = 'maxcomplexity'
+                stats['failure_reason'] = 'maxcomplexity'
         if new_policy:
             policy = new_policy
-            if args.output:
-                with open(args.output, 'wb') as f:
-                    pickle.dump(policy, f)
             # Re-add previously verified problems  to queue if not part of the solver set
             queue += [p for p in verified if p not in solver_problems]
             verified = solver_problems.copy()
@@ -285,6 +204,106 @@ def main():
             if not config['keep_going']:
                 break
             continue
+    stats.update({
+        'trainProblems': len(solver_problems),
+        'maxTrainProblemSize': max(len(p.objects) for p in solver_problems) if policy else 0,
+        'maxFeatureComplexity': last_complexity,
+        'bestSolveCpuTime': best_solve_cpu_time,
+        'bestSolveWallTime': best_solve_wall_time,
+        'totalSolveCpuTime': total_solve_cpu_time,
+    })
+
+    return policy, verified, stats
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('domain_file')
+    parser.add_argument('problem_file', nargs='*')
+    parser.add_argument('--one-shot', action='store_true', help='solve all problems at once')
+    parser.add_argument('--name', help='Name of the problem set (default: domain name)')
+    parser.add_argument('--output', '-o', help='Output file for the resulting policy (as pickle dump)')
+    parser.add_argument('-v', '--verbose', action='store_true')
+    parser.add_argument('--stats', help='file to dump stats to')
+    parser.add_argument('--config', type=argparse.FileType('r'), help='config file for parameters')
+    parser.add_argument('--dump-config', help='dump effective config to file')
+    parser.add_argument('--dump-clingo-program', help='dump clingo program to file')
+    parser.add_argument('--type', choices=DEFAULT_TYPE_CONFIGS.keys(), help='generate policies of the given type')
+    config_args = parser.add_argument_group('config', 'Overwrite config parameters')
+    config_args.add_argument('--min-complexity', type=int, help='start policy search with this max complexity')
+    config_args.add_argument('--max-complexity', type=int, help='stop policy search with this max complexity')
+    config_args.add_argument('-i', '--policy-iterations', type=int, help='number of policy iterations for testing')
+    config_args.add_argument('--policy-steps',
+                             type=int,
+                             help='number of steps to execute policy for testing (0 for no limit)')
+    config_args.add_argument('-n',
+                             '--num-threads',
+                             type=int,
+                             help='number of threads to use; "None" uses all available threads')
+    config_args.add_argument('--max-memory', type=int, help='maximum memory to use in MB')
+    config_args.add_argument('--dump-failed-policies', action='store_true', help='dump failed policies to file')
+    config_args.add_argument('--keep-going', action='store_true', help='keep going after one training problem failed')
+    config_args.add_argument('--continue-after-error',
+                             action='store_true',
+                             help='continue after error in policy execution')
+    args = parser.parse_args()
+    logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO,
+                        format='%(asctime)s %(levelname)-8s %(message)s')
+    signal.signal(signal.SIGINT, signal_handler)
+    config = ConfigHandler(args.config, args.type, vars(args))
+    if args.dump_config:
+        with open(args.dump_config, 'w') as f:
+            f.write(config.dump())
+    for component, loglevel in config['log'].items():
+        component = f'genfond.{component}'
+        log.info(f'Setting log level for {component} to {loglevel}')
+        logging.getLogger(component).setLevel(loglevel)
+    if config['max_memory']:
+        _, hard = resource.getrlimit(resource.RLIMIT_AS)
+        resource.setrlimit(resource.RLIMIT_AS, (config['max_memory'] * 1024 * 1024, hard))
+    total_wall_time_start = time.perf_counter()
+    total_cpu_time_start = time.process_time()
+    log.info('Parsing domain ...')
+    domain = pddl.parse_domain(args.domain_file)
+    log.info('Parsing problems ...')
+    problems = []
+    for f in tqdm.tqdm(args.problem_file, disable=None):
+        problems.append(pddl.parse_problem(f))
+    name = args.name if args.name else domain.name
+    log.info('Starting policy generation for domain {}'.format(name))
+    log.info(f'Generating policies of type {args.type}')
+    stats = {
+        'domain': name,
+        'constraintType': args.type,
+    }
+    if args.one_shot:
+        solve_cpu_time_start = time.process_time()
+        solution = solve(domain,
+                         problems,
+                         config=config,
+                         complexity=config['max_complexity'],
+                         all_generators=False,
+                         dump_clingo_program=args.dump_clingo_program)
+        solve_cpu_time = time.process_time() - solve_cpu_time_start
+        log.info(f'CPU time: {solve_cpu_time:.2f}s')
+        mem_usage = (resource.getrusage(resource.RUSAGE_SELF).ru_maxrss) / 1024
+        log.info('Memory usage: {:.2f}MB'.format(mem_usage))
+        if solution:
+            policy, solve_stats = solution
+            stats.update(solve_stats)
+        else:
+            log.error('No policy found')
+            sys.exit(1)
+        log.info(f'Policy:\n{policy}')
+        if args.output:
+            with open(args.output, 'wb') as f:
+                pickle.dump(policy, f)
+        sys.exit(0)
+    policy, verified, solve_stats = solve_iteratively(domain, problems, config)
+    stats.update(solve_stats)
+    if args.output:
+        with open(args.output, 'wb') as f:
+            pickle.dump(policy, f)
     succs = verified
     log.info('Verifying policy ...')
     for problem in tqdm.tqdm([p for p in problems if p not in verified], disable=None):
@@ -303,32 +322,22 @@ def main():
     total_wall_time = time.perf_counter() - total_wall_time_start
     total_cpu_time = time.process_time() - total_cpu_time_start
     mem_usage = (resource.getrusage(resource.RUSAGE_SELF).ru_maxrss) / 1024
-    stats = {
-        'domain': name,
-        'constraintType': args.type,
+    stats.update({
         'totalWallTime': total_wall_time,
         'totalCpuTime': total_cpu_time,
-        'bestSolveCpuTime': best_solve_cpu_time,
-        'bestSolveWallTime': best_solve_wall_time,
-        'totalSolveCpuTime': total_solve_cpu_time,
         'problems': len(problems),
         'solved': len(succs),
-        'trainProblems': len(solver_problems),
-        'maxTrainProblemSize': max(len(p.objects) for p in solver_problems) if succs else 0,
         'maxProblemSize': max(len(p.objects) for p in problems) if succs else 0,
         'memUsage': mem_usage,
         #'numFeatures': len(policy.features),
-        'maxFeatureComplexity': last_complexity,
         #'numConstraints': max(len(policy.state_constraints), len(policy.constraints)),
         'cost': policy.cost[0] if policy else 0,
-        'failureReason': failure_reason,
-        **stats,
-    }
+    })
 
     log.info('Total wall time: {:.2f}s'.format(total_wall_time))
-    log.info('Best policy solver CPU time: {:.2f}s'.format(best_solve_cpu_time))
-    log.info('Best policy solver wall time: {:.2f}s'.format(best_solve_wall_time))
-    log.info('Total solver CPU time: {:.2f}s'.format(total_solve_cpu_time))
+    log.info('Best policy solver CPU time: {:.2f}s'.format(stats['bestSolveCpuTime']))
+    log.info('Best policy solver wall time: {:.2f}s'.format(stats['bestSolveWallTime']))
+    log.info('Total solver CPU time: {:.2f}s'.format(stats['totalSolveCpuTime']))
     log.info('Total CPU time: {:.2f}s'.format(total_cpu_time))
     log.info('Total memory usage: {:.2f}MB'.format(mem_usage))
     if args.stats:
