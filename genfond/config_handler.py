@@ -20,11 +20,12 @@ DEFAULT_CONFIG = {
     'include_action_params': False,
     'include_pristine_states': True,
     'include_dead_states': True,
+    'include_goal_states': True,
     'preset_features': None,
     'feature_generator': {},
     'prune_roles': True,
     'prune_concepts': True,
-    'prune_features': False,
+    'prune_features': True,
     'use_unrestricted_features': True,
     'feature_generator': {
         'generate_til_c_role': False,
@@ -78,6 +79,7 @@ DEFAULT_TYPE_CONFIGS = {
         'include_roles': True,
         'include_actions': False,
         'include_dead_states': False,
+        'include_goal_states': False,
         'feature_generator': {
             'generate_concept_distance_numerical': False,
             'generate_count_numerical': False,
@@ -92,6 +94,8 @@ DEFAULT_TYPE_CONFIGS = {
         'include_action_params': True,
         'include_roles': False,
         'include_concepts': False,
+        'include_dead_states': False,
+        'include_goal_states': False,
     },
     'datalog-actions': {
         'policy_type': 'DATALOG',
@@ -103,6 +107,8 @@ DEFAULT_TYPE_CONFIGS = {
         'include_roles': False,
         'include_concepts': False,
         'include_action_params': False,
+        'include_dead_states': False,
+        'include_goal_states': False,
     },
     'exact': {
         'policy_type': 'EXACT',

@@ -241,6 +241,10 @@ class FeaturePool:
     def is_concept_informative(self, concept_str):
         for problem, state_graph in self.state_graphs.items():
             for node in state_graph.nodes.values():
+                if node.goal and not self.config['include_goal_states']:
+                    continue
+                if node.alive != Alive.ALIVE and not self.config['include_dead_states']:
+                    continue
                 extension = self.evaluate_concept_from_problem(concept_str, self.problems[problem], node.state)
                 if not extension:
                     return True
@@ -261,6 +265,10 @@ class FeaturePool:
     def is_role_informative(self, role_str):
         for problem, state_graph in self.state_graphs.items():
             for node in state_graph.nodes.values():
+                if node.goal and not self.config['include_goal_states']:
+                    continue
+                if node.alive != Alive.ALIVE and not self.config['include_dead_states']:
+                    continue
                 extension = self.evaluate_role_from_problem(role_str, self.problems[problem], node.state)
                 if not extension:
                     return True
@@ -287,7 +295,8 @@ class FeaturePool:
         has_true = False
         for fstate, state in self.states.items():
             if all([
-                    node.goal or node.alive != Alive.ALIVE and not self.config['include_dead_states']
+                    node.goal and not self.config['include_goal_states']
+                    or node.alive != Alive.ALIVE and not self.config['include_dead_states']
                     for node in self.state_id_to_node[fstate]
             ]):
                 continue
@@ -318,6 +327,8 @@ class FeaturePool:
             return ""
         if check_formula(node.state, problem.goal):
             clingo_program += f'goal({problem_id}, {node.id}).\n'
+            if not self.config['include_goal_states']:
+                return clingo_program
         if self.config['include_actions']:
             for action, aug_state in self.node_id_to_aug_state_ids[(problem_id, node.id)].items():
                 aug_state_id = self.states[aug_state].get_index()
