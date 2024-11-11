@@ -259,7 +259,8 @@ class FeaturePool:
         for concept_str in self.concepts.keys():
             if not self.is_concept_informative(concept_str):
                 uninformative_concepts.add(concept_str)
-        log.info(f'Found {len(uninformative_concepts)} uninformative concept(s): {", ".join(uninformative_concepts)}')
+        log.info(f'Found {len(uninformative_concepts)} uninformative concept(s)')
+        log.debug(", ".join(uninformative_concepts))
         return uninformative_concepts
 
     def is_role_informative(self, role_str):
@@ -287,7 +288,8 @@ class FeaturePool:
         for role_str in self.roles.keys():
             if not self.is_role_informative(role_str):
                 uninformative_roles.add(role_str)
-        log.info(f'Found {len(uninformative_roles)} uninformative role(s): {", ".join(uninformative_roles)}')
+        log.info(f'Found {len(uninformative_roles)} uninformative role(s)')
+        log.debug(", ".join(uninformative_roles))
         return uninformative_roles
 
     def is_feature_informative(self, feature):
@@ -314,7 +316,8 @@ class FeaturePool:
         for feature_str, feature in self.features.items():
             if not self.is_feature_informative(feature):
                 uninformative_features.add(feature_str)
-        log.info(f'Found {len(uninformative_features)} uninformative feature(s): {", ".join(uninformative_features)}')
+        log.info(f'Found {len(uninformative_features)} uninformative feature(s)')
+        log.debug(", ".join(uninformative_features))
         return uninformative_features
 
     def node_to_clingo(self, problem, node, stats):
