@@ -26,17 +26,17 @@ def eval_to_cond(f, v):
 
 
 def generate_datalog_policy(solution):
-    log.info(
-        f'Generating policy from solution with {len(solution["good_action"])}/{len(solution.get("trans", []) or "?")} good actions,'
-        f' {len(solution.get("f_distinguished", []))} distinguished features,'
-        f' {len(solution.get("c_distinguished", []))} distinguished concepts,'
-        f' {len(solution.get("r_distinguished", []))} distinguished roles')
+    # log.info(
+    #     f'Generating policy from solution with {len(solution["good_action"])}/{len(solution.get("trans", []) or "?")} good actions,'
+    #     f' {len(solution.get("f_distinguished", []))} distinguished features,'
+    #     f' {len(solution.get("c_distinguished", []))} distinguished concepts,'
+    #     f' {len(solution.get("r_distinguished", []))} distinguished roles')
     log.debug(f'goals: {solution.get("goal", [])}')
     log.debug(f'safe states: {sorted(solution.get("safe_state", []))}')
     log.debug(f'good_trans: {sorted(solution.get("good_trans", []))}')
     args_to_vars = dict()
     conds = dict()
-    for instance, state, action in solution['good_action']:
+    for instance, state, action in solution.get('good_action', []):
         log.debug(f'Good action {action} in state {state} of instance {instance}')
         name, parameters = split_action_string(action)
         arg_to_var = dict()
@@ -68,7 +68,7 @@ def generate_datalog_policy(solution):
     for instance, state, action, param1, param2, feature, diff in solution.get(f'aug_d2', []):
         diff_conds.setdefault((instance, state, action), []).append((feature, param1, param2, diff))
     state_conds = dict()
-    for instance, state, action in solution['good_action']:
+    for instance, state, action in solution.get('good_action', []):
         state_cond = dict()
         state_aug_cond = dict()
         param_aug_cond = dict()
