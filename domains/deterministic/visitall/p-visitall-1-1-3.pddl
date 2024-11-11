@@ -1,0 +1,7 @@
+(define (problem visitall-1-1-3)
+    (:domain grid-visit-all)
+    (:requirements :typing)
+    (:objects loc_x0_y0 - place)
+    (:init (at-robot loc_x0_y0) (visited loc_x0_y0))
+    (:goal (and (visited loc_x0_y0)))
+)
