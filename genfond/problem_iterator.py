@@ -61,7 +61,12 @@ class ProblemIterator:
             self.all_features = False
             self.max_cost = MAX_COST
             self.active_problems_solved = False
-            self.active_problems.append(next(problem for problem in self.problems if not self.solved[problem.name]))
+            next_problem = next(problem for problem in self.problems if not self.solved[problem.name])
+            if self.active_problems and self.problems.index(next_problem) > max(
+                [self.problems.index(problem) for problem in self.active_problems]):
+                self.active_problems = [next_problem]
+            else:
+                self.active_problems.append(next_problem)
         else:
             raise StopIteration
         log.debug(
