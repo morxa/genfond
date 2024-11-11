@@ -7,6 +7,7 @@ from genfond.datalog_policy import DatalogPolicy
 from genfond.generate_policy import generate_policy
 from genfond.execute_policy import execute_policy
 from genfond.config_handler import ConfigHandler, DEFAULT_TYPE_CONFIGS
+from genfond.problem_iterator import ProblemIterator, Result, MAX_COST
 import logging
 import sys
 import pddl
@@ -98,13 +99,7 @@ def signal_handler(sig, frame):
 
 
 def solve_iteratively(domain, problems, config):
-    if PolicyType[config['policy_type']] == PolicyType.DATALOG:
-        policy = DatalogPolicy({}, {})
-    else:
-        policy = Policy({}, {})
-    solver_problems = []
-    last_complexity = config['min_complexity']
-    verified = []
+    policy = None
     queue = problems.copy()
     failure_reason = ''
     total_solve_cpu_time = 0
@@ -112,108 +107,93 @@ def solve_iteratively(domain, problems, config):
     best_solve_wall_time = 0
     stats = dict()
     queue.sort(key=lambda p: len(p.objects))
-    for problem in queue:
+    problem_iterator = ProblemIterator(queue, config['min_complexity'], config['max_complexity'],
+                                       config['use_unrestricted_features'])
+    for solver_problems, i, all_generators, max_cost in problem_iterator:
         try:
-            log.info(f'Testing policy on {problem.name} {config["policy_iterations"]} times ...')
-            # Execute policy policy_iterations times
-            for _ in tqdm.trange(config['policy_iterations'], disable=None):
-                plan = execute_policy(domain, problem, policy, config)
-            log.info(f'Policy already solves {problem.name} (plan length {len(plan)})')
-            verified.append(problem)
+            log.info(f'Starting solver for {pnames(solver_problems)} with max complexity {i}')
+            solve_wall_time_start = time.perf_counter()
+            solve_cpu_time_start = time.process_time()
+            solution = solve(
+                domain,
+                solver_problems,
+                config=config,
+                complexity=i,
+                all_generators=all_generators,
+                max_cost=max_cost if max_cost < MAX_COST else None,
+                enforce_highest_complexity=True,
+            )
+        except (RuntimeError, MemoryError) as e:
+            if 'Id out of range' in str(e):
+                stats['failure_reason'] = 'id'
+                problem_iterator.set_last_result(Result.OUT_OF_RESOURCES)
+
+            elif isinstance(e, MemoryError):
+                stats['failure_reason'] = 'memory'
+                problem_iterator.set_last_result(Result.OUT_OF_RESOURCES)
+
+            else:
+                problem_iterator.set_last_result(Result.UNKNOWN)
+                stats['failure_reason'] = str(e)
+            log.warning(f'Error during policy generation for {pnames(solver_problems)} with max complexity {i}: {e}')
             continue
-        except RuntimeError:
-            pass
-        log.info('Policy does not solve {}'.format(problem.name))
-        solver_problems.append(problem)
-        new_policy = None
-        for i, all_generators in itertools.product(range(last_complexity, config['max_complexity'] + 1),
-                                                   [False, True] if config['use_unrestricted_features'] else [False]):
-            if new_policy and new_policy.cost[0] <= i:
-                break
+        finally:
+            solve_wall_time = time.perf_counter() - solve_wall_time_start
+            solve_cpu_time = time.process_time() - solve_cpu_time_start
+            log.info('Solver wall time: {:.2f}s'.format(solve_wall_time))
+            log.info('Solver CPU time: {:.2f}s'.format(solve_cpu_time))
+            total_solve_cpu_time += solve_cpu_time
+        if solution:
+            new_policy, solve_stats = solution
+            log.info(f'Found policy with cost {new_policy.cost} for'
+                     f' {pnames(solver_problems)} with max complexity {i}')
+            log.info(f'New policy: {new_policy}')
+            log.info('Verifying new policy on solved problems')
             try:
-                log.info(f'Starting solver for {pnames(solver_problems)} with max complexity {i}')
-                solve_wall_time_start = time.perf_counter()
-                solve_cpu_time_start = time.process_time()
-                solution = solve(
-                    domain,
-                    solver_problems,
-                    config=config,
-                    complexity=i,
-                    all_generators=all_generators,
-                    max_cost=new_policy.cost[0] - 1 if new_policy else None,
-                    enforce_highest_complexity=True if i > last_complexity else False,
-                )
-            except (RuntimeError, MemoryError) as e:
-                if 'Id out of range' in str(e):
-                    failure_reason = 'id'
-                elif isinstance(e, MemoryError):
-                    failure_reason = 'memory'
-                else:
-                    failure_reason = str(e)
-                log.warning(
-                    f'Error during policy generation for {pnames(solver_problems)} with max complexity {i}: {e}')
-                break
-            finally:
-                solve_wall_time = time.perf_counter() - solve_wall_time_start
-                solve_cpu_time = time.process_time() - solve_cpu_time_start
-                log.info('Solver wall time: {:.2f}s'.format(solve_wall_time))
-                log.info('Solver CPU time: {:.2f}s'.format(solve_cpu_time))
-                total_solve_cpu_time += solve_cpu_time
-            if solution:
-                i_policy, solve_stats = solution
-                if new_policy and new_policy.cost <= i_policy.cost:
-                    log.info('Found new policy, but not better than old policy')
-                    continue
-                if new_policy and new_policy.cost > i_policy.cost:
-                    log.info(
-                        f'Found another policy with lower cost ({i_policy.cost}) than old policy ({new_policy.cost})')
-                else:
-                    log.info(f'Found first policy with cost {i_policy.cost} for'
-                             f' {pnames(solver_problems)} with max complexity {i}')
-                log.info(f'New policy: {i_policy}')
-                log.info('Verifying new policy on solved problems')
-                try:
-                    for problem in tqdm.tqdm(solver_problems, disable=None):
-                        execute_policy(domain, problem, i_policy, config)
-                except RuntimeError:
-                    log.critical('New policy does not solve {}'.format(problem.name))
-                    if config['dump_failed_policies']:
-                        h = hash(i_policy)
-                        with open(f'failed_policy-{h}.pickle', 'wb') as f:
-                            pickle.dump(i_policy, f)
-                        log.critical(f'Dumped failed policy to failed_policy-{h}.pickle')
-                    if not config['continue_after_error']:
-                        sys.exit(1)
-                    continue
-                last_complexity = i
-                new_policy = i_policy
-                stats = solve_stats
-                best_solve_wall_time = solve_wall_time
-                best_solve_cpu_time = solve_cpu_time
-            elif not new_policy:
-                stats['failure_reason'] = 'maxcomplexity'
-        if new_policy:
+                for problem in tqdm.tqdm(solver_problems, disable=None):
+                    execute_policy(domain, problem, new_policy, config)
+            except RuntimeError:
+                log.critical('New policy does not solve {}'.format(problem.name))
+                if config['dump_failed_policies']:
+                    h = hash(new_policy)
+                    with open(f'failed_policy-{h}.pickle', 'wb') as f:
+                        pickle.dump(new_policy, f)
+                    log.critical(f'Dumped failed policy to failed_policy-{h}.pickle')
+                if not config['continue_after_error']:
+                    sys.exit(1)
+                continue
             policy = new_policy
-            # Re-add previously verified problems  to queue if not part of the solver set
-            queue += [p for p in verified if p not in solver_problems]
-            verified = solver_problems.copy()
+            stats = solve_stats
+            stats['maxFeatureComplexity'] = i
+            best_solve_wall_time = solve_wall_time
+            best_solve_cpu_time = solve_cpu_time
+            problem_iterator.set_last_result(Result.SUCCESS, cost=new_policy.cost[0])
+            policy = new_policy
+            log.info(f'Testing policy on unsolved problems {config["policy_iterations"]} times ...')
+            for problem in tqdm.tqdm(problem_iterator.get_unsolved_problems(), disable=None):
+                try:
+                    log.debug(f'Testing policy on {problem.name} {config["policy_iterations"]} times ...')
+                    # Execute policy policy_iterations times
+                    for _ in range(config['policy_iterations']):
+                        plan = execute_policy(domain, problem, policy, config)
+                    log.debug(f'Policy already solves {problem.name} (plan length {len(plan)})')
+                    problem_iterator.set_solved(problem)
+                except RuntimeError:
+                    log.info('Policy does not solve {}'.format(problem.name))
+                    break
         else:
-            log.error('No policy found for {} with max complexity {}'.format(problem.name, i))
-            # Delete last element in solver_problems
-            solver_problems.pop()
-            if not config['keep_going']:
-                break
-            continue
+            log.error('No policy found for {} with max complexity {}'.format(
+                ", ".join([p.name for p in solver_problems]), i))
+            problem_iterator.set_last_result(Result.NO_SOLUTION)
+            stats['failure_reason'] = 'maxcomplexity'
     stats.update({
-        'trainProblems': len(solver_problems),
-        'maxTrainProblemSize': max(len(p.objects) for p in solver_problems) if policy else 0,
-        'maxFeatureComplexity': last_complexity,
+        'trainProblems': len(problem_iterator.active_problems),
+        'maxTrainProblemSize': max(len(p.objects) for p in problem_iterator.active_problems) if policy else 0,
         'bestSolveCpuTime': best_solve_cpu_time,
         'bestSolveWallTime': best_solve_wall_time,
         'totalSolveCpuTime': total_solve_cpu_time,
     })
-
-    return policy, verified, stats
+    return policy, [p for p in problems if problem_iterator.solved[p.name]], stats
 
 
 def main():
@@ -299,18 +279,17 @@ def main():
             with open(args.output, 'wb') as f:
                 pickle.dump(policy, f)
         sys.exit(0)
-    policy, verified, solve_stats = solve_iteratively(domain, problems, config)
+    policy, succs, solve_stats = solve_iteratively(domain, problems, config)
     stats.update(solve_stats)
     if args.output:
         with open(args.output, 'wb') as f:
             pickle.dump(policy, f)
-    succs = verified
     log.info('Verifying policy ...')
-    for problem in tqdm.tqdm([p for p in problems if p not in verified], disable=None):
+    for problem in tqdm.tqdm([p for p in problems if p not in succs], disable=None):
         try:
             for _ in tqdm.trange(config['policy_iterations'], leave=False, disable=None):
                 execute_policy(domain, problem, policy, config)
-            succs.append(problem)
+            succs.append(problem.name)
         except RuntimeError:
             log.error('Policy does not solve {}'.format(problem.name))
     log.info('Policy solves {} out of {} problems, unsolved: {}'.format(
