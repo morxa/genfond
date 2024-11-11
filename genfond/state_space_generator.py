@@ -107,15 +107,15 @@ class StateSpaceGraph:
         while queue:
             node = queue.pop()
             state = node.state
+            if check_formula(state, problem.goal):
+                node.alive = Alive.ALIVE
+                node.goal = True
             for action in grounded_actions:
                 if not check_formula(state, action.precondition):
                     continue
                 for succ in apply_action_effects(node.state, action):
                     new_node = self.add_node(succ, state, action)
                     if new_node:
-                        if check_formula(new_node.state, problem.goal):
-                            new_node.alive = Alive.ALIVE
-                            new_node.goal = True
                         queue.append(new_node)
         compute_alive(self.nodes.values())
         if prune:
