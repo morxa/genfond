@@ -289,7 +289,7 @@ def main():
         try:
             for _ in tqdm.trange(config['policy_iterations'], leave=False, disable=None):
                 execute_policy(domain, problem, policy, config)
-            succs.append(problem.name)
+            succs.append(problem)
         except RuntimeError:
             log.error('Policy does not solve {}'.format(problem.name))
     log.info('Policy solves {} out of {} problems, unsolved: {}'.format(
