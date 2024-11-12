@@ -5,7 +5,7 @@ from dlplan.core import SyntacticElementFactory, State
 from pddl.logic.terms import Constant
 from .execute_rule_policy import eval_state, bool_eval_state, state_satisfies_rule_conds
 from .feature_generator import construct_vocabulary_info, construct_instance_info, _get_state_from_goal, get_action_augmented_state, get_param_augmented_state
-from .ground import ground_action
+from .ground import ground
 from .state_space_generator import check_formula, apply_action_effects
 from .generate_rule_policy import feature_eval_to_cond
 
@@ -35,6 +35,9 @@ def execute_datalog_policy(domain, problem, datalog_policy, config):
     concepts = dict()
     roles = dict()
     features = dict()
+    log.info('Grounding actions...')
+    ground_actions = {(a.name, a.parameters): a for a in ground(domain, problem)}
+    log.info('Grounding actions done!')
     for rule in datalog_policy.rules:
         for cond, _ in (rule.conds | rule.state_aug_conds | rule.param_aug_conds | {
                 cond[0]: None
@@ -120,7 +123,7 @@ def execute_datalog_policy(domain, problem, datalog_policy, config):
                     continue
                 object_combination = tuple(
                     next(c for c in problem.objects | domain.constants if c.name == o) for o in object_combination)
-                grounded_action = ground_action(domain, problem, rule.name, object_combination)
+                grounded_action = ground_actions.get((rule.name, object_combination))
                 if not grounded_action:
                     log.debug(f'... Rule not applicable! No matching action found!')
                     continue
