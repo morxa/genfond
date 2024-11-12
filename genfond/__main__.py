@@ -125,16 +125,16 @@ def solve_iteratively(domain, problems, config):
             )
         except (RuntimeError, MemoryError) as e:
             if 'Id out of range' in str(e):
-                stats['failure_reason'] = 'id'
+                stats['failureReason'] = 'id'
                 problem_iterator.set_last_result(Result.OUT_OF_RESOURCES)
 
             elif isinstance(e, MemoryError):
-                stats['failure_reason'] = 'memory'
+                stats['failureReason'] = 'memory'
                 problem_iterator.set_last_result(Result.OUT_OF_RESOURCES)
 
             else:
                 problem_iterator.set_last_result(Result.UNKNOWN)
-                stats['failure_reason'] = str(e)
+                stats['failureReason'] = str(e)
             log.warning(f'Error during policy generation for {pnames(solver_problems)} with max complexity {i}: {e}')
             continue
         finally:
@@ -185,7 +185,7 @@ def solve_iteratively(domain, problems, config):
             log.error('No policy found for {} with max complexity {}'.format(
                 ", ".join([p.name for p in solver_problems]), i))
             problem_iterator.set_last_result(Result.NO_SOLUTION)
-            stats['failure_reason'] = 'maxcomplexity'
+            stats['failureReason'] = 'maxcomplexity'
     stats.update({
         'trainProblems': len(problem_iterator.active_problems),
         'maxTrainProblemSize': max(len(p.objects) for p in problem_iterator.active_problems) if policy else 0,
