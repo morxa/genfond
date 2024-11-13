@@ -1,0 +1,7 @@
+(define (problem delivery-1x1-1-1-1)
+    (:domain delivery)
+    (:requirements :typing)
+    (:objects c_0_0 - cell p0 - package t0 - truck)
+    (:init (at p0 c_0_0) (at t0 c_0_0) (empty t0))
+    (:goal (and (at p0 c_0_0)))
+)
