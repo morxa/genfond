@@ -101,6 +101,7 @@ class FeaturePool:
         config,
         max_complexity=None,
         all_generators=False,
+        selected_states=None,
     ):
         assert len({problem.name for problem in problems}) == len(problems), \
             "Problem names must be unique."
@@ -123,7 +124,9 @@ class FeaturePool:
         for problem in problems:
             instance, mapping = construct_instance_info(vocabulary, domain, problem,
                                                         self.problem_name_to_id[problem.name], config)
-            self.state_graphs[problem.name] = generate_state_space(domain, problem)
+            self.state_graphs[problem.name] = generate_state_space(domain,
+                                                                   problem,
+                                                                   selected_states=selected_states[problem.name])
             self.instances[problem.name] = instance
             self.mappings[problem.name] = mapping
             for node in self.state_graphs[problem.name].nodes.values():
@@ -324,6 +327,9 @@ class FeaturePool:
         problem_id = self.problem_name_to_id[problem.name]
         clingo_program = ""
         clingo_program += f'state({problem_id}, {node.id}).\n'
+        if node.alive == Alive.PRUNED:
+            clingo_program += f'pruned({problem_id}, {node.id}).\n'
+            return clingo_program
         if node.alive == Alive.ALIVE:
             clingo_program += f'alive({problem_id}, {node.id}).\n'
         if node.alive != Alive.ALIVE and not self.config['include_dead_states']:

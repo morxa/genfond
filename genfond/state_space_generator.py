@@ -11,6 +11,10 @@ import logging
 log = logging.getLogger(__name__)
 
 
+def state_to_string(state):
+    return ','.join([f'{p.name}({",".join([str(p) for p in p.terms])})' for p in state])
+
+
 def check_formula(state, formula):
     if isinstance(formula, And):
         return all(check_formula(state, subformula) for subformula in formula.operands)
@@ -71,6 +75,7 @@ class Alive(Enum):
     ALIVE = 0
     DEAD = 1
     UNKNOWN = 2
+    PRUNED = 3
 
 
 class StateSpaceNode:
@@ -84,7 +89,7 @@ class StateSpaceNode:
         self.parents = set()
 
     def __str__(self):
-        return ','.join([f'{p.name}({",".join([str(p) for p in p.terms])})' for p in self.state])
+        return state_to_string(self.state)
 
     def __repr__(self):
         return repr(self.state)
@@ -95,7 +100,7 @@ class StateSpaceNode:
 
 class StateSpaceGraph:
 
-    def __init__(self, domain, problem, prune=True):
+    def __init__(self, domain, problem, prune=True, selected_states=None):
         self.domain = domain
         self.problem = problem
         root_state = problem.init
@@ -119,9 +124,9 @@ class StateSpaceGraph:
                         queue.append(new_node)
         compute_alive(self.nodes.values())
         if prune:
-            self.prune_nodes()
+            self.prune_nodes(selected_states)
         assert all(node.alive != Alive.UNKNOWN for node in self.nodes.values())
-        assert self.root.alive == Alive.ALIVE, 'Problem {} is unsolvable'.format(problem.name)
+        #assert self.root.alive == Alive.ALIVE, 'Problem {} is unsolvable'.format(problem.name)
 
     def add_node(self, state, parent_state, action):
         parent = self.nodes[parent_state]
@@ -141,22 +146,34 @@ class StateSpaceGraph:
         else:
             return None
 
-    def prune_nodes(self):
-        pruned = []
+    def prune_nodes(self, selected_states=None):
+        log.debug(f'Pruning: {len(selected_states) if selected_states else "no"} states selected')
+        for selected_state in selected_states:
+            if selected_state not in self.nodes:
+                log.critical(f'Selected state {selected_state} not in state space, available states: ' +
+                             "; ".join([state_to_string(s) for s in self.nodes.keys()]))
+                raise ValueError(f'Selected state {selected_state} not in state space')
+        pruned_dead = []
+        pruned_selected = []
         for state, node in self.nodes.items():
             if node.alive == Alive.DEAD and all([parent.alive == Alive.DEAD for parent in node.parents]):
-                pruned.append(state)
+                pruned_dead.append(state)
+            elif selected_states and state not in selected_states:
+                node.alive = Alive.PRUNED
+                if all([parent.state not in selected_states for parent in node.parents]):
+                    pruned_selected.append(state)
         before = len(self.nodes)
-        for state in pruned:
+        for state in pruned_dead + pruned_selected:
             del self.nodes[state]
         for node in self.nodes.values():
             for action, children in node.children.items():
                 node.children[action] = {child for child in children if child.state in self.nodes}
-        log.info(f'Pruned {len(pruned)} out of {before} states in {self.problem.name}')
+        log.info(f'Pruned {len(pruned_dead)} dead and {len(pruned_selected)} unselected '
+                 f'out of {before} states in {self.problem.name}')
 
 
-def generate_state_space(domain, problem):
-    return StateSpaceGraph(domain, problem)
+def generate_state_space(domain, problem, selected_states=None):
+    return StateSpaceGraph(domain, problem, selected_states=selected_states)
 
 
 def can_reach_goal(node, goal_nodes):

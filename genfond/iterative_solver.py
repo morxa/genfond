@@ -3,6 +3,7 @@ from .feature_generator import FeaturePool
 from .solver import Solver
 from .policy import PolicyType
 from .execute_policy import execute_policy
+from .execute_datalog_policy import NoActionError, CycleError
 from .generate_policy import generate_policy
 import logging
 import time
@@ -21,6 +22,7 @@ def solve(
     max_cost=None,
     all_generators=True,
     enforce_highest_complexity=False,
+    selected_states=None,
 ):
     stats = dict()
     log.debug('Generating feature pool ...')
@@ -30,6 +32,7 @@ def solve(
         config=config,
         max_complexity=complexity,
         all_generators=all_generators,
+        selected_states=selected_states,
     )
     stats['featurePoolSize'] = len(feature_pool.features)
     log.debug('Generating ASP instance ...')
@@ -85,7 +88,6 @@ def pnames(problems):
 def solve_iteratively(domain, problems, config):
     policy = None
     queue = problems.copy()
-    failure_reason = ''
     total_solve_cpu_time = 0
     best_solve_cpu_time = 0
     best_solve_wall_time = 0
@@ -93,7 +95,7 @@ def solve_iteratively(domain, problems, config):
     queue.sort(key=lambda p: len(p.objects))
     problem_iterator = ProblemIterator(queue, config['min_complexity'], config['max_complexity'],
                                        config['use_unrestricted_features'])
-    for solver_problems, i, all_generators, max_cost in problem_iterator:
+    for solver_problems, i, all_generators, max_cost, selected_states in problem_iterator:
         try:
             log.info(f'Starting solver for {pnames(solver_problems)} with max complexity {i}')
             solve_wall_time_start = time.perf_counter()
@@ -106,6 +108,7 @@ def solve_iteratively(domain, problems, config):
                 all_generators=all_generators,
                 max_cost=max_cost if max_cost < MAX_COST else None,
                 enforce_highest_complexity=True,
+                selected_states=selected_states,
             )
         except (RuntimeError, MemoryError) as e:
             if 'Id out of range' in str(e):
@@ -132,20 +135,20 @@ def solve_iteratively(domain, problems, config):
             log.info(f'Found policy with cost {new_policy.cost} for'
                      f' {pnames(solver_problems)} with max complexity {i}')
             log.info(f'New policy: {new_policy}')
-            log.info('Verifying new policy on solved problems')
-            try:
-                for problem in tqdm.tqdm(solver_problems, disable=None):
-                    execute_policy(domain, problem, new_policy, config)
-            except RuntimeError:
-                log.critical('New policy does not solve {}'.format(problem.name))
-                if config['dump_failed_policies']:
-                    h = hash(new_policy)
-                    with open(f'failed_policy-{h}.pickle', 'wb') as f:
-                        pickle.dump(new_policy, f)
-                    log.critical(f'Dumped failed policy to failed_policy-{h}.pickle')
-                if not config['continue_after_error']:
-                    sys.exit(1)
-                continue
+            # log.info('Verifying new policy on solved problems')
+            # try:
+            #     for problem in tqdm.tqdm(solver_problems, disable=None):
+            #         execute_policy(domain, problem, new_policy, config)
+            # except RuntimeError:
+            #     log.info('New policy does not solve {}'.format(problem.name))
+            #     if config['dump_failed_policies']:
+            #         h = hash(new_policy)
+            #         with open(f'failed_policy-{h}.pickle', 'wb') as f:
+            #             pickle.dump(new_policy, f)
+            #         log.critical(f'Dumped failed policy to failed_policy-{h}.pickle')
+            #     if not config['continue_after_error']:
+            #         sys.exit(1)
+            #     continue
             policy = new_policy
             stats = solve_stats
             stats['maxFeatureComplexity'] = i
@@ -156,12 +159,21 @@ def solve_iteratively(domain, problems, config):
             log.info(f'Testing policy on unsolved problems {config["policy_iterations"]} times ...')
             for problem in tqdm.tqdm(problem_iterator.get_unsolved_problems(), disable=None):
                 try:
-                    log.debug(f'Testing policy on {problem.name} {config["policy_iterations"]} times ...')
+                    log.info(f'Testing policy on {problem.name} {config["policy_iterations"]} times ...')
                     # Execute policy policy_iterations times
                     for _ in range(config['policy_iterations']):
                         plan = execute_policy(domain, problem, policy, config)
                     log.debug(f'Policy already solves {problem.name} (plan length {len(plan)})')
                     problem_iterator.set_solved(problem)
+                except NoActionError as e:
+                    log.info(f'Policy does not solve {problem.name}, no action in reachable state')
+                    problem_iterator.set_new_state(problem.name, e.state)
+                    break
+                except CycleError as e:
+                    log.info(f'Policy does not solve {problem.name}, found cycle of length {len(e.cycle)}')
+                    for state in e.cycle:
+                        problem_iterator.set_new_state(problem.name, state)
+                    break
                 except RuntimeError:
                     log.info('Policy does not solve {}'.format(problem.name))
                     break

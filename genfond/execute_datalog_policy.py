@@ -12,6 +12,26 @@ from .generate_rule_policy import feature_eval_to_cond
 log = logging.getLogger('genfond.execution.datalog')
 
 
+class PolicyExecutionError(RuntimeError):
+
+    def __init__(self, message):
+        super().__init__(message)
+
+
+class NoActionError(PolicyExecutionError):
+
+    def __init__(self, state):
+        self.state = state
+        super().__init__(f"No action found for state: {", ".join([str(p) for p in state])}")
+
+
+class CycleError(PolicyExecutionError):
+
+    def __init__(self, cycle):
+        self.cycle = cycle
+        super().__init__("Cycle detected")
+
+
 def get_next_state(states):
     return random.choice([state for state in states])
 
@@ -57,17 +77,19 @@ def execute_datalog_policy(domain, problem, datalog_policy, config):
                 roles[role] = factory.parse_role(role)
 
     state = problem.init
-    seen_states = []
-    goal_state = _get_state_from_goal(problem.goal)
+    trace = dict()
     num_steps = 0
     actions_taken = []
     max_steps = config['policy_steps']
     while not check_formula(state, problem.goal) and (max_steps <= 0 or num_steps < max_steps):
         if config['abort_on_cycle']:
-            if state in seen_states:
+            if state in trace:
                 log.error('Cycle detected!')
-                raise RuntimeError('Cycle detected!')
-            seen_states.append(state)
+                cycle = []
+                while state not in cycle:
+                    cycle.append(state)
+                    state = trace[state]
+                raise CycleError(cycle)
         log.debug('-' * 80)
         log.info(f'New state: {state_string(state)}')
         found_rule = False
@@ -192,18 +214,20 @@ def execute_datalog_policy(domain, problem, datalog_policy, config):
             log.info(f'{rule}')
             log.info(f'Applying action {action_string(action)}')
             found_rule = True
-            state = get_next_state(apply_action_effects(state, action))
+            new_state = get_next_state(apply_action_effects(state, action))
+            trace[state] = new_state
+            state = new_state
             num_steps += 1
             actions_taken.append(action_string(action))
             break
 
         if not found_rule:
             log.error(f'No matching rule found for state {state_string(state)}!')
-            raise RuntimeError('No matching rule found!')
+            raise NoActionError(state)
 
     if not check_formula(state, problem.goal):
         log.error('Goal not reached!')
-        raise RuntimeError('Goal not reached!')
+        raise PolicyExecutionError('Goal not reached!')
 
     log.info('Goal reached!')
     return actions_taken
