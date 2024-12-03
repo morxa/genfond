@@ -63,9 +63,17 @@ class ProblemIterator:
         self.new_states.setdefault(problem_name, set()).add(state)
 
     def _update_selected_states(self):
+        log.debug(f'active problems: {", ".join([p.name for p in self.active_problems])}')
+        log.debug(f'new states: {", ".join([f"{k}: {len(v)}" for k, v in self.new_states.items()])}')
+        before = sum(len(states) for states in self.selected_states.values())
         for problem, states in self.new_states.items():
+            if not (any(problem == p.name for p in self.active_problems)):
+                continue
+            log.debug(f'Adding new states for {problem}: {", ".join([state_to_string(state) for state in states])}')
             self.selected_states.setdefault(problem, set()).update(states)
-        self.new_states.clear()
+        after = sum(len(states) for states in self.selected_states.values())
+        log.debug(f'Updated selected states: {after - before} new states')
+        return after - before
 
     def set_solved(self, problem):
         self.solved[problem.name] = True
@@ -75,17 +83,14 @@ class ProblemIterator:
 
     def __next__(self):
         assert self.last_result != Result.UNKNOWN, "You must set the result of the last problem before calling next"
-        log.debug(f'new states: {", ".join([f"{k}: {len(v)}" for k, v in self.new_states.items()])}')
-        log.debug(f'active problems: {", ".join([p.name for p in self.active_problems])}')
         log.debug(
             f'last result: {self.last_result.name}, all features: {self.all_features}, complexity: {self.complexity}')
-        if any(problem.name in self.new_states for problem in self.active_problems):
+        if self._update_selected_states() > 0:
             self.all_features = False
             self.max_cost = MAX_COST
             self.max_prune_cost = MAX_COST
             self.active_problems_solved = False
             self.complexity = self.succ_complexity
-            self._update_selected_states()
         elif (self.active_problems and self.last_result != Result.OUT_OF_RESOURCES and not self.all_features
               and self.use_all_features):
             self.all_features = True
@@ -101,14 +106,14 @@ class ProblemIterator:
             self.complexity = self.succ_complexity
             next_problem = next(problem for problem in self.problems
                                 if not self.solved[problem.name] and problem not in self.active_problems)
-            if not next_problem.name in self.new_states:
-                self.new_states[next_problem.name] = {next_problem.init}
-            self._update_selected_states()
             if False and self.active_problems and self.problems.index(next_problem) > max(
                 [self.problems.index(problem) for problem in self.active_problems]):
                 self.active_problems = [next_problem]
             else:
                 self.active_problems.append(next_problem)
+            if not next_problem.name in self.new_states:
+                self.new_states[next_problem.name] = {next_problem.init}
+            assert self._update_selected_states() > 0
         else:
             raise StopIteration
         log.debug(f'Next set: {", ".join([p.name for p in self.active_problems])},'
