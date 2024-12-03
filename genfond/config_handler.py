@@ -10,6 +10,7 @@ DEFAULT_CONFIG = {
     'num_threads': None,
     'max_memory': None,
     'dump_failed_policies': False,
+    'dump_clingo_program': None,
     'keep_going': False,
     'continue_after_error': False,
     'include_boolean_features': True,
