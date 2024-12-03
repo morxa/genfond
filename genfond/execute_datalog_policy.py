@@ -99,8 +99,8 @@ def execute_datalog_policy(domain, problem, datalog_policy, config):
         bool_eval = bool_eval_state(instance, mapping, features, domain, problem, state,
                                     config | {'include_actions': False})
 
-        for i, rule in enumerate(datalog_policy.rules):
-            log.debug(f'Checking rule {i}: {rule}')
+        for rule in random.sample(list(datalog_policy.rules), len(datalog_policy.rules)):
+            log.debug(f'Checking rule: {rule}')
             if not state_satisfies_rule_conds(bool_eval, rule.conds):
                 log.debug(f'... Rule conditions not satisfied!')
                 continue
@@ -117,6 +117,7 @@ def execute_datalog_policy(domain, problem, datalog_policy, config):
                         break
 
                 objects[index] = [object_id_to_name[i] for i in valid_objects]
+                random.shuffle(objects[index])
                 if len(valid_objects) == 0:
                     break
 
@@ -210,7 +211,7 @@ def execute_datalog_policy(domain, problem, datalog_policy, config):
                 log.debug(f'... Rule not applicable! No matching action found!')
                 continue
 
-            log.info(f'... Found action {action_string(action)}  matching rule {i}:')
+            log.info(f'... Found action {action_string(action)}')
             log.info(f'{rule}')
             log.info(f'Applying action {action_string(action)}')
             found_rule = True

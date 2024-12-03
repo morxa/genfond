@@ -71,7 +71,7 @@ DEFAULT_CONFIG = {
 DEFAULT_TYPE_CONFIGS = {
     'datalog': {
         'policy_type': 'DATALOG',
-        'policy_iterations': 1,
+        'policy_iterations': 10,
         'abort_on_cycle': True,
         'solve_prog': 'solve_datalog.lp',
         'include_numerical_features': False,
