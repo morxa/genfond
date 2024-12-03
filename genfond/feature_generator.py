@@ -326,6 +326,8 @@ class FeaturePool:
     def node_to_clingo(self, problem, node, stats):
         problem_id = self.problem_name_to_id[problem.name]
         clingo_program = ""
+        clingo_program += f'% ' + ','.join([f'{p.name}({",".join([str(p) for p in p.terms])})'
+                                            for p in node.state]) + '\n'
         clingo_program += f'state({problem_id}, {node.id}).\n'
         if node.alive == Alive.PRUNED:
             clingo_program += f'pruned({problem_id}, {node.id}).\n'
@@ -333,7 +335,7 @@ class FeaturePool:
         if node.alive == Alive.ALIVE:
             clingo_program += f'alive({problem_id}, {node.id}).\n'
         if node.alive != Alive.ALIVE and not self.config['include_dead_states']:
-            return ""
+            return clingo_program
         if check_formula(node.state, problem.goal):
             clingo_program += f'goal({problem_id}, {node.id}).\n'
             if not self.config['include_goal_states']:
