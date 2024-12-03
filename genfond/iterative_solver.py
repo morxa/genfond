@@ -173,11 +173,13 @@ def solve_iteratively(domain, problems, config):
                     except NoActionError as e:
                         log.info(f'Policy does not solve {problem.name}, no action in reachable state')
                         solved = False
+                        for state in e.trace.keys():
+                            problem_iterator.set_new_state(problem.name, state)
                         problem_iterator.set_new_state(problem.name, e.state)
                     except CycleError as e:
                         log.info(f'Policy does not solve {problem.name}, found cycle of length {len(e.cycle)}')
                         solved = False
-                        for state in e.cycle:
+                        for state in e.trace.keys():
                             problem_iterator.set_new_state(problem.name, state)
                     except RuntimeError:
                         log.info('Policy does not solve {}'.format(problem.name))

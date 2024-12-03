@@ -20,14 +20,16 @@ class PolicyExecutionError(RuntimeError):
 
 class NoActionError(PolicyExecutionError):
 
-    def __init__(self, state):
+    def __init__(self, trace, state):
+        self.trace = trace
         self.state = state
         super().__init__(f"No action found for state: {", ".join([str(p) for p in state])}")
 
 
 class CycleError(PolicyExecutionError):
 
-    def __init__(self, cycle):
+    def __init__(self, trace, cycle):
+        self.trace = trace
         self.cycle = cycle
         super().__init__("Cycle detected")
 
@@ -89,7 +91,7 @@ def execute_datalog_policy(domain, problem, datalog_policy, config):
                 while state not in cycle:
                     cycle.append(state)
                     state = trace[state]
-                raise CycleError(cycle)
+                raise CycleError(trace, cycle)
         log.debug('-' * 80)
         log.info(f'New state: {state_string(state)}')
         found_rule = False
@@ -224,7 +226,7 @@ def execute_datalog_policy(domain, problem, datalog_policy, config):
 
         if not found_rule:
             log.error(f'No matching rule found for state {state_string(state)}!')
-            raise NoActionError(state)
+            raise NoActionError(trace, state)
 
     if not check_formula(state, problem.goal):
         log.error('Goal not reached!')
