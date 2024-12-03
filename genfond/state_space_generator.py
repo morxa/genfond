@@ -5,10 +5,11 @@ from collections.abc import Collection
 from pddl.logic.effects import AndEffect, When
 from .ground import ground
 from enum import Enum
+import random
 
 import logging
 
-log = logging.getLogger(__name__)
+log = logging.getLogger('genfond.state_space_generator')
 
 
 def state_to_string(state):
@@ -236,3 +237,20 @@ def compute_alive(nodes):
     for node in nodes:
         if node.alive == Alive.UNKNOWN:
             node.alive = Alive.ALIVE
+
+
+def random_walk(domain, problem, initial_states, max_steps=100):
+    states = list(initial_states)
+    grounded_actions = ground(domain, problem)
+    while True:
+        state = random.choice(states)
+        for _ in range(max_steps):
+            if check_formula(state, problem.goal):
+                return states
+            applicable_actions = [action for action in grounded_actions if check_formula(state, action.precondition)]
+            if not applicable_actions:
+                break
+            action = random.choice(applicable_actions)
+            succ = random.choice(list(apply_action_effects(state, action)))
+            states.append(succ)
+            state = succ

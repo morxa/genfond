@@ -5,6 +5,7 @@ from .policy import PolicyType
 from .execute_policy import execute_policy
 from .execute_datalog_policy import NoActionError, CycleError
 from .generate_policy import generate_policy
+from .state_space_generator import check_formula, random_walk
 import logging
 import time
 import pickle
@@ -98,6 +99,18 @@ def solve_iteratively(domain, problems, config):
     problem_iterator = ProblemIterator(problems, config['min_complexity'], config['max_complexity'],
                                        config['use_unrestricted_features'])
     for solver_problems, i, all_generators, max_cost, max_prune_cost, selected_states in problem_iterator:
+        unsolvable_instance = False
+        for problem in solver_problems:
+            if not any(check_formula(state, problem.goal) for state in selected_states.get(problem.name, [])):
+                unsolvable_instance = True
+                log.info(f'No goal state in selected states for {problem.name}, starting random walk')
+                walk_states = random_walk(domain, problem, selected_states.get(problem.name, [problem.init]))
+                log.info(f'Random walk found {len(walk_states)} states')
+                for state in walk_states:
+                    problem_iterator.set_new_state(problem.name, state)
+                continue
+        if unsolvable_instance:
+            continue
         try:
             log.info(f'Starting solver for {pnames(solver_problems)} with max complexity {i}')
             solve_wall_time_start = time.perf_counter()
