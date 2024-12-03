@@ -126,7 +126,8 @@ class FeaturePool:
                                                         self.problem_name_to_id[problem.name], config)
             self.state_graphs[problem.name] = generate_state_space(domain,
                                                                    problem,
-                                                                   selected_states=selected_states[problem.name])
+                                                                   selected_states=selected_states.get(
+                                                                       problem.name, None))
             self.instances[problem.name] = instance
             self.mappings[problem.name] = mapping
             for node in self.state_graphs[problem.name].nodes.values():

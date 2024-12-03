@@ -27,6 +27,8 @@ DEFAULT_CONFIG = {
     'prune_roles': True,
     'prune_concepts': True,
     'prune_features': True,
+    'use_selected_states': False,
+    'use_random_walks': False,
     'use_unrestricted_features': True,
     'feature_generator': {
         'generate_til_c_role': False,

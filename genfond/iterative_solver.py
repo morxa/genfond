@@ -98,18 +98,19 @@ def solve_iteratively(domain, problems, config):
     stats = dict()
     problem_iterator = ProblemIterator(problems, config)
     for solver_problems, i, all_generators, max_cost, max_prune_cost, selected_states in problem_iterator:
-        unsolvable_instance = False
-        for problem in solver_problems:
-            if not any(check_formula(state, problem.goal) for state in selected_states.get(problem.name, [])):
-                unsolvable_instance = True
-                log.info(f'No goal state in selected states for {problem.name}, starting random walk')
-                walk_states = random_walk(domain, problem, selected_states.get(problem.name, [problem.init]))
-                log.info(f'Random walk found {len(walk_states)} states')
-                for state in walk_states:
-                    problem_iterator.set_new_state(problem.name, state)
+        if config['use_random_walks']:
+            unsolvable_instance = False
+            for problem in solver_problems:
+                if not any(check_formula(state, problem.goal) for state in selected_states.get(problem.name, [])):
+                    unsolvable_instance = True
+                    log.info(f'No goal state in selected states for {problem.name}, starting random walk')
+                    walk_states = random_walk(domain, problem, selected_states.get(problem.name, [problem.init]))
+                    log.info(f'Random walk found {len(walk_states)} states')
+                    for state in walk_states:
+                        problem_iterator.set_new_state(problem.name, state)
+                    continue
+            if unsolvable_instance:
                 continue
-        if unsolvable_instance:
-            continue
         try:
             log.info(f'Starting solver for {pnames(solver_problems)} with max complexity {i}')
             solve_wall_time_start = time.perf_counter()

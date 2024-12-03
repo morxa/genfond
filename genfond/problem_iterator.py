@@ -56,6 +56,8 @@ class ProblemIterator:
                     del self.selected_states[problem.name]
 
     def set_new_state(self, problem_name, state):
+        if not self.config['use_selected_states']:
+            return
         log.debug(f'Adding new state for {problem_name}: {state_to_string(state)}')
         self.solved[problem_name] = False
         self.new_states.setdefault(problem_name, set()).add(state)
@@ -109,9 +111,9 @@ class ProblemIterator:
                 self.active_problems = [next_problem]
             else:
                 self.active_problems.append(next_problem)
-            if not next_problem.name in self.new_states:
+            if self.config['use_selected_states'] and not next_problem.name in self.new_states:
                 self.new_states[next_problem.name] = {next_problem.init}
-            assert self._update_selected_states() > 0
+            assert not self.config['use_selected_states'] or self._update_selected_states() > 0
         else:
             raise StopIteration
         log.debug(f'Next set: {", ".join([p.name for p in self.active_problems])},'
