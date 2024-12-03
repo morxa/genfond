@@ -33,14 +33,20 @@ class ProblemIterator:
         self.succ_complexity = self.complexity
         self.active_problems_solved = True
         self.max_cost = MAX_COST
+        self.max_prune_cost = MAX_COST
         self.solved = {problem.name: False for problem in self.problems}
         return self
 
-    def set_last_result(self, result, cost=MAX_COST):
+    def set_last_result(self, result, cost=None):
         self.last_result = result
         if result == Result.SUCCESS:
             self.active_problems_solved = True
-            self.max_cost = cost - 1
+            if len(cost) > 1:
+                self.max_cost = cost[-1] - 1
+                self.max_prune_cost = cost[0]
+            else:
+                self.max_cost = cost[-1] - 1
+                self.max_prune_cost = 0
             self.succ_complexity = self.complexity
             # self.solved = {
             #     problem.name: True if problem in self.active_problems else False
@@ -53,6 +59,7 @@ class ProblemIterator:
 
     def set_new_state(self, problem_name, state):
         log.debug(f'Adding new state for {problem_name}: {state_to_string(state)}')
+        self.solved[problem_name] = False
         self.new_states.setdefault(problem_name, set()).add(state)
 
     def _update_selected_states(self):
@@ -75,6 +82,7 @@ class ProblemIterator:
         if any(problem.name in self.new_states for problem in self.active_problems):
             self.all_features = False
             self.max_cost = MAX_COST
+            self.max_prune_cost = MAX_COST
             self.active_problems_solved = False
             self.complexity = self.succ_complexity
             self._update_selected_states()
@@ -88,9 +96,11 @@ class ProblemIterator:
         elif self.active_problems_solved and any(not solved for solved in self.solved.values()):
             self.all_features = False
             self.max_cost = MAX_COST
+            self.max_prune_cost = MAX_COST
             self.active_problems_solved = False
             self.complexity = self.succ_complexity
-            next_problem = next(problem for problem in self.problems if not self.solved[problem.name])
+            next_problem = next(problem for problem in self.problems
+                                if not self.solved[problem.name] and problem not in self.active_problems)
             if not next_problem.name in self.new_states:
                 self.new_states[next_problem.name] = {next_problem.init}
             self._update_selected_states()
@@ -106,4 +116,5 @@ class ProblemIterator:
                   f' all_features={self.all_features},'
                   f' max_cost={self.max_cost if self.max_cost < MAX_COST else "MAX_COST"},'
                   f' |selected_states|={len(self.selected_states)} states')
-        return (self.active_problems, self.complexity, self.all_features, self.max_cost, self.selected_states)
+        return (self.active_problems, self.complexity, self.all_features, self.max_cost, self.max_prune_cost,
+                self.selected_states)

@@ -84,8 +84,13 @@ f_distinguished(I1, S1, I2, S2, F) :- state(I1, S1), state(I2, S2), bool_eval(I1
 #minimize { Cost,F : f_selected(F), feature_complexity(F, Cost) }.
 #minimize { Cost,R : r_selected(R), role_complexity(R, Cost) }.
 
+#minimize { 1@2,I,S1,A,S2 : good_trans(I, S1, A, S2), pruned(I, S2) }.
+
 #program limit_feature_cost(c).
 :- #sum { C,F : f_selected(F), feature_complexity(F, C); Cost,Concept : c_selected(Concept), concept_complexity(Concept, Cost); Cost,Role : r_selected(Role), role_complexity(Role, Cost) } > c.
+
+#program limit_prune_cost(c).
+:- #count { I,S1,A,S2 : good_trans(I, S1, A, S2), pruned(I, S2) } > c.
 
 #program min_feature_complexity(c).
 :- C < c : f_selected(F), feature_complexity(F, C); Cost < c : c_selected(Concept), concept_complexity(Concept, Cost); Cost < c : r_selected(Role), role_complexity(Role, Cost).

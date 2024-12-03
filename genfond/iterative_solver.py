@@ -20,7 +20,8 @@ def solve(
     problems,
     config,
     complexity,
-    max_cost=None,
+    max_cost,
+    max_prune_cost,
     all_generators=True,
     enforce_highest_complexity=False,
     selected_states=None,
@@ -50,16 +51,17 @@ def solve(
         log.info(f'No solution possible for {pnames(problems)}'
                  f' with enforced max complexity {complexity} and max cost {max_cost}')
         return None
-    log.info(
-        'Solving {} with {} features, {} concepts, {} roles ({}); up to {}complexity {},{} and {} = {} states'.format(
-            ", ".join([p.name for p in problems]), len(feature_pool.features), len(feature_pool.concepts),
-            len(feature_pool.roles), 'unrestricted' if all_generators else 'restricted',
-            "enforced " if enforce_highest_complexity else "",
-            complexity, f' max cost {max_cost},' if max_cost else '', " + ".join([str(s) for s in state_counts]),
-            sum(state_counts)))
+    log.info('Solving {} with {} features, {} concepts, {} roles ({}); up to {}complexity {},{}{} and {} = {} states'.
+             format(", ".join([p.name for p in problems]), len(feature_pool.features), len(feature_pool.concepts),
+                    len(feature_pool.roles), 'unrestricted' if all_generators else 'restricted',
+                    "enforced " if enforce_highest_complexity else "", complexity,
+                    f' max cost {max_cost},' if max_cost < MAX_COST else '',
+                    f' max prune cost {max_prune_cost},' if max_prune_cost < MAX_COST else '',
+                    " + ".join([str(s) for s in state_counts]), sum(state_counts)))
     solver = Solver(asp_instance,
                     config['num_threads'],
                     max_cost=max_cost,
+                    max_prune_cost=max_prune_cost,
                     min_feature_complexity=complexity if enforce_highest_complexity else None,
                     solve_prog=config['solve_prog'])
     if not solver.solve():
@@ -96,7 +98,7 @@ def solve_iteratively(domain, problems, config):
     queue.sort(key=lambda p: len(p.objects))
     problem_iterator = ProblemIterator(queue, config['min_complexity'], config['max_complexity'],
                                        config['use_unrestricted_features'])
-    for solver_problems, i, all_generators, max_cost, selected_states in problem_iterator:
+    for solver_problems, i, all_generators, max_cost, max_prune_cost, selected_states in problem_iterator:
         try:
             log.info(f'Starting solver for {pnames(solver_problems)} with max complexity {i}')
             solve_wall_time_start = time.perf_counter()
@@ -107,7 +109,8 @@ def solve_iteratively(domain, problems, config):
                 config=config,
                 complexity=i,
                 all_generators=all_generators,
-                max_cost=max_cost if max_cost < MAX_COST else None,
+                max_cost=max_cost,
+                max_prune_cost=max_prune_cost,
                 enforce_highest_complexity=True,
                 selected_states=selected_states,
             )

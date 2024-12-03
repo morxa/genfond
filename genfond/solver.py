@@ -2,6 +2,7 @@ import clingo
 import os.path
 import os
 import logging
+from .problem_iterator import MAX_COST
 
 log = logging.getLogger(__name__)
 
@@ -19,14 +20,22 @@ def convert_arg(symbol):
 
 class Solver:
 
-    def __init__(self, asp_code, num_threads=None, solve_prog='solve.lp', max_cost=None, min_feature_complexity=None):
+    def __init__(self,
+                 asp_code,
+                 num_threads=None,
+                 solve_prog='solve.lp',
+                 max_cost=MAX_COST,
+                 max_prune_cost=None,
+                 min_feature_complexity=None):
         self.asp_code = asp_code
         self.control = clingo.Control()
         self.control.load(os.path.join(os.path.dirname(__file__), solve_prog))
         self.control.add("instances", [], asp_code)
         parts = [("base", []), ("instances", [])]
-        if max_cost:
+        if max_cost < MAX_COST:
             parts.append(("limit_feature_cost", [clingo.Number(max_cost)]))
+        if max_prune_cost < MAX_COST:
+            parts.append(("limit_prune_cost", [clingo.Number(max_prune_cost)]))
         if min_feature_complexity:
             parts.append(("min_feature_complexity", [clingo.Number(min_feature_complexity)]))
         self.control.ground(parts)
