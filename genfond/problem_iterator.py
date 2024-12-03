@@ -17,18 +17,16 @@ class Result(enum.Enum):
 
 class ProblemIterator:
 
-    def __init__(self, problems, min_complexity, max_complexity, use_all_features):
+    def __init__(self, problems, config):
         self.problems = problems
-        self.min_complexity = min_complexity
-        self.max_complexity = max_complexity
-        self.use_all_features = use_all_features
+        self.config = config
 
     def __iter__(self):
         self.active_problems = []
         self.selected_states = dict()
         self.new_states = dict()
         self.all_features = False
-        self.complexity = self.min_complexity
+        self.complexity = self.config['min_complexity']
         self.last_result = Result.SUCCESS
         self.succ_complexity = self.complexity
         self.active_problems_solved = True
@@ -92,9 +90,9 @@ class ProblemIterator:
             self.active_problems_solved = False
             self.complexity = self.succ_complexity
         elif (self.active_problems and self.last_result != Result.OUT_OF_RESOURCES and not self.all_features
-              and self.use_all_features):
+              and self.config['use_all_features']):
             self.all_features = True
-        elif (self.active_problems and self.all_features and self.complexity < self.max_complexity
+        elif (self.active_problems and self.all_features and self.complexity < self.config['max_complexity']
               and self.max_cost > self.complexity):
             self.all_features = False
             self.complexity += 1

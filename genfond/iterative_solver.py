@@ -96,8 +96,7 @@ def solve_iteratively(domain, problems, config):
     best_solve_cpu_time = 0
     best_solve_wall_time = 0
     stats = dict()
-    problem_iterator = ProblemIterator(problems, config['min_complexity'], config['max_complexity'],
-                                       config['use_unrestricted_features'])
+    problem_iterator = ProblemIterator(problems, config)
     for solver_problems, i, all_generators, max_cost, max_prune_cost, selected_states in problem_iterator:
         unsolvable_instance = False
         for problem in solver_problems:
