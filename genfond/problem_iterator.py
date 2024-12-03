@@ -92,7 +92,7 @@ class ProblemIterator:
             self.active_problems_solved = False
             self.complexity = self.succ_complexity
         elif (self.active_problems and self.last_result != Result.OUT_OF_RESOURCES and not self.all_features
-              and self.config['use_all_features']):
+              and self.config['use_unrestricted_features']):
             self.all_features = True
         elif (self.active_problems and self.all_features and self.complexity < self.config['max_complexity']
               and self.max_cost > self.complexity):
