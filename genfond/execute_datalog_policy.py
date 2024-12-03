@@ -230,4 +230,4 @@ def execute_datalog_policy(domain, problem, datalog_policy, config):
         raise PolicyExecutionError('Goal not reached!')
 
     log.info('Goal reached!')
-    return actions_taken
+    return actions_taken, trace

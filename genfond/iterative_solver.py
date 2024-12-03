@@ -10,6 +10,7 @@ import time
 import pickle
 import tqdm
 import sys
+import statistics
 
 log = logging.getLogger('genfond.solve')
 
@@ -154,28 +155,37 @@ def solve_iteratively(domain, problems, config):
             stats['maxFeatureComplexity'] = i
             best_solve_wall_time = solve_wall_time
             best_solve_cpu_time = solve_cpu_time
-            problem_iterator.set_last_result(Result.SUCCESS, cost=new_policy.cost[0])
+            problem_iterator.set_last_result(Result.SUCCESS, cost=new_policy.cost)
             policy = new_policy
             log.info(f'Testing policy on unsolved problems {config["policy_iterations"]} times ...')
-            for problem in tqdm.tqdm(problem_iterator.get_unsolved_problems(), disable=None):
-                try:
-                    log.info(f'Testing policy on {problem.name} {config["policy_iterations"]} times ...')
-                    # Execute policy policy_iterations times
-                    for _ in range(config['policy_iterations']):
-                        plan = execute_policy(domain, problem, policy, config)
-                    log.debug(f'Policy already solves {problem.name} (plan length {len(plan)})')
+            for problem in tqdm.tqdm(problems, disable=None):
+                log.info(f'Testing policy on {problem.name} {config["policy_iterations"]} times ...')
+                plans = []
+                traces = []
+                solved = True
+                for _ in range(config['policy_iterations']):
+                    try:
+                        plan, trace = execute_policy(domain, problem, policy, config)
+                        plans.append(plan)
+                        traces.append(trace)
+                    except NoActionError as e:
+                        log.info(f'Policy does not solve {problem.name}, no action in reachable state')
+                        solved = False
+                        problem_iterator.set_new_state(problem.name, e.state)
+                    except CycleError as e:
+                        log.info(f'Policy does not solve {problem.name}, found cycle of length {len(e.cycle)}')
+                        solved = False
+                        for state in e.cycle:
+                            problem_iterator.set_new_state(problem.name, state)
+                    except RuntimeError:
+                        log.info('Policy does not solve {}'.format(problem.name))
+                        solved = False
+                if solved:
+                    plan_lengths = [len(plan) for plan in plans]
+                    log.debug(f'Policy already solves {problem.name}'
+                              f'(plan length {statistics.mean(plan_lengths)} +- {statistics.stdev(plan_lengths)})')
                     problem_iterator.set_solved(problem)
-                except NoActionError as e:
-                    log.info(f'Policy does not solve {problem.name}, no action in reachable state')
-                    problem_iterator.set_new_state(problem.name, e.state)
-                    break
-                except CycleError as e:
-                    log.info(f'Policy does not solve {problem.name}, found cycle of length {len(e.cycle)}')
-                    for state in e.cycle:
-                        problem_iterator.set_new_state(problem.name, state)
-                    break
-                except RuntimeError:
-                    log.info('Policy does not solve {}'.format(problem.name))
+                else:
                     break
         else:
             log.error('No policy found for {} with max complexity {}'.format(
