@@ -103,11 +103,21 @@ class StateSpaceGraph:
     def __init__(self, domain, problem, prune=True, selected_states=None):
         self.domain = domain
         self.problem = problem
-        root_state = problem.init
-        self.root = StateSpaceNode(root_state, 0)
-        self.next_id = 1
-        self.nodes = {root_state: self.root}
-        queue = [self.root]
+        self.next_id = 0
+        queue = []
+        self.nodes = dict()
+        if selected_states:
+            for state in selected_states:
+                node = StateSpaceNode(state, self.next_id)
+                self.next_id += 1
+                self.nodes[state] = node
+                queue.append(node)
+        else:
+            root_state = problem.init
+            self.root = StateSpaceNode(root_state, 0)
+            self.next_id = 1
+            self.nodes = {root_state: self.root}
+            queue = [self.root]
         grounded_actions = ground(domain, problem)
         while queue:
             node = queue.pop()
@@ -121,10 +131,13 @@ class StateSpaceGraph:
                 for succ in apply_action_effects(node.state, action):
                     new_node = self.add_node(succ, state, action)
                     if new_node:
-                        queue.append(new_node)
+                        if selected_states and succ not in selected_states:
+                            new_node.alive = Alive.PRUNED
+                        else:
+                            queue.append(new_node)
         compute_alive(self.nodes.values())
         if prune:
-            self.prune_nodes(selected_states)
+            self.prune_nodes()
         assert all(node.alive != Alive.UNKNOWN for node in self.nodes.values())
         #assert self.root.alive == Alive.ALIVE, 'Problem {} is unsolvable'.format(problem.name)
 
@@ -146,29 +159,19 @@ class StateSpaceGraph:
         else:
             return None
 
-    def prune_nodes(self, selected_states=None):
-        log.debug(f'Pruning: {len(selected_states) if selected_states else "no"} states selected')
-        for selected_state in selected_states:
-            if selected_state not in self.nodes:
-                log.critical(f'Selected state {selected_state} not in state space, available states: ' +
-                             "; ".join([state_to_string(s) for s in self.nodes.keys()]))
-                raise ValueError(f'Selected state {selected_state} not in state space')
+    def prune_nodes(self):
         pruned_dead = []
         pruned_selected = []
         for state, node in self.nodes.items():
             if node.alive == Alive.DEAD and all([parent.alive == Alive.DEAD for parent in node.parents]):
                 pruned_dead.append(state)
-            elif selected_states and state not in selected_states:
-                node.alive = Alive.PRUNED
-                if all([parent.state not in selected_states for parent in node.parents]):
-                    pruned_selected.append(state)
         before = len(self.nodes)
         for state in pruned_dead + pruned_selected:
             del self.nodes[state]
         for node in self.nodes.values():
             for action, children in node.children.items():
                 node.children[action] = {child for child in children if child.state in self.nodes}
-        log.info(f'Pruned {len(pruned_dead)} dead and {len(pruned_selected)} unselected '
+        log.info(f'Pruned {len(pruned_dead)} dead '
                  f'out of {before} states in {self.problem.name}')
 
 
@@ -176,7 +179,7 @@ def generate_state_space(domain, problem, selected_states=None):
     return StateSpaceGraph(domain, problem, selected_states=selected_states)
 
 
-def can_reach_goal(node, goal_nodes):
+def can_reach(node, goal_nodes):
     seen = set()
     stack = [node]
     while stack:
@@ -212,11 +215,11 @@ def find_nodes_leading_to_dead(nodes):
 
 def find_node_not_reaching_goal(nodes):
     queue = [node for node in nodes if node.alive == Alive.UNKNOWN]
-    goal_nodes = [node for node in nodes if node.alive == Alive.ALIVE]
+    goal_nodes = [node for node in nodes if node.alive in [Alive.ALIVE, Alive.PRUNED]]
     changed = False
     while queue:
         node = queue.pop()
-        if not can_reach_goal(node, goal_nodes):
+        if not can_reach(node, goal_nodes):
             node.alive = Alive.DEAD
             changed = True
             for parent in node.parents:
