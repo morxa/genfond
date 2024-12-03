@@ -13,7 +13,7 @@ import tqdm
 import sys
 import statistics
 
-log = logging.getLogger('genfond.solve')
+log = logging.getLogger('genfond.iterative_solver')
 
 
 def solve(
@@ -199,8 +199,8 @@ def solve_iteratively(domain, problems, config):
                         solved = False
                 if solved:
                     plan_lengths = [len(plan) for plan in plans]
-                    log.debug(f'Policy already solves {problem.name}'
-                              f'(plan length {statistics.mean(plan_lengths)} +- {statistics.stdev(plan_lengths)})')
+                    log.info(f'Policy already solves {problem.name}'
+                             f' (plan length {statistics.mean(plan_lengths)} ± {statistics.stdev(plan_lengths)})')
                     problem_iterator.set_solved(problem)
                 else:
                     break
