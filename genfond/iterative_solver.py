@@ -90,13 +90,12 @@ def pnames(problems):
 
 def solve_iteratively(domain, problems, config):
     policy = None
-    queue = problems.copy()
+    problems.sort(key=lambda p: len(p.objects))
     total_solve_cpu_time = 0
     best_solve_cpu_time = 0
     best_solve_wall_time = 0
     stats = dict()
-    queue.sort(key=lambda p: len(p.objects))
-    problem_iterator = ProblemIterator(queue, config['min_complexity'], config['max_complexity'],
+    problem_iterator = ProblemIterator(problems, config['min_complexity'], config['max_complexity'],
                                        config['use_unrestricted_features'])
     for solver_problems, i, all_generators, max_cost, max_prune_cost, selected_states in problem_iterator:
         try:
