@@ -106,8 +106,8 @@ class ProblemIterator:
             self.complexity = self.succ_complexity
             next_problem = next(problem for problem in self.problems
                                 if not self.solved[problem.name] and problem not in self.active_problems)
-            if False and self.active_problems and self.problems.index(next_problem) > max(
-                [self.problems.index(problem) for problem in self.active_problems]):
+            if (self.config['unselect_problems'] and self.active_problems and self.problems.index(next_problem) > max(
+                [self.problems.index(problem) for problem in self.active_problems])):
                 self.active_problems = [next_problem]
             else:
                 self.active_problems.append(next_problem)
