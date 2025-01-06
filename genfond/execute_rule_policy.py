@@ -12,6 +12,28 @@ import logging
 log = logging.getLogger('genfond.execution.rule')
 
 
+class PolicyExecutionError(RuntimeError):
+
+    def __init__(self, message):
+        super().__init__(message)
+
+
+class NoActionError(PolicyExecutionError):
+
+    def __init__(self, trace, state):
+        self.trace = trace
+        self.state = state
+        super().__init__(f"No action found for state: {", ".join([str(p) for p in state])}")
+
+
+class CycleError(PolicyExecutionError):
+
+    def __init__(self, trace, cycle):
+        self.trace = trace
+        self.cycle = cycle
+        super().__init__("Cycle detected")
+
+
 def eval_state(instance, mapping, features, domain, problem, state, config, action=None):
     try:
         fstate = State(
@@ -99,10 +121,19 @@ def execute_rule_policy(domain, problem, policy, config):
     grounded_actions = ground(domain, problem)
     log.debug("Grounding actions done.")
     state = problem.init
+    trace = dict()
     num_steps = 0
     actions_taken = []
     max_steps = config['policy_steps']
     while not check_formula(state, problem.goal) and (max_steps <= 0 or num_steps < max_steps):
+        if config['abort_on_cycle']:
+            if state in trace:
+                log.error('Cycle detected!')
+                cycle = []
+                while state not in cycle:
+                    cycle.append(state)
+                    state = trace[state]
+                raise CycleError(trace, cycle)
         log.info(f'New state: {",".join([str(p) for p in state])}')
         feature_eval = eval_state(instance, mapping, features, domain, problem, state, config)
         bool_feature_eval = bool_eval_state(instance, mapping, features, domain, problem, state, config)
@@ -159,7 +190,9 @@ def execute_rule_policy(domain, problem, policy, config):
                     found_rule = True
                     log.info(f'Found matching rule:\n{rule}')
                     log.info(f'Applying action {action_string(action)}')
-                    state = get_next_state(succs, action)
+                    new_state = get_next_state(succs, action)
+                    trace[state] = new_state
+                    state = new_state
                     num_steps += 1
                     actions_taken.append(action_string(action))
                     break

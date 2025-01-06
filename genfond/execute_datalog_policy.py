@@ -8,30 +8,9 @@ from .feature_generator import construct_vocabulary_info, construct_instance_inf
 from .ground import ground
 from .state_space_generator import check_formula, apply_action_effects
 from .generate_rule_policy import feature_eval_to_cond
+from .execute_rule_policy import PolicyExecutionError, NoActionError, CycleError
 
 log = logging.getLogger('genfond.execution.datalog')
-
-
-class PolicyExecutionError(RuntimeError):
-
-    def __init__(self, message):
-        super().__init__(message)
-
-
-class NoActionError(PolicyExecutionError):
-
-    def __init__(self, trace, state):
-        self.trace = trace
-        self.state = state
-        super().__init__(f"No action found for state: {", ".join([str(p) for p in state])}")
-
-
-class CycleError(PolicyExecutionError):
-
-    def __init__(self, trace, cycle):
-        self.trace = trace
-        self.cycle = cycle
-        super().__init__("Cycle detected")
 
 
 def get_next_state(states):
