@@ -25,7 +25,7 @@ class Solver:
                  num_threads=None,
                  solve_prog='solve.lp',
                  max_cost=MAX_COST,
-                 max_prune_cost=None,
+                 max_prune_cost=MAX_COST,
                  min_feature_complexity=None):
         self.asp_code = asp_code
         self.control = clingo.Control()
