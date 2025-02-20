@@ -22,19 +22,19 @@ def test_generate_datalog_policy():
             (0, 2, 'puton(C, D, Table)'),
         },
         'c_distinguished': {
-            (0, 0, 'puton(A, Table, C)', 0, 0, 'puton(A, B, C)', 'c_one_of(Table)', 'pos', 2),
-            (0, 0, 'puton(A, Table, C)', 0, 0, 'puton(A, E, C)', 'c_one_of(Table)', 'pos', 2),
+            (0, 0, 'puton(A, Table, C)', 0, 0, 'puton(A, B, C)', 'c_one_of(Table)', 'pos', 1),
+            (0, 0, 'puton(A, Table, C)', 0, 0, 'puton(A, E, C)', 'c_one_of(Table)', 'pos', 1),
             (0, 0, 'puton(A, Table, C)', 0, 0, 'puton(E, Table, F)',
              'c_some(r_transitive_reflexive_closure(r_primitive(on,0,1)),c_projection(r_primitive(on_G,0,1),0))',
-             'pos', 1),
-            (0, 1, 'puton(B, Table, D)', 0, 1, 'puton(A, Table, C)', 'c_one_of(Table)', 'pos', 2),
+             'pos', 0),
+            (0, 1, 'puton(B, Table, D)', 0, 1, 'puton(A, Table, C)', 'c_one_of(Table)', 'pos', 1),
             (0, 1, 'puton(B, Table, D)', 0, 1, 'puton(E, Table, F)',
              'c_some(r_transitive_reflexive_closure(r_primitive(on,0,1)),c_projection(r_primitive(on_G,0,1),1))',
-             'pos', 1),
+             'pos', 0),
             (0, 2, 'puton(C, D, Table)', 0, 2, 'puton(D, C, Table)', 'c_projection(r_primitive(on_G,0,1),0)', 'pos',
-             1),
+             0),
             (0, 2, 'puton(C, D, Table)', 0, 2, 'puton(D, C, Table)', 'c_projection(r_primitive(on_G,0,1),1)', 'pos',
-             2),
+             1),
         },
     }
     policy = generate_datalog_policy(solution)
@@ -104,7 +104,7 @@ def test_generate_datalog_policy_with_role_conds():
             (0, 0, 'puton(A, C, Table)'),
         },
         'r_distinguished': {
-            (0, 0, 'puton(A, C, Table)', 0, 0, 'puton(A, B, C)', 'r_primitive(on_G,0,1)', 'pos', 1, 2),
+            (0, 0, 'puton(A, C, Table)', 0, 0, 'puton(A, B, C)', 'r_primitive(on_G,0,1)', 'pos', 0, 1),
         },
     }
     policy = generate_datalog_policy(solution)
