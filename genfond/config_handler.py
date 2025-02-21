@@ -30,7 +30,7 @@ DEFAULT_CONFIG = {
     'use_selected_states': False,
     'use_random_walks': False,
     'use_unrestricted_features': True,
-    'unselect_problems': True,
+    'unselect_problems': False,
     'feature_generator': {
         'generate_til_c_role': False,
     },
