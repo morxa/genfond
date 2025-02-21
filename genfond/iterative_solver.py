@@ -176,13 +176,11 @@ def solve_iteratively(domain, problems, config):
             for problem in tqdm.tqdm(problems, disable=None):
                 log.info(f'Testing policy on {problem.name} {config["policy_iterations"]} times ...')
                 plans = []
-                traces = []
                 solved = True
                 for _ in range(config['policy_iterations']):
                     try:
-                        plan, trace = execute_policy(domain, problem, policy, config)
+                        plan = execute_policy(domain, problem, policy, config)
                         plans.append(plan)
-                        traces.append(trace)
                     except NoActionError as e:
                         log.info(f'Policy does not solve {problem.name}, no action in reachable state')
                         solved = False
