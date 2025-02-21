@@ -416,7 +416,7 @@ class FeaturePool:
             clingo_program += f'aname({action_str}, "{action.name}").\n'
             for child in children:
                 clingo_program += f'trans({problem_id}, {node.id}, {action_str}, {child.id}).\n'
-                if self.concepts:
+                if self.concepts or self.roles:
                     params = [f'"{p}"' for p in action.parameters]
                     for i, p in enumerate(params):
                         clingo_program += f'aparam({action_str}, {i}, {p}).\n'
