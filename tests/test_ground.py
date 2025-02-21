@@ -2,7 +2,7 @@ from pddl.action import Action
 from pddl.logic import Predicate, constants, variables
 from pddl.logic.base import And, OneOf
 from pddl.logic.predicates import EqualTo
-from pddl.logic.effects import AndEffect, When
+from pddl.logic.effects import When
 from pddl.logic.terms import Constant
 
 from genfond.ground import ground, ground_domain_predicates
@@ -61,8 +61,8 @@ def test_ground_blocksworld(fond_blocks):
     assert abc_puton.precondition == And(on(a, c), clear(a), clear(b), ~EqualTo(b, c), ~EqualTo(a, c), ~EqualTo(a, b),
                                          ~EqualTo(a, table))
     expected_effect = OneOf(
-        AndEffect(on(a, b), ~on(a, c), When(~EqualTo(c, table), clear(c)), When(~EqualTo(b, table), ~clear(b))),
-        AndEffect(on(a, table), When(~EqualTo(c, table), ~on(a, c) & clear(c))))
+        And(on(a, b), ~on(a, c), When(~EqualTo(c, table), clear(c)), When(~EqualTo(b, table), ~clear(b))),
+        And(on(a, table), When(~EqualTo(c, table), ~on(a, c) & clear(c))))
     assert abc_puton.effect == expected_effect
 
 

@@ -2,7 +2,8 @@ from pddl.logic.base import And, Not, OneOf
 from pddl.logic import Predicate
 from pddl.logic.predicates import EqualTo
 from collections.abc import Collection
-from pddl.logic.effects import AndEffect, When
+from pddl.logic.effects import When
+from pddl.logic.base import And
 from .ground import ground
 from enum import Enum
 import random
@@ -49,7 +50,7 @@ def apply_effects_to_state(state, effects):
         for effect in effects:
             states = apply_effects(states, effect)
         return states
-    elif isinstance(effects, And) or isinstance(effects, AndEffect):
+    elif isinstance(effects, And) or isinstance(effects, And):
         states = {state}
         for effect in effects.operands:
             states = apply_effects(states, effect)

@@ -4,7 +4,8 @@ from pddl.logic import Predicate, Variable
 from pddl.logic.base import UnaryOp, BinaryOp
 from pddl.logic.predicates import EqualTo
 from pddl.logic.terms import Constant
-from pddl.logic.effects import AndEffect, When
+from pddl.logic.effects import When
+from pddl.logic.base import And
 
 
 def _ground_ops(op, mapping):
@@ -24,7 +25,7 @@ def _ground_ops(op, mapping):
         return optype(_ground_ops(op.argument, mapping))
     elif issubclass(optype, BinaryOp):
         return optype(*[_ground_ops(t, mapping) for t in op.operands])
-    elif optype == AndEffect:
+    elif optype == And:
         return optype(*[_ground_ops(t, mapping) for t in op.operands])
     elif optype == When:
         return optype(_ground_ops(op.condition, mapping), _ground_ops(op.effect, mapping))
