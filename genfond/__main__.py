@@ -3,6 +3,7 @@ import argparse
 from genfond.execute_policy import execute_policy
 from genfond.config_handler import ConfigHandler, DEFAULT_TYPE_CONFIGS
 from .iterative_solver import solve_iteratively, pnames, solve
+from .problem_iterator import MAX_COST
 import logging
 import sys
 import pddl
@@ -90,7 +91,8 @@ def main():
                          config=config,
                          complexity=config['max_complexity'],
                          all_generators=False,
-                         dump_clingo_program=args.dump_clingo_program)
+                         max_cost=MAX_COST,
+                         max_prune_cost=MAX_COST)
         solve_cpu_time = time.process_time() - solve_cpu_time_start
         log.info(f'CPU time: {solve_cpu_time:.2f}s')
         mem_usage = (resource.getrusage(resource.RUSAGE_SELF).ru_maxrss) / 1024
