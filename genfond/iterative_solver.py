@@ -184,17 +184,20 @@ def solve_iteratively(domain, problems, config):
                     except NoActionError as e:
                         log.info(f'Policy does not solve {problem.name}, no action in reachable state')
                         solved = False
+                        problem_iterator.set_solved(problem, False)
                         for state in e.trace.keys():
                             problem_iterator.set_new_state(problem.name, state)
                         problem_iterator.set_new_state(problem.name, e.state)
                     except CycleError as e:
                         log.info(f'Policy does not solve {problem.name}, found cycle of length {len(e.cycle)}')
                         solved = False
+                        problem_iterator.set_solved(problem, False)
                         for state in e.trace.keys():
                             problem_iterator.set_new_state(problem.name, state)
                     except RuntimeError:
                         log.info('Policy does not solve {}'.format(problem.name))
                         solved = False
+                        problem_iterator.set_solved(problem, False)
                 if solved:
                     plan_lengths = [len(plan) for plan in plans]
                     log.info(f'Policy already solves {problem.name}'
@@ -202,6 +205,9 @@ def solve_iteratively(domain, problems, config):
                     problem_iterator.set_solved(problem)
                 else:
                     break
+            if solved and config['stop_after_first_solution']:
+                log.info(f'Policy solves all problems')
+                break
         else:
             log.error('No policy found for {} with max complexity {}'.format(
                 ", ".join([p.name for p in solver_problems]), i))

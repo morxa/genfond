@@ -75,8 +75,8 @@ class ProblemIterator:
         log.debug(f'Updated selected states: {after - before} new states')
         return after - before
 
-    def set_solved(self, problem):
-        self.solved[problem.name] = True
+    def set_solved(self, problem, solved=True):
+        self.solved[problem.name] = solved
 
     def get_unsolved_problems(self):
         return [problem for problem in self.problems if not self.solved[problem.name]]

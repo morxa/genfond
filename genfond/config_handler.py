@@ -6,6 +6,7 @@ DEFAULT_CONFIG = {
     'max_complexity': 15,
     'policy_iterations': 100,
     'abort_on_cycle': False,
+    'stop_after_first_solution': True,
     'policy_steps': 10000,
     'num_threads': None,
     'max_memory': None,
