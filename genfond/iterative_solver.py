@@ -12,6 +12,7 @@ import pickle
 import tqdm
 import sys
 import statistics
+from tqdm.contrib.logging import logging_redirect_tqdm
 
 log = logging.getLogger('genfond.iterative_solver')
 
@@ -173,38 +174,39 @@ def solve_iteratively(domain, problems, config):
             problem_iterator.set_last_result(Result.SUCCESS, cost=new_policy.cost)
             policy = new_policy
             log.info(f'Testing policy on unsolved problems {config["policy_iterations"]} times ...')
-            for problem in tqdm.tqdm(problems, disable=None):
-                log.info(f'Testing policy on {problem.name} {config["policy_iterations"]} times ...')
-                plans = []
-                solved = True
-                for _ in range(config['policy_iterations']):
-                    try:
-                        plan = execute_policy(domain, problem, policy, config)
-                        plans.append(plan)
-                    except NoActionError as e:
-                        log.info(f'Policy does not solve {problem.name}, no action in reachable state')
-                        solved = False
-                        problem_iterator.set_solved(problem, False)
-                        for state in e.trace.keys():
-                            problem_iterator.set_new_state(problem.name, state)
-                        problem_iterator.set_new_state(problem.name, e.state)
-                    except CycleError as e:
-                        log.info(f'Policy does not solve {problem.name}, found cycle of length {len(e.cycle)}')
-                        solved = False
-                        problem_iterator.set_solved(problem, False)
-                        for state in e.trace.keys():
-                            problem_iterator.set_new_state(problem.name, state)
-                    except RuntimeError:
-                        log.info('Policy does not solve {}'.format(problem.name))
-                        solved = False
-                        problem_iterator.set_solved(problem, False)
-                if solved:
-                    plan_lengths = [len(plan) for plan in plans]
-                    log.info(f'Policy already solves {problem.name}'
-                             f' (plan length {statistics.mean(plan_lengths)} ± {statistics.stdev(plan_lengths)})')
-                    problem_iterator.set_solved(problem)
-                else:
-                    break
+            with logging_redirect_tqdm():
+                for problem in tqdm.tqdm(problems, disable=None):
+                    log.info(f'Testing policy on {problem.name} {config["policy_iterations"]} times ...')
+                    plans = []
+                    solved = True
+                    for _ in range(config['policy_iterations']):
+                        try:
+                            plan = execute_policy(domain, problem, policy, config)
+                            plans.append(plan)
+                        except NoActionError as e:
+                            log.info(f'Policy does not solve {problem.name}, no action in reachable state')
+                            solved = False
+                            problem_iterator.set_solved(problem, False)
+                            for state in e.trace.keys():
+                                problem_iterator.set_new_state(problem.name, state)
+                            problem_iterator.set_new_state(problem.name, e.state)
+                        except CycleError as e:
+                            log.info(f'Policy does not solve {problem.name}, found cycle of length {len(e.cycle)}')
+                            solved = False
+                            problem_iterator.set_solved(problem, False)
+                            for state in e.trace.keys():
+                                problem_iterator.set_new_state(problem.name, state)
+                        except RuntimeError:
+                            log.info('Policy does not solve {}'.format(problem.name))
+                            solved = False
+                            problem_iterator.set_solved(problem, False)
+                    if solved:
+                        plan_lengths = [len(plan) for plan in plans]
+                        log.info(f'Policy already solves {problem.name}'
+                                 f' (plan length {statistics.mean(plan_lengths)} ± {statistics.stdev(plan_lengths)})')
+                        problem_iterator.set_solved(problem)
+                    else:
+                        break
             if solved and config['stop_after_first_solution']:
                 log.info(f'Policy solves all problems')
                 break

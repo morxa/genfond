@@ -15,6 +15,7 @@ import signal
 import os
 from filelock import FileLock
 import csv
+from tqdm.contrib.logging import logging_redirect_tqdm
 
 log = logging.getLogger('genfond')
 
@@ -114,13 +115,14 @@ def main():
         with open(args.output, 'wb') as f:
             pickle.dump(policy, f)
     log.info('Verifying policy ...')
-    for problem in tqdm.tqdm([p for p in problems if p not in succs], disable=None):
-        try:
-            for _ in tqdm.trange(config['policy_iterations'], leave=False, disable=None):
-                execute_policy(domain, problem, policy, config)
-            succs.append(problem)
-        except RuntimeError:
-            log.error('Policy does not solve {}'.format(problem.name))
+    with logging_redirect_tqdm():
+        for problem in tqdm.tqdm([p for p in problems if p not in succs], disable=None):
+            try:
+                for _ in tqdm.trange(config['policy_iterations'], leave=False, disable=None):
+                    execute_policy(domain, problem, policy, config)
+                succs.append(problem)
+            except RuntimeError:
+                log.error('Policy does not solve {}'.format(problem.name))
     log.info('Policy solves {} out of {} problems, unsolved: {}'.format(
         len(succs), len(problems), pnames([p for p in problems if p not in succs])))
     log.info('Final policy: {}'.format(policy))
