@@ -8,7 +8,7 @@ readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.11"
-pddl = "*"
+pddl = { git = "https://github.com/morxa/pddl", branch="fix-function-variable-types" }
 dlplan = { git = "https://github.com/morxa/dlplan", rev = '961400e4cd493e0dfeb023b419d2b41f0c0600b5' }
 clingo = "*"
 pygraphviz = "*"
