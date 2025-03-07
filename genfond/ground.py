@@ -1,11 +1,12 @@
 import itertools
+
 from pddl.action import Action
 from pddl.logic import Predicate, Variable
-from pddl.logic.base import UnaryOp, BinaryOp
+from pddl.logic.base import And, BinaryOp, UnaryOp
+from pddl.logic.effects import When
+from pddl.logic.functions import BinaryFunction, NumericFunction, NumericValue
 from pddl.logic.predicates import EqualTo
 from pddl.logic.terms import Constant
-from pddl.logic.effects import When
-from pddl.logic.base import And
 
 
 def _ground_ops(op, mapping):
@@ -18,7 +19,8 @@ def _ground_ops(op, mapping):
         try:
             return mapping[op]
         except KeyError as e:
-            raise NameError(f'Unknown variable {op}') from e
+            raise NameError(
+                f'Unknown variable {op}, known variables: {", ".join([str(k) for k in mapping.keys()])}') from e
     elif optype == EqualTo:
         return EqualTo(_ground_ops(op.left, mapping), _ground_ops(op.right, mapping))
     elif issubclass(optype, UnaryOp):
@@ -29,6 +31,12 @@ def _ground_ops(op, mapping):
         return optype(*[_ground_ops(t, mapping) for t in op.operands])
     elif optype == When:
         return optype(_ground_ops(op.condition, mapping), _ground_ops(op.effect, mapping))
+    elif issubclass(optype, BinaryFunction):
+        return optype(*[_ground_ops(t, mapping) for t in op.operands])
+    elif optype == NumericValue:
+        return op
+    elif issubclass(optype, NumericFunction):
+        return optype(op.name, *[_ground_ops(t, mapping) for t in op.terms])
     else:
         raise TypeError("Unknown operator type: {}".format(optype))
 

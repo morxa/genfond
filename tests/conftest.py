@@ -61,6 +61,10 @@ def doors():
 def blocks3ops():
     return load('blocks3ops', 'p005-2.pddl')
 
+@pytest.fixture
+def childsnack():
+    return load('childsnack', 'testing/p0_01.pddl')
+
 
 @pytest.fixture
 def program_with_nontriv_equiv():
