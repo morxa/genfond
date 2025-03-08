@@ -27,6 +27,8 @@ ipython = "^9.0.1"
 mypy = "^1.15.0"
 types-tqdm = "^4.67.0.20250301"
 types-pyyaml = "^6.0.12.20241230"
+yapf = "^0.43.0"
+isort = "^6.0.1"
 
 [tool.mypy]
 
