@@ -1,7 +1,7 @@
-from genfond.solver import Solver
-from genfond.policy import PolicyType
-from genfond.rule_policy import PolicyRule, Cond, Effect
 from genfond.generate_policy import generate_policy
+from genfond.policy import PolicyType
+from genfond.rule_policy import Cond, Effect, PolicyRule
+from genfond.solver import Solver
 
 
 def test_trans_constraint_solver_choose_good_trans():

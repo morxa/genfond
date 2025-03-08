@@ -1,7 +1,8 @@
+from helpers import get_action
+from pddl.logic import constants
+
 from genfond.ground import ground
 from genfond.state_space_generator import check_formula
-from pddl.logic import constants
-from helpers import get_action
 
 
 def test_precondition_check_simple_blocks(simple_blocks):

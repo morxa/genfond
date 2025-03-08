@@ -1,13 +1,14 @@
-import pddl
+import argparse
 import itertools
-from pddl.logic import Predicate, variables
-from pddl.logic.terms import Constant
+import os.path
+
+import pddl
+import pygraphviz
 from pddl.core import Problem
 from pddl.formatter import problem_to_string
-import argparse
-import os.path
+from pddl.logic import Predicate, variables
+from pddl.logic.terms import Constant
 from tqdm import trange
-import pygraphviz
 
 
 # Taken from https://docs.python.org/3/library/itertools.html#itertools-recipes

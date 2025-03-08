@@ -1,6 +1,7 @@
 import enum
-import sys
 import logging
+import sys
+
 from .state_space_generator import state_to_string
 
 log = logging.getLogger('genfond.problem_iterator')

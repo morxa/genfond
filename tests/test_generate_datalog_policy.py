@@ -1,7 +1,7 @@
-from genfond.generate_datalog_policy import generate_datalog_policy
+from genfond.datalog_policy import Cond, DatalogPolicy, DatalogPolicyRule
 from genfond.execute_datalog_policy import execute_datalog_policy
+from genfond.generate_datalog_policy import generate_datalog_policy
 from genfond.solver import Solver
-from genfond.datalog_policy import DatalogPolicy, DatalogPolicyRule, Cond
 
 
 def test_generate_datalog_policy():

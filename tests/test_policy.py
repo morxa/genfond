@@ -1,5 +1,6 @@
 import copy
-from genfond.rule_policy import Policy, PolicyRule, Cond, Effect
+
+from genfond.rule_policy import Cond, Effect, Policy, PolicyRule
 
 
 def test_policy_simplify():

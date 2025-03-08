@@ -1,8 +1,8 @@
 import argparse
+from collections import defaultdict
+
 import pddl
 import pygraphviz
-
-from collections import defaultdict
 
 
 def draw(name, objects, facts, goal):

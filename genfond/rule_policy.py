@@ -1,7 +1,8 @@
-from enum import Enum
-import logging
-from .policy import PolicyType
 import itertools
+import logging
+from enum import Enum
+
+from .policy import PolicyType
 
 log = logging.getLogger('genfond.policy.rule')
 

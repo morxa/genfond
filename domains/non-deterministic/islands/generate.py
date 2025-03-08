@@ -1,14 +1,14 @@
 import argparse
-import pddl
-import os.path
-from pddl.formatter import problem_to_string
-import random
-from pddl.logic.terms import Variable
-from pddl.logic import Predicate
-from pddl.core import Problem
-import tqdm
-
 import logging
+import os.path
+import random
+
+import pddl
+import tqdm
+from pddl.core import Problem
+from pddl.formatter import problem_to_string
+from pddl.logic import Predicate
+from pddl.logic.terms import Variable
 
 log = logging.getLogger(__name__)
 

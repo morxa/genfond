@@ -1,5 +1,5 @@
-import yaml
 import mergedeep
+import yaml
 
 DEFAULT_CONFIG = {
     'min_complexity': 2,

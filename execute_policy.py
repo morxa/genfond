@@ -1,10 +1,12 @@
 import argparse
-from genfond.execute_policy import execute_policy
-from genfond.datalog_policy import DatalogPolicy
-import pddl
-import pickle
 import logging
+import pickle
+
+import pddl
+
 from genfond.config_handler import ConfigHandler
+from genfond.datalog_policy import DatalogPolicy
+from genfond.execute_policy import execute_policy
 
 logging.basicConfig(format='%(message)s', level=logging.INFO)
 log = logging.getLogger(__name__)

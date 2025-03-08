@@ -1,15 +1,15 @@
-import pddl
-import itertools
-from pddl.logic import Predicate, constants, variables
-from pddl.logic.terms import Variable
-from pddl.core import Problem
-from pddl.formatter import problem_to_string
 import argparse
+import itertools
 import os.path
-from tqdm import trange
 import random
 
+import pddl
 from draw import draw
+from pddl.core import Problem
+from pddl.formatter import problem_to_string
+from pddl.logic import Predicate, constants, variables
+from pddl.logic.terms import Variable
+from tqdm import trange
 
 
 # Taken from https://docs.python.org/3/library/itertools.html#itertools-recipes

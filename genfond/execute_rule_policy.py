@@ -1,13 +1,15 @@
-from .policy import PolicyType
-from .rule_policy import Effect
-from .generate_rule_policy import feature_eval_to_cond
-from .feature_generator import construct_vocabulary_info, construct_instance_info, get_action_augmented_state, _get_state_from_goal
-from .ground import ground
-from dlplan.core import SyntacticElementFactory, State
-from .state_space_generator import check_formula, apply_action_effects
+import logging
 import random
 
-import logging
+from dlplan.core import State, SyntacticElementFactory
+
+from .feature_generator import _get_state_from_goal, construct_instance_info, construct_vocabulary_info
+from .feature_generator import get_action_augmented_state
+from .generate_rule_policy import feature_eval_to_cond
+from .ground import ground
+from .policy import PolicyType
+from .rule_policy import Effect
+from .state_space_generator import apply_action_effects, check_formula
 
 log = logging.getLogger('genfond.execution.rule')
 

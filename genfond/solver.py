@@ -1,7 +1,9 @@
-import clingo
-import os.path
-import os
 import logging
+import os
+import os.path
+
+import clingo
+
 from .problem_iterator import MAX_COST
 
 log = logging.getLogger(__name__)

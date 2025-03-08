@@ -1,7 +1,8 @@
-from genfond.datalog_policy import DatalogPolicyRule, DatalogPolicy, Cond
-from genfond.execute_datalog_policy import execute_datalog_policy
-from genfond.config_handler import ConfigHandler
 import pytest
+
+from genfond.config_handler import ConfigHandler
+from genfond.datalog_policy import Cond, DatalogPolicy, DatalogPolicyRule
+from genfond.execute_datalog_policy import execute_datalog_policy
 
 
 def test_block_clear_all(blocks_clear):

@@ -1,13 +1,14 @@
-import pddl
+import argparse
 import itertools
-from pddl.logic import Predicate, variables, Constant, Variable
+import os.path
+import random
+
+import pddl
+import tqdm
 from pddl.core import Problem
 from pddl.formatter import problem_to_string
+from pddl.logic import Constant, Predicate, Variable, variables
 from pddl.logic.effects import AndEffect
-import argparse
-import os.path
-import tqdm
-import random
 
 
 def generate_problem(name, trucks, max_x, max_y, packages):

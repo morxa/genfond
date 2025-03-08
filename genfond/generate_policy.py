@@ -1,5 +1,5 @@
-from .generate_rule_policy import generate_rule_policy
 from .generate_datalog_policy import generate_datalog_policy
+from .generate_rule_policy import generate_rule_policy
 from .policy import PolicyType
 
 

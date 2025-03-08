@@ -1,15 +1,16 @@
-from genfond.solver import Solver
-from genfond.feature_generator import FeaturePool
-from genfond.generate_policy import generate_policy, PolicyType
-from genfond.config_handler import ConfigHandler
-import pddl
-import pygraphviz
-import pickle
-import sys
-import os.path
-
 import argparse
 import logging
+import os.path
+import pickle
+import sys
+
+import pddl
+import pygraphviz
+
+from genfond.config_handler import ConfigHandler
+from genfond.feature_generator import FeaturePool
+from genfond.generate_policy import PolicyType, generate_policy
+from genfond.solver import Solver
 from genfond.state_space_generator import Alive
 
 log = logging.getLogger(__name__)

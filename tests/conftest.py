@@ -1,12 +1,13 @@
-import pytest
+import io
+import logging
 import os.path
+
 import pddl
+import pytest
 from pddl.action import Action
 from pddl.core import Domain, Problem
-from pddl.requirements import Requirements
 from pddl.logic import Predicate, constants, variables
-import logging
-import io
+from pddl.requirements import Requirements
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)-8s %(message)s')
 

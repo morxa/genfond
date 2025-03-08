@@ -1,10 +1,11 @@
-from genfond.state_space_generator import StateSpaceGraph
-
 import argparse
-import pddl
-import sys
-import tqdm
 import logging
+import sys
+
+import pddl
+import tqdm
+
+from genfond.state_space_generator import StateSpaceGraph
 
 log = logging.getLogger(__name__)
 

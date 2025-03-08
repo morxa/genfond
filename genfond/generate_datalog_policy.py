@@ -1,7 +1,8 @@
-import re
-from genfond.datalog_policy import DatalogPolicyRule, DatalogPolicy, split_action_string, RULE_VARS
-from genfond.rule_policy import Cond, Effect
 import logging
+import re
+
+from genfond.datalog_policy import RULE_VARS, DatalogPolicy, DatalogPolicyRule, split_action_string
+from genfond.rule_policy import Cond, Effect
 
 log = logging.getLogger('genfond.generation.datalog')
 

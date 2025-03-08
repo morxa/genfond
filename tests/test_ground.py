@@ -1,13 +1,12 @@
+from helpers import get_action
 from pddl.action import Action
 from pddl.logic import Predicate, constants, variables
 from pddl.logic.base import And, OneOf
-from pddl.logic.predicates import EqualTo
 from pddl.logic.effects import When
+from pddl.logic.predicates import EqualTo
 from pddl.logic.terms import Constant
 
 from genfond.ground import ground, ground_domain_predicates
-
-from helpers import get_action
 
 
 def test_ground_simple(simple_blocks):

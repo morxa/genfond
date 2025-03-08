@@ -1,11 +1,12 @@
-from dlplan.core import VocabularyInfo, InstanceInfo, State, \
-    SyntacticElementFactory
-import dlplan.generator as dlplan_gen
-from pddl.logic import Predicate
-from .ground import ground_domain_predicates, ground
-from .state_space_generator import apply_effects, generate_state_space, check_formula, Alive
-import logging
 import itertools
+import logging
+
+import dlplan.generator as dlplan_gen
+from dlplan.core import InstanceInfo, State, SyntacticElementFactory, VocabularyInfo
+from pddl.logic import Predicate
+
+from .ground import ground, ground_domain_predicates
+from .state_space_generator import Alive, apply_effects, check_formula, generate_state_space
 
 log = logging.getLogger('genfond.feature_generation')
 

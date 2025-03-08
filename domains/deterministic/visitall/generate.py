@@ -1,13 +1,14 @@
-import pddl
+import argparse
 import itertools
-from pddl.logic import Predicate, constants, variables, Constant
+import os.path
+import random
+
+import pddl
+import tqdm
 from pddl.core import Problem
 from pddl.formatter import problem_to_string
+from pddl.logic import Constant, Predicate, constants, variables
 from pddl.logic.effects import AndEffect
-import argparse
-import os.path
-import tqdm
-import random
 
 
 # Taken from https://docs.python.org/3/library/itertools.html#itertools-recipes

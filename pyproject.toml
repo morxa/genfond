@@ -36,6 +36,9 @@ isort = "^6.0.1"
 module = ["pddl.*", "dlplan.*", "mergedeep.*"]
 ignore_missing_imports = true
 
+[tool.isort]
+line_length = 119
+multi_line_output = 9
 
 [build-system]
 requires = ["poetry-core"]

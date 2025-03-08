@@ -8,8 +8,8 @@ from pddl.logic.base import And, Not, OneOf
 from pddl.logic.effects import When
 from pddl.logic.functions import Assign, BinaryFunction, Decrease, Divide
 from pddl.logic.functions import EqualTo as FunctionEqualTo
-from pddl.logic.functions import (GreaterEqualThan, GreaterThan, Increase, LesserEqualThan, LesserThan, Minus,
-                                  NumericFunction, NumericValue, Plus, ScaleDown, ScaleUp, Times)
+from pddl.logic.functions import GreaterEqualThan, GreaterThan, Increase, LesserEqualThan, LesserThan, Minus
+from pddl.logic.functions import NumericFunction, NumericValue, Plus, ScaleDown, ScaleUp, Times
 from pddl.logic.predicates import EqualTo
 
 from .ground import ground

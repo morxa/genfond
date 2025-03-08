@@ -1,7 +1,9 @@
 import logging
 import re
-from .rule_policy import Cond, cond_to_str
+
 from frozendict import frozendict
+
+from .rule_policy import Cond, cond_to_str
 
 log = logging.getLogger('genfond.policy.datalog')
 
