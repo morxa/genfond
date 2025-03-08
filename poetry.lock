@@ -555,8 +555,8 @@ lark = ">=1.1.5,<1.2.0"
 [package.source]
 type = "git"
 url = "https://github.com/morxa/pddl"
-reference = "bf37a0145601c327f40ca4a50d90746306df3373"
-resolved_reference = "bf37a0145601c327f40ca4a50d90746306df3373"
+reference = "39d4898ddb67ca2c775a3d9715fab68ced89cfcd"
+resolved_reference = "39d4898ddb67ca2c775a3d9715fab68ced89cfcd"
 
 [[package]]
 name = "pexpect"
@@ -879,4 +879,4 @@ files = [
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "4e5772237d95ab29c7bf1c4adc85dbe8bd72b66bd13a4e4835d07e231409440b"
+content-hash = "1798876346ed49e738b04d70507ae8f26706dba956f1e577db0ad7c7a58d632d"
