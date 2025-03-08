@@ -8,7 +8,7 @@ readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.11"
-pddl = { git = "https://github.com/morxa/pddl", rev='39d4898ddb67ca2c775a3d9715fab68ced89cfcd' }
+pddl = { git = "https://github.com/morxa/pddl", rev = '39d4898ddb67ca2c775a3d9715fab68ced89cfcd' }
 dlplan = { git = "https://github.com/morxa/dlplan", rev = '961400e4cd493e0dfeb023b419d2b41f0c0600b5' }
 clingo = "*"
 pygraphviz = "*"
@@ -24,6 +24,16 @@ mergedeep = "^1.3.4"
 flake8 = "*"
 pytest = "*"
 ipython = "^9.0.1"
+mypy = "^1.15.0"
+types-tqdm = "^4.67.0.20250301"
+types-pyyaml = "^6.0.12.20241230"
+
+[tool.mypy]
+
+[[tool.mypy.overrides]]
+module = ["pddl.*", "dlplan.*", "mergedeep.*"]
+ignore_missing_imports = true
+
 
 [build-system]
 requires = ["poetry-core"]
