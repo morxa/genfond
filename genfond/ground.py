@@ -13,6 +13,7 @@ from pddl.logic.terms import Constant, Term
 
 type TypeTag = Optional[name_type]
 
+
 def _ground_term(term: Term, mapping: dict[Variable, Constant]) -> Constant:
     term_type = type(term)
     if isinstance(term, Constant):
@@ -22,7 +23,8 @@ def _ground_term(term: Term, mapping: dict[Variable, Constant]) -> Constant:
             return mapping[term]
         except KeyError as e:
             raise NameError(
-                f'Unknown variable {term}, known variables: {", ".join([str(k) for k in mapping.keys()])}') from e
+                f'Unknown variable {term}, known variables: {", ".join([str(k) for k in mapping.keys()])}'
+            ) from e
     else:
         raise TypeError(f"{term}: unknown term type: {term_type}")
 
@@ -74,7 +76,12 @@ def ground_action(domain: Domain, action, grounding: tuple[Constant]) -> Optiona
         return None
     ground_precondition = _ground_formula(action.precondition, mapping)
     ground_effect = _ground_formula(action.effect, mapping)
-    return Action(action.name, parameters=grounding, precondition=ground_precondition, effect=ground_effect)
+    return Action(
+        action.name,
+        parameters=grounding,
+        precondition=ground_precondition,
+        effect=ground_effect,
+    )
 
 
 def ground(domain: Domain, problem: Problem) -> list[Action]:

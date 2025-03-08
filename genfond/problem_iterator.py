@@ -4,7 +4,7 @@ import sys
 
 from .state_space_generator import state_to_string
 
-log = logging.getLogger('genfond.problem_iterator')
+log = logging.getLogger("genfond.problem_iterator")
 
 MAX_COST = sys.maxsize
 
@@ -27,7 +27,7 @@ class ProblemIterator:
         self.selected_states = dict()
         self.new_states = dict()
         self.all_features = False
-        self.complexity = self.config['min_complexity']
+        self.complexity = self.config["min_complexity"]
         self.last_result = Result.SUCCESS
         self.succ_complexity = self.complexity
         self.active_problems_solved = True
@@ -57,9 +57,9 @@ class ProblemIterator:
                     del self.selected_states[problem.name]
 
     def set_new_state(self, problem_name, state):
-        if not self.config['use_selected_states']:
+        if not self.config["use_selected_states"]:
             return
-        log.debug(f'Adding new state for {problem_name}: {state_to_string(state)}')
+        log.debug(f"Adding new state for {problem_name}: {state_to_string(state)}")
         self.solved[problem_name] = False
         self.new_states.setdefault(problem_name, set()).add(state)
 
@@ -73,7 +73,7 @@ class ProblemIterator:
             log.debug(f'Adding new states for {problem}: {", ".join([state_to_string(state) for state in states])}')
             self.selected_states.setdefault(problem, set()).update(states)
         after = sum(len(states) for states in self.selected_states.values())
-        log.debug(f'Updated selected states: {after - before} new states')
+        log.debug(f"Updated selected states: {after - before} new states")
         return after - before
 
     def set_solved(self, problem, solved=True):
@@ -85,18 +85,27 @@ class ProblemIterator:
     def __next__(self):
         assert self.last_result != Result.UNKNOWN, "You must set the result of the last problem before calling next"
         log.debug(
-            f'last result: {self.last_result.name}, all features: {self.all_features}, complexity: {self.complexity}')
+            f"last result: {self.last_result.name}, all features: {self.all_features}, complexity: {self.complexity}"
+        )
         if self._update_selected_states() > 0:
             self.all_features = False
             self.max_cost = MAX_COST
             self.max_prune_cost = MAX_COST
             self.active_problems_solved = False
             self.complexity = self.succ_complexity
-        elif (self.active_problems and self.last_result != Result.OUT_OF_RESOURCES and not self.all_features
-              and self.config['use_unrestricted_features']):
+        elif (
+            self.active_problems
+            and self.last_result != Result.OUT_OF_RESOURCES
+            and not self.all_features
+            and self.config["use_unrestricted_features"]
+        ):
             self.all_features = True
-        elif (self.active_problems and self.all_features and self.complexity < self.config['max_complexity']
-              and self.max_cost > self.complexity):
+        elif (
+            self.active_problems
+            and self.all_features
+            and self.complexity < self.config["max_complexity"]
+            and self.max_cost > self.complexity
+        ):
             self.all_features = False
             self.complexity += 1
         elif self.active_problems_solved and any(not solved for solved in self.solved.values()):
@@ -105,22 +114,37 @@ class ProblemIterator:
             self.max_prune_cost = MAX_COST
             self.active_problems_solved = False
             self.complexity = self.succ_complexity
-            next_problem = next(problem for problem in self.problems
-                                if not self.solved[problem.name] and problem not in self.active_problems)
-            if (self.config['unselect_problems'] and self.active_problems and self.problems.index(next_problem) > max(
-                [self.problems.index(problem) for problem in self.active_problems])):
+            next_problem = next(
+                problem
+                for problem in self.problems
+                if not self.solved[problem.name] and problem not in self.active_problems
+            )
+            if (
+                self.config["unselect_problems"]
+                and self.active_problems
+                and self.problems.index(next_problem)
+                > max([self.problems.index(problem) for problem in self.active_problems])
+            ):
                 self.active_problems = [next_problem]
             else:
                 self.active_problems.append(next_problem)
-            if self.config['use_selected_states'] and not next_problem.name in self.new_states:
+            if self.config["use_selected_states"] and not next_problem.name in self.new_states:
                 self.new_states[next_problem.name] = {next_problem.init}
-            assert not self.config['use_selected_states'] or self._update_selected_states() > 0
+            assert not self.config["use_selected_states"] or self._update_selected_states() > 0
         else:
             raise StopIteration
-        log.debug(f'Next set: {", ".join([p.name for p in self.active_problems])},'
-                  f' complexity={self.complexity},'
-                  f' all_features={self.all_features},'
-                  f' max_cost={self.max_cost if self.max_cost < MAX_COST else "MAX_COST"},'
-                  f' |selected_states|={len(self.selected_states)} states')
-        return (self.active_problems, self.complexity, self.all_features, self.max_cost, self.max_prune_cost,
-                self.selected_states)
+        log.debug(
+            f'Next set: {", ".join([p.name for p in self.active_problems])},'
+            f" complexity={self.complexity},"
+            f" all_features={self.all_features},"
+            f' max_cost={self.max_cost if self.max_cost < MAX_COST else "MAX_COST"},'
+            f" |selected_states|={len(self.selected_states)} states"
+        )
+        return (
+            self.active_problems,
+            self.complexity,
+            self.all_features,
+            self.max_cost,
+            self.max_prune_cost,
+            self.selected_states,
+        )

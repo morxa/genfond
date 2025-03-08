@@ -6,15 +6,32 @@ from enum import Enum
 from pddl.logic import Predicate
 from pddl.logic.base import And, Not, OneOf
 from pddl.logic.effects import When
-from pddl.logic.functions import Assign, BinaryFunction, Decrease, Divide
+from pddl.logic.functions import (
+    Assign,
+    BinaryFunction,
+    Decrease,
+    Divide,
+)
 from pddl.logic.functions import EqualTo as FunctionEqualTo
-from pddl.logic.functions import GreaterEqualThan, GreaterThan, Increase, LesserEqualThan, LesserThan, Minus
-from pddl.logic.functions import NumericFunction, NumericValue, Plus, ScaleDown, ScaleUp, Times
+from pddl.logic.functions import (
+    GreaterEqualThan,
+    GreaterThan,
+    Increase,
+    LesserEqualThan,
+    LesserThan,
+    Minus,
+    NumericFunction,
+    NumericValue,
+    Plus,
+    ScaleDown,
+    ScaleUp,
+    Times,
+)
 from pddl.logic.predicates import EqualTo
 
 from .ground import ground
 
-log = logging.getLogger('genfond.state_space_generator')
+log = logging.getLogger("genfond.state_space_generator")
 
 
 def state_to_string(state):
@@ -23,10 +40,10 @@ def state_to_string(state):
         if isinstance(p, Predicate):
             state_str += f'{p.name}({",".join([str(p) for p in p.terms])})'
         elif isinstance(p, FunctionEqualTo):
-            state_str += f'{p.operands[0]}={p.operands[1]}'
+            state_str += f"{p.operands[0]}={p.operands[1]}"
         else:
-            raise ValueError('Unknown state type: {}'.format(type(p)))
-        state_str += ','
+            raise ValueError("Unknown state type: {}".format(type(p)))
+        state_str += ","
     return state_str
 
 
@@ -43,7 +60,7 @@ def eval_function_term(term, state):
         return 0
         # raise ValueError(f'Function {term} not found in state {state_to_string(state)}')
     else:
-        raise ValueError('Unknown term type: {}'.format(type(term)))
+        raise ValueError("Unknown term type: {}".format(type(term)))
 
 
 def check_formula(state, formula):
@@ -66,7 +83,7 @@ def check_formula(state, formula):
     elif isinstance(formula, FunctionEqualTo):
         return eval_function_term(formula.operands[0], state) == eval_function_term(formula.operands[1], state)
     else:
-        raise ValueError('Unknown formula type: {}'.format(type(formula)))
+        raise ValueError("Unknown formula type: {}".format(type(formula)))
 
 
 def apply_action_effects(state, action):
@@ -128,17 +145,18 @@ def apply_effects_to_state(state, effects):
         elif isinstance(effects, (Plus, Minus, Times, Divide, ScaleUp, ScaleDown)):
             raise NotImplementedError()
         else:
-            raise ValueError('Unknown effect type: {}'.format(type(effects)))
+            raise ValueError("Unknown effect type: {}".format(type(effects)))
         # log.debug(f'Change {fct} from {current_value} to {new_value}')
         return frozenset(
-            {frozenset([f for f in state if f != current_eval] + [FunctionEqualTo(fct, NumericValue(new_value))])})
+            {frozenset([f for f in state if f != current_eval] + [FunctionEqualTo(fct, NumericValue(new_value))])}
+        )
     elif isinstance(effects, OneOf):
         new_states = set()
         for effect in effects.operands:
             new_states |= apply_effects({state}, effect)
         return frozenset(new_states)
     else:
-        raise ValueError('Unknown effect type: {}'.format(type(effects)))
+        raise ValueError("Unknown effect type: {}".format(type(effects)))
 
 
 class Alive(Enum):
@@ -216,7 +234,7 @@ class StateSpaceGraph:
         if prune:
             self.prune_nodes()
         assert all(node.alive != Alive.UNKNOWN for node in self.nodes.values())
-        #assert self.root.alive == Alive.ALIVE, 'Problem {} is unsolvable'.format(problem.name)
+        # assert self.root.alive == Alive.ALIVE, 'Problem {} is unsolvable'.format(problem.name)
 
     def add_node(self, state, parent_state, action):
         parent = self.nodes[parent_state]
@@ -248,8 +266,7 @@ class StateSpaceGraph:
         for node in self.nodes.values():
             for action, children in node.children.items():
                 node.children[action] = {child for child in children if child.state in self.nodes}
-        log.info(f'Pruned {len(pruned_dead)} dead '
-                 f'out of {before} states in {self.problem.name}')
+        log.info(f"Pruned {len(pruned_dead)} dead " f"out of {before} states in {self.problem.name}")
 
 
 def generate_state_space(domain, problem, selected_states=None):

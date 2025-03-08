@@ -21,28 +21,28 @@ def pairwise(iterable):
 
 
 def generate_problem(name, num_locations, draw_problem):
-    domain = pddl.parse_domain(os.path.join(os.path.dirname(__file__), 'domain.pddl'))
-    locations = constants(' '.join([f'l{i}' for i in range(num_locations)]), 'location')
-    x, y = variables('x y', ['location'])
-    t = Variable('t', ['tire'])
-    tire_at = Predicate('tire-at', t, y)
-    vehicle_at = Predicate('vehicle-at', x)
-    road = Predicate('road', x, y)
-    spiky_road = Predicate('spiky-road', x, y)
+    domain = pddl.parse_domain(os.path.join(os.path.dirname(__file__), "domain.pddl"))
+    locations = constants(" ".join([f"l{i}" for i in range(num_locations)]), "location")
+    x, y = variables("x y", ["location"])
+    t = Variable("t", ["tire"])
+    tire_at = Predicate("tire-at", t, y)
+    vehicle_at = Predicate("vehicle-at", x)
+    road = Predicate("road", x, y)
+    spiky_road = Predicate("spiky-road", x, y)
     init_location = locations[0]
     goal_location = locations[-1]
     unsafe_length = random.randint(3, num_locations - 1)
     unsafe_conn = locations[:unsafe_length] + [goal_location]
     first_spiky_unsafe = random.randint(1, unsafe_length - 2)
-    unsafe_first_seg = unsafe_conn[0:first_spiky_unsafe + 1]
-    unsafe_spiky_seg = unsafe_conn[first_spiky_unsafe:first_spiky_unsafe + 3]
-    unsafe_second_seg = unsafe_conn[first_spiky_unsafe + 2:]
+    unsafe_first_seg = unsafe_conn[0 : first_spiky_unsafe + 1]
+    unsafe_spiky_seg = unsafe_conn[first_spiky_unsafe : first_spiky_unsafe + 3]
+    unsafe_second_seg = unsafe_conn[first_spiky_unsafe + 2 :]
     safe_conn = [init_location] + locations[unsafe_length:]
     first_spiky_safe = random.randint(0, len(safe_conn) - 2)
-    safe_first_seg = safe_conn[0:first_spiky_safe + 1]
-    safe_spiky_seg = safe_conn[first_spiky_safe:first_spiky_safe + 2]
-    safe_second_seg = safe_conn[first_spiky_safe + 1:]
-    init = [vehicle_at(init_location), Predicate('not-flattire'), Predicate('not-hasspare')]
+    safe_first_seg = safe_conn[0 : first_spiky_safe + 1]
+    safe_spiky_seg = safe_conn[first_spiky_safe : first_spiky_safe + 2]
+    safe_second_seg = safe_conn[first_spiky_safe + 1 :]
+    init = [vehicle_at(init_location), Predicate("not-flattire"), Predicate("not-hasspare")]
     for seg in [unsafe_first_seg, unsafe_second_seg, safe_first_seg, safe_second_seg]:
         init += [road(*pair) for pair in pairwise(seg)]
         init += [road(*pair) for pair in pairwise(reversed(seg))]
@@ -50,7 +50,7 @@ def generate_problem(name, num_locations, draw_problem):
         init += [spiky_road(*pair) for pair in pairwise(seg)]
         init += [spiky_road(*pair) for pair in pairwise(reversed(seg))]
     num_spares = random.randint(1, 3)
-    spares = constants(' '.join([f't{i}' for i in range(num_spares)]), 'tire')
+    spares = constants(" ".join([f"t{i}" for i in range(num_spares)]), "tire")
     init += [tire_at(s, unsafe_conn[1]) for s in spares]
     objects = locations + spares
     if draw_problem:
@@ -62,27 +62,25 @@ def generate_problem(name, num_locations, draw_problem):
 def generate_problems(min_num_locations, max_num_locations, repetitions, draw):
     for num_locations in trange(min_num_locations, max_num_locations + 1):
         for i in range(repetitions):
-            index = f'{num_locations:03}-{i+1:02}'
-            problem = generate_problem(f'spiky-tireworld-{index}', num_locations, draw)
-            with open(f'p{index}.pddl', 'w') as f:
+            index = f"{num_locations:03}-{i+1:02}"
+            problem = generate_problem(f"spiky-tireworld-{index}", num_locations, draw)
+            with open(f"p{index}.pddl", "w") as f:
                 f.write(problem_to_string(problem))
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--min-num-locations', type=int, default=8)
-    parser.add_argument('--max-num-locations', type=int, default=100)
-    parser.add_argument('-r',
-                        '--repetitions',
-                        help='number of problems for each number of locations',
-                        type=int,
-                        default=10)
-    parser.add_argument('-s', '--seed', help='random seed', type=int, default=0)
-    parser.add_argument('--draw', help='draw the generated problems', action='store_true')
+    parser.add_argument("--min-num-locations", type=int, default=8)
+    parser.add_argument("--max-num-locations", type=int, default=100)
+    parser.add_argument(
+        "-r", "--repetitions", help="number of problems for each number of locations", type=int, default=10
+    )
+    parser.add_argument("-s", "--seed", help="random seed", type=int, default=0)
+    parser.add_argument("--draw", help="draw the generated problems", action="store_true")
     args = parser.parse_args()
     random.seed(args.seed)
     generate_problems(args.min_num_locations, args.max_num_locations, args.repetitions, args.draw)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

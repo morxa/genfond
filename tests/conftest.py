@@ -9,11 +9,11 @@ from pddl.core import Domain, Problem
 from pddl.logic import Predicate, constants, variables
 from pddl.requirements import Requirements
 
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)-8s %(message)s')
+logging.basicConfig(level=logging.DEBUG, format="%(asctime)s %(levelname)-8s %(message)s")
 
 
-def load(name, problem_filename, domain_filename='domain.pddl'):
-    path = os.path.join(os.path.dirname(__file__), 'fixtures', 'pddl_files', name)
+def load(name, problem_filename, domain_filename="domain.pddl"):
+    path = os.path.join(os.path.dirname(__file__), "fixtures", "pddl_files", name)
     domain = pddl.parse_domain(os.path.join(path, domain_filename))
     problem = pddl.parse_problem(os.path.join(path, problem_filename))
     return domain, problem
@@ -22,49 +22,47 @@ def load(name, problem_filename, domain_filename='domain.pddl'):
 @pytest.fixture
 def simple_blocks():
     requirements = [Requirements.STRIPS]
-    x, y = variables('x y')
-    on = Predicate('on', x, y)
-    holding = Predicate('holding', x)
-    pick = Action('pick', parameters=[x, y], precondition=on(x, y), effect=holding(x) & ~on(x, y))
-    put = Action('put', parameters=[x, y], precondition=holding(x), effect=on(x, y) & ~holding(x))
-    domain = Domain('simple-blocks', requirements=requirements, predicates=[on, holding], actions=[pick, put])
-    a, b, c = constants('a b c')
-    problem = Problem('p1',
-                      domain=domain,
-                      requirements=requirements,
-                      objects=[a, b, c],
-                      init=[on(a, b)],
-                      goal=on(a, c))
+    x, y = variables("x y")
+    on = Predicate("on", x, y)
+    holding = Predicate("holding", x)
+    pick = Action("pick", parameters=[x, y], precondition=on(x, y), effect=holding(x) & ~on(x, y))
+    put = Action("put", parameters=[x, y], precondition=holding(x), effect=on(x, y) & ~holding(x))
+    domain = Domain("simple-blocks", requirements=requirements, predicates=[on, holding], actions=[pick, put])
+    a, b, c = constants("a b c")
+    problem = Problem(
+        "p1", domain=domain, requirements=requirements, objects=[a, b, c], init=[on(a, b)], goal=on(a, c)
+    )
     return domain, problem
 
 
 @pytest.fixture
 def fond_blocks():
-    return load('blocksworld-fond', 'p01.pddl')
+    return load("blocksworld-fond", "p01.pddl")
 
 
 @pytest.fixture
 def typed_blocks():
-    return load('typed-blocks', 'p01.pddl')
+    return load("typed-blocks", "p01.pddl")
 
 
 @pytest.fixture
 def blocks_clear():
-    return load('blocks4ops-clear', 'p002-1.pddl')
+    return load("blocks4ops-clear", "p002-1.pddl")
 
 
 @pytest.fixture
 def doors():
-    return load('doors', 'p01.pddl')
+    return load("doors", "p01.pddl")
 
 
 @pytest.fixture
 def blocks3ops():
-    return load('blocks3ops', 'p005-2.pddl')
+    return load("blocks3ops", "p005-2.pddl")
+
 
 @pytest.fixture
 def childsnack():
-    return load('childsnack', 'testing/p0_01.pddl')
+    return load("childsnack", "testing/p0_01.pddl")
 
 
 @pytest.fixture
@@ -169,8 +167,10 @@ def simple_program():
 
 @pytest.fixture
 def simple_config():
-    return io.StringIO("""
+    return io.StringIO(
+        """
       min_complexity: 3
       keep_going: True
       num_threads: 8
-    """)
+    """
+    )

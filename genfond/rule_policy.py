@@ -4,7 +4,7 @@ from enum import Enum
 
 from .policy import PolicyType
 
-log = logging.getLogger('genfond.policy.rule')
+log = logging.getLogger("genfond.policy.rule")
 
 
 class Cond(Enum):
@@ -23,30 +23,30 @@ class Effect(Enum):
 
 def cond_to_str(feature, val, param_sub=None):
     if param_sub:
-        feature = feature.replace('c_primitive(aparam0,0)', param_sub)
+        feature = feature.replace("c_primitive(aparam0,0)", param_sub)
     if val == Cond.TRUE:
-        return f'{feature}'
+        return f"{feature}"
     elif val == Cond.FALSE:
-        return f'¬{feature}'
+        return f"¬{feature}"
     elif val == Cond.POSITIVE:
-        return f'{feature} > 0'
+        return f"{feature} > 0"
     elif val == Cond.ZERO:
-        return f'{feature} = 0'
+        return f"{feature} = 0"
     else:
-        raise ValueError(f'Unexpected value {val} for feature {feature}')
+        raise ValueError(f"Unexpected value {val} for feature {feature}")
 
 
 def eff_to_str(feature, val):
     if val == Effect.SET:
-        return f'{feature}'
+        return f"{feature}"
     elif val == Effect.UNSET:
-        return f'¬{feature}'
+        return f"¬{feature}"
     elif val == Effect.INCREASE:
-        return f'↑{feature}'
+        return f"↑{feature}"
     elif val == Effect.DECREASE:
-        return f'↓{feature}'
+        return f"↓{feature}"
     else:
-        raise ValueError(f'Unexpected value {val} for feature {feature}')
+        raise ValueError(f"Unexpected value {val} for feature {feature}")
 
 
 class PolicyRule:
@@ -65,7 +65,7 @@ class PolicyRule:
         s_effs = []
         for eff in self.effs:
             s_eff = [eff_to_str(feature, val) for feature, val in eff]
-            s_effs.append(' ∧ '.join(s_eff))
+            s_effs.append(" ∧ ".join(s_eff))
         return f'{{ {" ∧ ".join(sorted(s_conds))} }}  ⇒  {{ {" ; ".join(sorted(s_effs))} }}'
 
     def __hash__(self):
@@ -90,7 +90,15 @@ class StateConstraint:
 
 class Policy:
 
-    def __init__(self, features, rules, cost=None, constraints=None, state_constraints=None, type=PolicyType.EXACT):
+    def __init__(
+        self,
+        features,
+        rules,
+        cost=None,
+        constraints=None,
+        state_constraints=None,
+        type=PolicyType.EXACT,
+    ):
         self.type = type
         self.features = frozenset(features)
         self.rules = frozenset(rules)
@@ -101,30 +109,39 @@ class Policy:
 
     def __repr__(self):
         if self.type == PolicyType.CONSTRAINED:
-            s_constraints = ''
-            s_state_constraints = ''
+            s_constraints = ""
+            s_state_constraints = ""
             if self.constraints:
-                s_constraints = '\nConstraints:\n' + '\n'.join(
-                    sorted({repr(constraint)
-                            for constraint in self.constraints}))
+                s_constraints = "\nConstraints:\n" + "\n".join(
+                    sorted({repr(constraint) for constraint in self.constraints})
+                )
             if self.state_constraints:
-                s_state_constraints = '\nState Constraints:\n' + '\n'.join(
-                    sorted({repr(constraint)
-                            for constraint in self.state_constraints}))
+                s_state_constraints = "\nState Constraints:\n" + "\n".join(
+                    sorted({repr(constraint) for constraint in self.state_constraints})
+                )
 
-            return ('{} rules,'
-                    ' {} transition constraints,'
-                    ' {} state constraints with {} features: {}'
-                    '\nRules:\n{}{}{}').format(len(self.rules), len(self.constraints), len(self.state_constraints),
-                                               len(self.features), ", ".join(sorted(self.features)),
-                                               '\n'.join(sorted({repr(rule)
-                                                                 for rule in self.rules})), s_constraints,
-                                               s_state_constraints)
+            return (
+                "{} rules,"
+                " {} transition constraints,"
+                " {} state constraints with {} features: {}"
+                "\nRules:\n{}{}{}"
+            ).format(
+                len(self.rules),
+                len(self.constraints),
+                len(self.state_constraints),
+                len(self.features),
+                ", ".join(sorted(self.features)),
+                "\n".join(sorted({repr(rule) for rule in self.rules})),
+                s_constraints,
+                s_state_constraints,
+            )
         else:
-            return '{} rules with {} features: {}\n{}'.format(len(self.rules), len(self.features),
-                                                              ", ".join(sorted(self.features)),
-                                                              '\n'.join(sorted({repr(rule)
-                                                                                for rule in self.rules})))
+            return "{} rules with {} features: {}\n{}".format(
+                len(self.rules),
+                len(self.features),
+                ", ".join(sorted(self.features)),
+                "\n".join(sorted({repr(rule) for rule in self.rules})),
+            )
 
     def simplify(self):
         self.simplify_rules()
@@ -160,7 +177,7 @@ class Policy:
                     if k in r2.conds and r2.conds[k] == v:
                         new_conds[k] = v
                 new_rule = PolicyRule(new_conds, r1.effs)
-                log.debug(f'Pruning rule {r1} and {r2} to {new_rule}')
+                log.debug(f"Pruning rule {r1} and {r2} to {new_rule}")
                 new_rules.add(new_rule)
                 pruned_rules |= {r1, r2}
         new_rules |= self.rules - pruned_rules

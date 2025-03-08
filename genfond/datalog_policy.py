@@ -5,19 +5,19 @@ from frozendict import frozendict
 
 from .rule_policy import Cond, cond_to_str
 
-log = logging.getLogger('genfond.policy.datalog')
+log = logging.getLogger("genfond.policy.datalog")
 
-ACTION_REGEX = r'^([^(]+)\(([^(]*)\)$'
-RULE_VARS = ['P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z']
+ACTION_REGEX = r"^([^(]+)\(([^(]*)\)$"
+RULE_VARS = ["P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z"]
 
 
 def split_action_string(action):
     match = re.search(ACTION_REGEX, action.strip('"'))
     if not match:
-        raise ValueError(f'Invalid action string: {action}')
+        raise ValueError(f"Invalid action string: {action}")
     name = match.groups()[0]
     if match.groups()[1]:
-        parameters = match.groups()[1].replace(' ', '').split(',')
+        parameters = match.groups()[1].replace(" ", "").split(",")
     else:
         parameters = []
     return name, parameters
@@ -25,14 +25,16 @@ def split_action_string(action):
 
 class DatalogPolicyRule:
 
-    def __init__(self,
-                 head,
-                 concepts=None,
-                 roles=None,
-                 conds=None,
-                 state_aug_conds=None,
-                 param_aug_conds=None,
-                 param_diff_conds=None):
+    def __init__(
+        self,
+        head,
+        concepts=None,
+        roles=None,
+        conds=None,
+        state_aug_conds=None,
+        param_aug_conds=None,
+        param_diff_conds=None,
+    ):
         if not concepts:
             concepts = []
         if not roles:
@@ -50,13 +52,13 @@ class DatalogPolicyRule:
         roles_by_parameter = {}
         for parameter, concept in concepts or []:
             if parameter not in self.parameters:
-                raise ValueError(f'Free variable {parameter} not in head parameters {self.parameters}!')
-            concepts_by_parameter[parameter].append(concept.replace(' ', ''))
+                raise ValueError(f"Free variable {parameter} not in head parameters {self.parameters}!")
+            concepts_by_parameter[parameter].append(concept.replace(" ", ""))
         for param1, param2, role in roles:
             if param1 not in self.parameters:
-                raise ValueError(f'Free variable {param1} not in head parameters {self.parameters}!')
+                raise ValueError(f"Free variable {param1} not in head parameters {self.parameters}!")
             if param2 not in self.parameters:
-                raise ValueError(f'Free variable {param2} not in head parameters {self.parameters}!')
+                raise ValueError(f"Free variable {param2} not in head parameters {self.parameters}!")
             roles_by_parameter.setdefault((param1, param2), []).append(role)
         self.concepts_by_parameter = {name: frozenset(concepts) for name, concepts in concepts_by_parameter.items()}
         self.roles_by_parameter = {params: frozenset(roles) for params, roles in roles_by_parameter.items()}
@@ -100,36 +102,38 @@ class DatalogPolicyRule:
         concept_cond_strs = []
         roles_cond_strs = []
         for parameter, concepts in self.concepts_by_parameter.items():
-            concept_cond_strs.extend([f'{parameter} ∊ {concept}' for concept in concepts])
+            concept_cond_strs.extend([f"{parameter} ∊ {concept}" for concept in concepts])
         concept_cond_strs.sort()
         for parameters, roles in self.roles_by_parameter.items():
-            roles_cond_strs.extend([f'{parameters[0]} {role} {parameters[1]}' for role in roles])
+            roles_cond_strs.extend([f"{parameters[0]} {role} {parameters[1]}" for role in roles])
         roles_cond_strs.sort()
         diff_cond_strs = []
         for feature, param1, param2, diff in self.param_diff_conds:
             if diff == 1:
-                diff_cond_strs.append(f'{feature}({RULE_VARS[param1]},{RULE_VARS[param2]}) > 0')
+                diff_cond_strs.append(f"{feature}({RULE_VARS[param1]},{RULE_VARS[param2]}) > 0")
             elif diff == -1:
-                diff_cond_strs.append(f'{feature}({RULE_VARS[param1]},{RULE_VARS[param2]}) < 0')
+                diff_cond_strs.append(f"{feature}({RULE_VARS[param1]},{RULE_VARS[param2]}) < 0")
             elif diff == 0:
-                diff_cond_strs.append(f'{feature}({RULE_VARS[param1]},{RULE_VARS[param2]}) = 0')
+                diff_cond_strs.append(f"{feature}({RULE_VARS[param1]},{RULE_VARS[param2]}) = 0")
             else:
-                raise ValueError(f'Invalid diff value: {diff}')
+                raise ValueError(f"Invalid diff value: {diff}")
         diff_cond_strs.sort()
         conds = state_cond_strs + state_aug_cond_strs + concept_cond_strs + roles_cond_strs + diff_cond_strs
         return f'{self.name}({', '.join(self.parameters)}){f" :- {', '.join(conds)}" if conds else ""}.'
 
     def __hash__(self):
-        return hash((
-            self.name,
-            len(self.parameters),
-            self.conds,
-            self.state_aug_conds,
-            self.param_aug_conds,
-            self.param_diff_conds,
-            *tuple(self.concepts_by_parameter[p] for p in self.parameters),
-            *tuple((params, roles) for params, roles in self.roles_by_parameter.items()),
-        ))
+        return hash(
+            (
+                self.name,
+                len(self.parameters),
+                self.conds,
+                self.state_aug_conds,
+                self.param_aug_conds,
+                self.param_diff_conds,
+                *tuple(self.concepts_by_parameter[p] for p in self.parameters),
+                *tuple((params, roles) for params, roles in self.roles_by_parameter.items()),
+            )
+        )
 
 
 class DatalogPolicy:
@@ -142,7 +146,7 @@ class DatalogPolicy:
         return self.rules == other.rules
 
     def __repr__(self):
-        return (f'{len(self.rules)} rules\n' + "\n".join([str(r) for r in self.rules]))
+        return f"{len(self.rules)} rules\n" + "\n".join([str(r) for r in self.rules])
 
     def __hash__(self):
         return hash(self.rules)

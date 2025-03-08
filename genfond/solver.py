@@ -17,18 +17,20 @@ def convert_arg(symbol):
     elif symbol.type == clingo.SymbolType.Function:
         return str(symbol)
     else:
-        raise ValueError(f'Unknown symbol type: {symbol.type} for {symbol}')
+        raise ValueError(f"Unknown symbol type: {symbol.type} for {symbol}")
 
 
 class Solver:
 
-    def __init__(self,
-                 asp_code,
-                 num_threads=None,
-                 solve_prog='solve.lp',
-                 max_cost=MAX_COST,
-                 max_prune_cost=MAX_COST,
-                 min_feature_complexity=None):
+    def __init__(
+        self,
+        asp_code,
+        num_threads=None,
+        solve_prog="solve.lp",
+        max_cost=MAX_COST,
+        max_prune_cost=MAX_COST,
+        min_feature_complexity=None,
+    ):
         self.asp_code = asp_code
         self.control = clingo.Control()
         self.control.load(os.path.join(os.path.dirname(__file__), solve_prog))
@@ -48,7 +50,7 @@ class Solver:
 
     def on_model(self, model):
         if not self.solution:
-            log.info('Found first solution')
+            log.info("Found first solution")
         self.solution = dict()
         for symbol in model.symbols(shown=True):
             args = [convert_arg(arg) for arg in symbol.arguments]
@@ -58,7 +60,7 @@ class Solver:
                 self.solution.setdefault(symbol.name, set()).add(args[0])
             else:
                 self.solution.setdefault(symbol.name, set()).add(tuple([convert_arg(arg) for arg in symbol.arguments]))
-        self.solution['cost'] = model.cost
+        self.solution["cost"] = model.cost
         self.cost = model.cost
 
     def solve(self):

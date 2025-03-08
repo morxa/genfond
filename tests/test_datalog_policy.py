@@ -5,52 +5,90 @@ def test_datalog_policy_equals():
     # EQC1: policy1, policy2
     # EQC2: policy3, policy4
 
-    policy1 = DatalogPolicy([
-        DatalogPolicyRule('p(X, Y)', [
-            ('X', 'c_primitive(is_a, 0)'),
-            ('Y', 'c_primitive(is_b, 0)'),
-        ]),
-        DatalogPolicyRule('q(X)', [
-            ('X', 'c_primitive(is_a, 0)'),
-        ]),
-    ])
+    policy1 = DatalogPolicy(
+        [
+            DatalogPolicyRule(
+                "p(X, Y)",
+                [
+                    ("X", "c_primitive(is_a, 0)"),
+                    ("Y", "c_primitive(is_b, 0)"),
+                ],
+            ),
+            DatalogPolicyRule(
+                "q(X)",
+                [
+                    ("X", "c_primitive(is_a, 0)"),
+                ],
+            ),
+        ]
+    )
 
-    policy2 = DatalogPolicy([
-        DatalogPolicyRule('q(X)', [
-            ('X', 'c_primitive(is_a, 0)'),
-        ]),
-        DatalogPolicyRule('q(A)', [
-            ('A', 'c_primitive(is_a, 0)'),
-            ('A', 'c_primitive(is_a, 0)'),
-        ]),
-        DatalogPolicyRule('p(Y, X)', [
-            ('X', 'c_primitive(is_b, 0)'),
-            ('Y', 'c_primitive(is_a, 0)'),
-        ]),
-    ])
+    policy2 = DatalogPolicy(
+        [
+            DatalogPolicyRule(
+                "q(X)",
+                [
+                    ("X", "c_primitive(is_a, 0)"),
+                ],
+            ),
+            DatalogPolicyRule(
+                "q(A)",
+                [
+                    ("A", "c_primitive(is_a, 0)"),
+                    ("A", "c_primitive(is_a, 0)"),
+                ],
+            ),
+            DatalogPolicyRule(
+                "p(Y, X)",
+                [
+                    ("X", "c_primitive(is_b, 0)"),
+                    ("Y", "c_primitive(is_a, 0)"),
+                ],
+            ),
+        ]
+    )
 
-    policy3 = DatalogPolicy([
-        DatalogPolicyRule('q(X)', [
-            ('X', 'c_primitive(is_b, 0)'),
-        ]),
-        DatalogPolicyRule('p(X, Y)', [
-            ('Y', 'c_primitive(is_b, 0)'),
-            ('X', 'c_primitive(is_a, 0)'),
-        ]),
-    ])
+    policy3 = DatalogPolicy(
+        [
+            DatalogPolicyRule(
+                "q(X)",
+                [
+                    ("X", "c_primitive(is_b, 0)"),
+                ],
+            ),
+            DatalogPolicyRule(
+                "p(X, Y)",
+                [
+                    ("Y", "c_primitive(is_b, 0)"),
+                    ("X", "c_primitive(is_a, 0)"),
+                ],
+            ),
+        ]
+    )
 
-    policy4 = DatalogPolicy([
-        DatalogPolicyRule('q(X)', [
-            ('X', 'c_primitive(is_b, 0)'),
-        ]),
-        DatalogPolicyRule('p(X, Y)', [
-            ('Y', 'c_primitive(is_b, 0)'),
-            ('X', 'c_primitive(is_a, 0)'),
-        ]),
-        DatalogPolicyRule('q(X)', [
-            ('X', 'c_primitive(is_b, 0)'),
-        ]),
-    ])
+    policy4 = DatalogPolicy(
+        [
+            DatalogPolicyRule(
+                "q(X)",
+                [
+                    ("X", "c_primitive(is_b, 0)"),
+                ],
+            ),
+            DatalogPolicyRule(
+                "p(X, Y)",
+                [
+                    ("Y", "c_primitive(is_b, 0)"),
+                    ("X", "c_primitive(is_a, 0)"),
+                ],
+            ),
+            DatalogPolicyRule(
+                "q(X)",
+                [
+                    ("X", "c_primitive(is_b, 0)"),
+                ],
+            ),
+        ]
+    )
 
     assert policy1 == policy1
     assert policy1 == policy2

@@ -3,15 +3,19 @@ import random
 
 from dlplan.core import State, SyntacticElementFactory
 
-from .feature_generator import _get_state_from_goal, construct_instance_info, construct_vocabulary_info
-from .feature_generator import get_action_augmented_state
+from .feature_generator import (
+    _get_state_from_goal,
+    construct_instance_info,
+    construct_vocabulary_info,
+    get_action_augmented_state,
+)
 from .generate_rule_policy import feature_eval_to_cond
 from .ground import ground
 from .policy import PolicyType
 from .rule_policy import Effect
 from .state_space_generator import apply_action_effects, check_formula
 
-log = logging.getLogger('genfond.execution.rule')
+log = logging.getLogger("genfond.execution.rule")
 
 
 class PolicyExecutionError(RuntimeError):
@@ -39,8 +43,10 @@ class CycleError(PolicyExecutionError):
 def eval_state(instance, mapping, features, domain, problem, state, config, action=None):
     try:
         fstate = State(
-            -1, instance,
-            [mapping[predicate] for predicate in get_action_augmented_state(problem, state, config, action)])
+            -1,
+            instance,
+            [mapping[predicate] for predicate in get_action_augmented_state(problem, state, config, action)],
+        )
     except KeyError as e:
         log.critical(f'Cannot find predicate in mapping {"\n".join(f"{k}: {v}" for k, v in mapping.items())}: {e}')
         raise
@@ -52,7 +58,7 @@ def eval_state(instance, mapping, features, domain, problem, state, config, acti
 
 def bool_eval_state(instance, mapping, features, domain, problem, state, config, action=None):
     feature_eval = eval_state(instance, mapping, features, domain, problem, state, config, action)
-    log.debug(f'feature eval: {feature_eval}')
+    log.debug(f"feature eval: {feature_eval}")
     bool_feature_eval = dict()
     for feature, eval in feature_eval.items():
         bool_feature_eval[feature] = feature_eval_to_cond(feature, eval)
@@ -60,7 +66,7 @@ def bool_eval_state(instance, mapping, features, domain, problem, state, config,
 
 
 def eval_state_diff(state, succ):
-    log.debug(f'eval state diff: {state} -> {succ}')
+    log.debug(f"eval state diff: {state} -> {succ}")
     diff = set()
     for feature in succ:
         if state[feature] == succ[feature]:
@@ -71,16 +77,16 @@ def eval_state_diff(state, succ):
             elif state[feature] and not succ[feature]:
                 diff.add((feature, Effect.UNSET))
             else:
-                raise RuntimeError(f'Inconsistent state transition: {state} -> {succ}')
+                raise RuntimeError(f"Inconsistent state transition: {state} -> {succ}")
         elif feature.startswith("n_"):
             if state[feature] < succ[feature]:
                 diff.add((feature, Effect.INCREASE))
             elif state[feature] > succ[feature]:
                 diff.add((feature, Effect.DECREASE))
             else:
-                raise RuntimeError(f'Inconsistent state transition: {state} -> {succ}')
+                raise RuntimeError(f"Inconsistent state transition: {state} -> {succ}")
         else:
-            raise ValueError(f'Unknown feature type: {feature}')
+            raise ValueError(f"Unknown feature type: {feature}")
     return frozenset(diff)
 
 
@@ -105,7 +111,8 @@ def state_string(state):
 
 def execute_rule_policy(domain, problem, policy, config):
     log.info(
-        f'Executing policy:\n{policy}\nin {domain.name} for problem {problem.name} with features {policy.features}')
+        f"Executing policy:\n{policy}\nin {domain.name} for problem {problem.name} with features {policy.features}"
+    )
     vocabulary = construct_vocabulary_info(domain, config)
     factory = SyntacticElementFactory(vocabulary)
     instance, mapping = construct_instance_info(vocabulary, domain, problem, 0, config)
@@ -116,7 +123,7 @@ def execute_rule_policy(domain, problem, policy, config):
         elif feature.startswith("n_"):
             features[feature] = factory.parse_numerical(feature)
         else:
-            raise ValueError(f'Unknown feature type: {feature}')
+            raise ValueError(f"Unknown feature type: {feature}")
     # TODO _get_state_from_goal is internal
     goal_state = _get_state_from_goal(problem.goal)
     log.debug("Grounding actions...")
@@ -126,11 +133,11 @@ def execute_rule_policy(domain, problem, policy, config):
     trace = dict()
     num_steps = 0
     actions_taken = []
-    max_steps = config['policy_steps']
+    max_steps = config["policy_steps"]
     while not check_formula(state, problem.goal) and (max_steps <= 0 or num_steps < max_steps):
-        if config['abort_on_cycle']:
+        if config["abort_on_cycle"]:
             if state in trace:
-                log.error('Cycle detected!')
+                log.error("Cycle detected!")
                 cycle = []
                 while state not in cycle:
                     cycle.append(state)
@@ -140,32 +147,41 @@ def execute_rule_policy(domain, problem, policy, config):
         feature_eval = eval_state(instance, mapping, features, domain, problem, state, config)
         bool_feature_eval = bool_eval_state(instance, mapping, features, domain, problem, state, config)
         enabled_rules = {rule for rule in policy.rules if state_satisfies_rule_conds(bool_feature_eval, rule.conds)}
-        log.debug('Enabled rules: {}'.format(",  ".join([str(r) for r in enabled_rules])))
+        log.debug("Enabled rules: {}".format(",  ".join([str(r) for r in enabled_rules])))
         enabled_constraints = {
             constraint
-            for constraint in policy.constraints if state_satisfies_rule_conds(bool_feature_eval, constraint.conds)
+            for constraint in policy.constraints
+            if state_satisfies_rule_conds(bool_feature_eval, constraint.conds)
         }
-        log.debug('Enabled constraints: {}'.format(",  ".join([str(c) for c in enabled_constraints])))
+        log.debug("Enabled constraints: {}".format(",  ".join([str(c) for c in enabled_constraints])))
         if not enabled_rules:
             log.error("No rule enabled!")
             raise RuntimeError("No rule enabled!")
         found_rule = False
-        log.debug('Enabled actions: {}'.format(", ".join(
-            [action_string(a) for a in grounded_actions if check_formula(state, a.precondition)])))
+        log.debug(
+            "Enabled actions: {}".format(
+                ", ".join([action_string(a) for a in grounded_actions if check_formula(state, a.precondition)])
+            )
+        )
         for action in sorted(grounded_actions, key=lambda _: random.random()):
             if not check_formula(state, action.precondition):
                 continue
             succs = apply_action_effects(state, action)
-            log.debug('Action {} has {} successors: {}'.format(action_string(action), len(succs),
-                                                               "; ".join([state_string(s) for s in succs])))
+            log.debug(
+                "Action {} has {} successors: {}".format(
+                    action_string(action),
+                    len(succs),
+                    "; ".join([state_string(s) for s in succs]),
+                )
+            )
             succs_evals = [eval_state(instance, mapping, features, domain, problem, succ, config) for succ in succs]
-            log.debug(f'succs_evals: {succs_evals}')
+            log.debug(f"succs_evals: {succs_evals}")
             succs_diffs = {eval_state_diff(feature_eval, succ_eval) for succ_eval in succs_evals}
             log.debug(f'succs_diffs:\n{"\n".join([", ".join([str(d) for d in ds]) for ds in succs_diffs])}')
             ok = True
             for constraint in enabled_constraints:
                 if constraint.effs & succs_diffs:
-                    log.info(f'Constraint {constraint} violated!')
+                    log.info(f"Constraint {constraint} violated!")
                     ok = False
                     break
             bool_succs_evals = [
@@ -179,7 +195,7 @@ def execute_rule_policy(domain, problem, policy, config):
                             violated = False
                             break
                     if violated:
-                        log.info(f'State constraint {state_constraint} violated!')
+                        log.info(f"State constraint {state_constraint} violated!")
                         ok = False
                         break
                 if not ok:
@@ -187,11 +203,11 @@ def execute_rule_policy(domain, problem, policy, config):
             if not ok:
                 continue
             for rule in enabled_rules:
-                log.debug(f'Checking rule {rule}')
+                log.debug(f"Checking rule {rule}")
                 if rule.effs == succs_diffs or policy.type == PolicyType.CONSTRAINED and rule.effs & succs_diffs:
                     found_rule = True
-                    log.info(f'Found matching rule:\n{rule}')
-                    log.info(f'Applying action {action_string(action)}')
+                    log.info(f"Found matching rule:\n{rule}")
+                    log.info(f"Applying action {action_string(action)}")
                     new_state = get_next_state(succs, action)
                     trace[state] = new_state
                     state = new_state
@@ -201,11 +217,11 @@ def execute_rule_policy(domain, problem, policy, config):
             if found_rule:
                 break
         if not found_rule:
-            log.error(f'No matching rule found for diff {succs_diffs}!')
-            log.error('Enabled rules:\n  {}'.format("\n  ".join([str(r) for r in enabled_rules])))
-            raise RuntimeError('No matching rule found!')
+            log.error(f"No matching rule found for diff {succs_diffs}!")
+            log.error("Enabled rules:\n  {}".format("\n  ".join([str(r) for r in enabled_rules])))
+            raise RuntimeError("No matching rule found!")
     if not check_formula(state, problem.goal):
-        log.error('Goal not reached!')
-        raise RuntimeError('Goal not reached!')
-    log.info('Goal reached!')
+        log.error("Goal not reached!")
+        raise RuntimeError("Goal not reached!")
+    log.info("Goal reached!")
     return actions_taken

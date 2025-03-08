@@ -29,11 +29,11 @@ def test_trans_constraint_solver_choose_good_trans():
         trans(0, 0, a, 1).
         trans(0, 0, b, 2).
     """
-    solver = Solver(program, solve_prog='solve_trans_constraints.lp')
+    solver = Solver(program, solve_prog="solve_trans_constraints.lp")
     assert solver.solve()
-    assert solver.solution['good_trans'] == {(0, 0, 2)}
-    assert solver.solution['bad_trans'] == {(0, 0, 1)}
-    assert solver.solution['selected'] == {'n_g'}
+    assert solver.solution["good_trans"] == {(0, 0, 2)}
+    assert solver.solution["bad_trans"] == {(0, 0, 1)}
+    assert solver.solution["selected"] == {"n_g"}
     policy = generate_policy(solver.solution, policy_type=PolicyType.CONSTRAINED)
-    assert policy.rules == {PolicyRule({'n_g': Cond.ZERO}, [[('n_g', Effect.INCREASE)]])}
-    assert policy.constraints == {PolicyRule({'n_g': Cond.ZERO}, [[]])}
+    assert policy.rules == {PolicyRule({"n_g": Cond.ZERO}, [[("n_g", Effect.INCREASE)]])}
+    assert policy.constraints == {PolicyRule({"n_g": Cond.ZERO}, [[]])}

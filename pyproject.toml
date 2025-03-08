@@ -27,8 +27,8 @@ ipython = "^9.0.1"
 mypy = "^1.15.0"
 types-tqdm = "^4.67.0.20250301"
 types-pyyaml = "^6.0.12.20241230"
-yapf = "^0.43.0"
 isort = "^6.0.1"
+black = "^25.1.0"
 
 [tool.mypy]
 
@@ -38,7 +38,10 @@ ignore_missing_imports = true
 
 [tool.isort]
 line_length = 119
-multi_line_output = 9
+profile = "black"
+
+[tool.black]
+line-length = 119
 
 [build-system]
 requires = ["poetry-core"]
