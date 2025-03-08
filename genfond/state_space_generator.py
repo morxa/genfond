@@ -1,20 +1,49 @@
-from pddl.logic.base import And, Not, OneOf
-from pddl.logic import Predicate
-from pddl.logic.predicates import EqualTo
-from collections.abc import Collection
-from pddl.logic.effects import When
-from pddl.logic.base import And
-from .ground import ground
-from enum import Enum
-import random
-
 import logging
+import random
+from collections.abc import Collection
+from enum import Enum
+
+from pddl.logic import Predicate
+from pddl.logic.base import And, Not, OneOf
+from pddl.logic.effects import When
+from pddl.logic.functions import Assign, BinaryFunction, Decrease, Divide
+from pddl.logic.functions import EqualTo as FunctionEqualTo
+from pddl.logic.functions import (GreaterEqualThan, GreaterThan, Increase, LesserEqualThan, LesserThan, Minus,
+                                  NumericFunction, NumericValue, Plus, ScaleDown, ScaleUp, Times)
+from pddl.logic.predicates import EqualTo
+
+from .ground import ground
 
 log = logging.getLogger('genfond.state_space_generator')
 
 
 def state_to_string(state):
-    return ','.join([f'{p.name}({",".join([str(p) for p in p.terms])})' for p in state])
+    state_str = ""
+    for p in state:
+        if isinstance(p, Predicate):
+            state_str += f'{p.name}({",".join([str(p) for p in p.terms])})'
+        elif isinstance(p, FunctionEqualTo):
+            state_str += f'{p.operands[0]}={p.operands[1]}'
+        else:
+            raise ValueError('Unknown state type: {}'.format(type(p)))
+        state_str += ','
+    return state_str
+
+
+def eval_function_term(term, state):
+    if isinstance(term, NumericValue):
+        return term.value
+    elif isinstance(term, NumericFunction):
+        for f in state:
+            if not isinstance(f, FunctionEqualTo):
+                continue
+            if f.operands[0] == term:
+                return f.operands[1].value
+        # TODO: check if this is correct
+        return 0
+        # raise ValueError(f'Function {term} not found in state {state_to_string(state)}')
+    else:
+        raise ValueError('Unknown term type: {}'.format(type(term)))
 
 
 def check_formula(state, formula):
@@ -26,6 +55,16 @@ def check_formula(state, formula):
         return formula in state
     elif isinstance(formula, EqualTo):
         return formula.left == formula.right
+    elif isinstance(formula, LesserThan):
+        return eval_function_term(formula.operands[0], state) < eval_function_term(formula.operands[1], state)
+    elif isinstance(formula, LesserEqualThan):
+        return eval_function_term(formula.operands[0], state) <= eval_function_term(formula.operands[1], state)
+    elif isinstance(formula, GreaterThan):
+        return eval_function_term(formula.operands[0], state) > eval_function_term(formula.operands[1], state)
+    elif isinstance(formula, GreaterEqualThan):
+        return eval_function_term(formula.operands[0], state) >= eval_function_term(formula.operands[1], state)
+    elif isinstance(formula, FunctionEqualTo):
+        return eval_function_term(formula.operands[0], state) == eval_function_term(formula.operands[1], state)
     else:
         raise ValueError('Unknown formula type: {}'.format(type(formula)))
 
@@ -39,12 +78,12 @@ def apply_effects(states, effects):
     for state in states:
         new_states |= apply_effects_to_state(state, effects)
         assert all(isinstance(s, Collection) for s in new_states)
-        assert all(all(isinstance(f, Predicate) for f in s) for s in new_states)
+        assert all(all(isinstance(f, (Predicate, FunctionEqualTo)) for f in s) for s in new_states)
     return frozenset(new_states)
 
 
 def apply_effects_to_state(state, effects):
-    assert all(isinstance(f, Predicate) for f in state)
+    assert all(isinstance(f, (Predicate, FunctionEqualTo)) for f in state)
     if isinstance(effects, Collection):
         states = {state}
         for effect in effects:
@@ -64,6 +103,35 @@ def apply_effects_to_state(state, effects):
             return apply_effects({state}, effects.effect)
         else:
             return frozenset({state})
+    elif isinstance(effects, BinaryFunction):
+        if isinstance(effects.operands[0], NumericFunction):
+            fct = effects.operands[0]
+            change = effects.operands[1]
+        else:
+            fct = effects.operands[1]
+            change = effects.operands[0]
+        assert isinstance(fct, NumericFunction)
+        assert isinstance(change, NumericValue)
+        current_evals = [f for f in state if isinstance(f, FunctionEqualTo) and f.operands[0] == fct]
+        if not current_evals:
+            current_eval = FunctionEqualTo(fct, NumericValue(0))
+        else:
+            assert len(current_evals) == 1
+            current_eval = current_evals[0]
+        current_value = current_eval.operands[1].value
+        if isinstance(effects, Assign):
+            new_value = change.value
+        elif isinstance(effects, Increase):
+            new_value = current_value + change.value
+        elif isinstance(effects, Decrease):
+            new_value = current_value - change.value
+        elif isinstance(effects, (Plus, Minus, Times, Divide, ScaleUp, ScaleDown)):
+            raise NotImplementedError()
+        else:
+            raise ValueError('Unknown effect type: {}'.format(type(effects)))
+        # log.debug(f'Change {fct} from {current_value} to {new_value}')
+        return frozenset(
+            {frozenset([f for f in state if f != current_eval] + [FunctionEqualTo(fct, NumericValue(new_value))])})
     elif isinstance(effects, OneOf):
         new_states = set()
         for effect in effects.operands:
@@ -78,6 +146,7 @@ class Alive(Enum):
     DEAD = 1
     UNKNOWN = 2
     PRUNED = 3
+    NUM_PRUNED = 4
 
 
 class StateSpaceNode:
@@ -100,9 +169,13 @@ class StateSpaceNode:
         self.children.setdefault(action, set()).add(node)
 
 
+def get_num_vals(state):
+    return {f.operands[1].value for f in state if isinstance(f, FunctionEqualTo)}
+
+
 class StateSpaceGraph:
 
-    def __init__(self, domain, problem, prune=True, selected_states=None):
+    def __init__(self, domain, problem, prune=True, selected_states=None, max_num_val=None):
         self.domain = domain
         self.problem = problem
         self.next_id = 0
@@ -133,7 +206,9 @@ class StateSpaceGraph:
                 for succ in apply_action_effects(node.state, action):
                     new_node = self.add_node(succ, state, action)
                     if new_node:
-                        if selected_states and succ not in selected_states:
+                        if max_num_val and any(v > max_num_val for v in get_num_vals(succ)):
+                            new_node.alive = Alive.NUM_PRUNED
+                        elif selected_states and succ not in selected_states:
                             new_node.alive = Alive.PRUNED
                         else:
                             queue.append(new_node)
