@@ -2,9 +2,12 @@ import logging
 import random
 from collections.abc import Collection
 from enum import Enum
+from typing import Optional
 
+from pddl.action import Action
+from pddl.core import Domain, Problem
 from pddl.logic import Predicate
-from pddl.logic.base import And, Not, OneOf
+from pddl.logic.base import And, Formula, Not, OneOf
 from pddl.logic.effects import When
 from pddl.logic.functions import (
     Assign,
@@ -14,6 +17,7 @@ from pddl.logic.functions import (
 )
 from pddl.logic.functions import EqualTo as FunctionEqualTo
 from pddl.logic.functions import (
+    FunctionExpression,
     GreaterEqualThan,
     GreaterThan,
     Increase,
@@ -33,8 +37,10 @@ from .ground import ground
 
 log = logging.getLogger("genfond.state_space_generator")
 
+type State = frozenset[Formula]
 
-def state_to_string(state):
+
+def state_to_string(state: State) -> str:
     state_str = ""
     for p in state:
         if isinstance(p, Predicate):
@@ -47,7 +53,7 @@ def state_to_string(state):
     return state_str
 
 
-def eval_function_term(term, state):
+def eval_function_term(term: FunctionExpression, state: State) -> float | int:
     if isinstance(term, NumericValue):
         return term.value
     elif isinstance(term, NumericFunction):
@@ -63,7 +69,7 @@ def eval_function_term(term, state):
         raise ValueError("Unknown term type: {}".format(type(term)))
 
 
-def check_formula(state, formula):
+def check_formula(state: State, formula: Formula) -> bool:
     if isinstance(formula, And):
         return all(check_formula(state, subformula) for subformula in formula.operands)
     elif isinstance(formula, Not):
@@ -86,20 +92,20 @@ def check_formula(state, formula):
         raise ValueError("Unknown formula type: {}".format(type(formula)))
 
 
-def apply_action_effects(state, action):
+def apply_action_effects(state: State, action: Action) -> set[State]:
     return apply_effects(frozenset({state}), action.effect)
 
 
-def apply_effects(states, effects):
-    new_states = set()
+def apply_effects(states: Collection[State], effects: Collection[Optional[Formula]]) -> set[State]:
+    new_states: set[State] = set()
     for state in states:
         new_states |= apply_effects_to_state(state, effects)
         assert all(isinstance(s, Collection) for s in new_states)
         assert all(all(isinstance(f, (Predicate, FunctionEqualTo)) for f in s) for s in new_states)
-    return frozenset(new_states)
+    return new_states
 
 
-def apply_effects_to_state(state, effects):
+def apply_effects_to_state(state: State, effects: Collection[Optional[Formula]]) -> set[State]:
     assert all(isinstance(f, (Predicate, FunctionEqualTo)) for f in state)
     if isinstance(effects, Collection):
         states = {state}
@@ -110,16 +116,16 @@ def apply_effects_to_state(state, effects):
         states = {state}
         for effect in effects.operands:
             states = apply_effects(states, effect)
-        return frozenset(states)
+        return set(states)
     elif isinstance(effects, Predicate):
-        return frozenset({state | {effects}})
+        return set({state | {effects}})
     elif isinstance(effects, Not):
-        return frozenset({frozenset([f for f in state if f != effects.argument])})
+        return set({frozenset([f for f in state if f != effects.argument])})
     elif isinstance(effects, When):
         if check_formula(state, effects.condition):
             return apply_effects({state}, effects.effect)
         else:
-            return frozenset({state})
+            return set({state})
     elif isinstance(effects, BinaryFunction):
         if isinstance(effects.operands[0], NumericFunction):
             fct = effects.operands[0]
@@ -169,36 +175,43 @@ class Alive(Enum):
 
 class StateSpaceNode:
 
-    def __init__(self, state, id):
+    def __init__(self, state: State, id: int):
         self.state = state
         self.id = id
-        self.children = dict()
+        self.children: dict[Action, set[StateSpaceNode]] = dict()
         self.alive = Alive.UNKNOWN
         self.goal = False
-        self.parents = set()
+        self.parents: set[StateSpaceNode] = set()
 
-    def __str__(self):
+    def __str__(self) -> str:
         return state_to_string(self.state)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return repr(self.state)
 
-    def add_child(self, action, node):
+    def add_child(self, action: Action, node: "StateSpaceNode") -> None:
         self.children.setdefault(action, set()).add(node)
 
 
-def get_num_vals(state):
+def get_num_vals(state: State) -> set[int]:
     return {f.operands[1].value for f in state if isinstance(f, FunctionEqualTo)}
 
 
 class StateSpaceGraph:
 
-    def __init__(self, domain, problem, prune=True, selected_states=None, max_num_val=None):
+    def __init__(
+        self,
+        domain: Domain,
+        problem: Problem,
+        prune: bool = True,
+        selected_states: Optional[set[State]] = None,
+        max_num_val: Optional[int] = None,
+    ):
         self.domain = domain
         self.problem = problem
         self.next_id = 0
         queue = []
-        self.nodes = dict()
+        self.nodes: dict[State, StateSpaceNode] = dict()
         if selected_states:
             for state in selected_states:
                 node = StateSpaceNode(state, self.next_id)
@@ -236,7 +249,7 @@ class StateSpaceGraph:
         assert all(node.alive != Alive.UNKNOWN for node in self.nodes.values())
         # assert self.root.alive == Alive.ALIVE, 'Problem {} is unsolvable'.format(problem.name)
 
-    def add_node(self, state, parent_state, action):
+    def add_node(self, state: State, parent_state: State, action: Action) -> Optional[StateSpaceNode]:
         parent = self.nodes[parent_state]
         try:
             node = self.nodes[state]
@@ -254,9 +267,9 @@ class StateSpaceGraph:
         else:
             return None
 
-    def prune_nodes(self):
+    def prune_nodes(self) -> None:
         pruned_dead = []
-        pruned_selected = []
+        pruned_selected: list[State] = []
         for state, node in self.nodes.items():
             if node.alive == Alive.DEAD and all([parent.alive == Alive.DEAD for parent in node.parents]):
                 pruned_dead.append(state)
@@ -269,11 +282,11 @@ class StateSpaceGraph:
         log.info(f"Pruned {len(pruned_dead)} dead " f"out of {before} states in {self.problem.name}")
 
 
-def generate_state_space(domain, problem, selected_states=None):
+def generate_state_space(domain: Domain, problem: Problem, selected_states: Optional[set[State]] = None):
     return StateSpaceGraph(domain, problem, selected_states=selected_states)
 
 
-def can_reach(node, goal_nodes):
+def can_reach(node: StateSpaceNode, goal_nodes: Collection[StateSpaceNode]) -> bool:
     seen = set()
     stack = [node]
     while stack:
@@ -293,7 +306,7 @@ def can_reach(node, goal_nodes):
     return False
 
 
-def find_nodes_leading_to_dead(nodes):
+def find_nodes_leading_to_dead(nodes: Collection[StateSpaceNode]) -> bool:
     queue = [node for node in nodes if node.alive == Alive.UNKNOWN]
     changed = False
     while queue:
@@ -307,7 +320,7 @@ def find_nodes_leading_to_dead(nodes):
     return changed
 
 
-def find_node_not_reaching_goal(nodes):
+def find_node_not_reaching_goal(nodes: Collection[StateSpaceNode]) -> bool:
     queue = [node for node in nodes if node.alive == Alive.UNKNOWN]
     goal_nodes = [node for node in nodes if node.alive in [Alive.ALIVE, Alive.PRUNED]]
     changed = False
@@ -322,7 +335,7 @@ def find_node_not_reaching_goal(nodes):
     return changed
 
 
-def compute_alive(nodes):
+def compute_alive(nodes: Collection[StateSpaceNode]) -> None:
     changed = True
     while changed:
         changed = find_nodes_leading_to_dead(nodes)
@@ -332,7 +345,7 @@ def compute_alive(nodes):
             node.alive = Alive.ALIVE
 
 
-def random_walk(domain, problem, initial_states, max_steps=100):
+def random_walk(domain: Domain, problem: Problem, initial_states: set[State], max_steps: int = 100):
     states = list(initial_states)
     grounded_actions = ground(domain, problem)
     while True:
