@@ -1,16 +1,22 @@
 import itertools
 import logging
 import random
+from typing import Collection, Optional
 
-from dlplan.core import State, SyntacticElementFactory
-from pddl.logic.terms import Constant
+import dlplan.core
+from dlplan.core import Concept, ConceptDenotation, InstanceInfo, Role, RoleDenotation, SyntacticElementFactory
+from pddl.action import Action
+from pddl.core import Domain, Problem
+
+from genfond.config_handler import ConfigHandler
+from genfond.datalog_policy import DatalogPolicy
 
 from .execute_rule_policy import (
     CycleError,
     NoActionError,
     PolicyExecutionError,
+    _get_dlplan_state,
     bool_eval_state,
-    eval_state,
     state_satisfies_rule_conds,
 )
 from .feature_generator import (
@@ -22,16 +28,16 @@ from .feature_generator import (
 )
 from .generate_rule_policy import feature_eval_to_cond
 from .ground import ground
-from .state_space_generator import apply_action_effects, check_formula
+from .state_space_generator import State, apply_action_effects, check_formula
 
 log = logging.getLogger("genfond.execution.datalog")
 
 
-def get_next_state(states):
+def get_next_state(states: Collection[State]) -> State:
     return random.choice([state for state in states])
 
 
-def action_string(action) -> str:
+def action_string(action: Action) -> str:
     return f'{action.name}({",".join([str(p) for p in action.parameters])})'
 
 
@@ -39,7 +45,41 @@ def state_string(state) -> str:
     return ",".join([str(p) for p in state])
 
 
-def execute_datalog_policy(domain, problem, datalog_policy, config):
+def eval_concepts(
+    instance: InstanceInfo,
+    mapping: dict,
+    concepts: dict[str, Concept],
+    problem: Problem,
+    state: State,
+    config: dict,
+    action: Optional[Action] = None,
+) -> dict[str, ConceptDenotation]:
+    fstate = _get_dlplan_state(instance, mapping, problem, state, config, action)
+    eval = dict()
+    for concept_string, concept in concepts.items():
+        eval[concept_string] = concept.evaluate(fstate)
+    return eval
+
+
+def eval_roles(
+    instance: InstanceInfo,
+    mapping: dict,
+    roles: dict[str, Role],
+    problem: Problem,
+    state: State,
+    config: dict,
+    action: Optional[Action] = None,
+) -> dict[str, RoleDenotation]:
+    fstate = _get_dlplan_state(instance, mapping, problem, state, config, action)
+    eval = dict()
+    for role_string, role in roles.items():
+        eval[role_string] = role.evaluate(fstate)
+    return eval
+
+
+def execute_datalog_policy(
+    domain: Domain, problem: Problem, datalog_policy: DatalogPolicy, config: ConfigHandler
+) -> list[str]:
     log.info(f"Executing policy:\n{datalog_policy}\nin {domain.name} for problem {problem.name}")
 
     vocabulary = construct_vocabulary_info(domain, config)
@@ -74,7 +114,7 @@ def execute_datalog_policy(domain, problem, datalog_policy, config):
                 roles[role] = factory.parse_role(role)
 
     state = problem.init
-    trace = dict()
+    trace: dict[State, State] = dict()
     num_steps = 0
     actions_taken = []
     max_steps = config["policy_steps"]
@@ -91,24 +131,9 @@ def execute_datalog_policy(domain, problem, datalog_policy, config):
         log.info(f"New state: {state_string(state)}")
         found_rule = False
 
-        eval = eval_state(
-            instance,
-            mapping,
-            concepts | roles,
-            domain,
-            problem,
-            state,
-            config | {"include_actions": False},
-        )
-        bool_eval = bool_eval_state(
-            instance,
-            mapping,
-            features,
-            domain,
-            problem,
-            state,
-            config | {"include_actions": False},
-        )
+        concepts_eval = eval_concepts(instance, mapping, concepts, problem, state, config | {"include_actions": False})
+        roles_eval = eval_roles(instance, mapping, roles, problem, state, config | {"include_actions": False})
+        bool_eval = bool_eval_state(instance, mapping, features, problem, state, config | {"include_actions": False})
 
         for rule in random.sample(list(datalog_policy.rules), len(datalog_policy.rules)):
             log.debug(f"Checking rule: {rule}")
@@ -116,14 +141,14 @@ def execute_datalog_policy(domain, problem, datalog_policy, config):
                 log.debug(f"... Rule conditions not satisfied!")
                 continue
             log.debug(f"... Rule conditions satisfied!")
-            objects = [[] for _ in range(len(rule.parameters))]
+            objects: list[list[str]] = [[] for _ in range(len(rule.parameters))]
 
             for index, parameter in enumerate(rule.parameters):
                 log.debug(f"... Finding valid objects for parameter {parameter}")
                 valid_objects = set(list(range(len(instance.get_objects()))))
 
                 for concept in rule.concepts_by_parameter[parameter]:
-                    valid_objects &= set(eval[concept].to_vector())
+                    valid_objects &= set(concepts_eval[concept].to_vector())
                     if len(valid_objects) == 0:
                         break
 
@@ -149,7 +174,7 @@ def execute_datalog_policy(domain, problem, datalog_policy, config):
                         if (
                             instance.get_object(role_arg_0).get_index(),
                             instance.get_object(role_arg_1).get_index(),
-                        ) not in eval[role].to_vector():
+                        ) not in roles_eval[role].to_vector():
                             log.debug(f"... Role {role} not satisfied for {role_arg_0} and {role_arg_1}")
                             valid = False
                             break
@@ -171,16 +196,7 @@ def execute_datalog_policy(domain, problem, datalog_policy, config):
                 # aug_state = get_augmented_state(problem, state, config, action)
 
                 for cond, val in rule.state_aug_conds.items():
-                    aug_bool_eval = bool_eval_state(
-                        instance,
-                        mapping,
-                        features,
-                        domain,
-                        problem,
-                        state,
-                        config,
-                        action,
-                    )
+                    aug_bool_eval = bool_eval_state(instance, mapping, features, problem, state, config, action)
                     if aug_bool_eval[cond] != val:
                         log.debug(
                             f"... Rule not applicable! Augmented state does not satisfy condition {cond}"
@@ -192,14 +208,14 @@ def execute_datalog_policy(domain, problem, datalog_policy, config):
                     param_index, val = pval
                     param = action.parameters[param_index]
                     aug_fstate = get_param_augmented_state(problem, state, param_index, param)
-                    aug_state = State(-1, instance, [mapping[fact] for fact in aug_fstate])
-                    eval = feature_eval_to_cond(cond, features[cond].evaluate(aug_state))
-                    if eval != val:
+                    aug_state = dlplan.core.State(-1, instance, [mapping[fact] for fact in aug_fstate])
+                    feval = feature_eval_to_cond(cond, features[cond].evaluate(aug_state))
+                    if feval != val:
                         log.debug(
                             "... Rule not applicable! "
                             f'Augmented state [{", ".join([str(f) for f in aug_fstate])}] '
                             "does not satisfy condition {cond} on {param}"
-                            f" (valuation is {eval} instead of {val})"
+                            f" (valuation is {feval} instead of {val})"
                         )
                         action = None
                         break
@@ -209,7 +225,7 @@ def execute_datalog_policy(domain, problem, datalog_policy, config):
                 for feature, param1, param2, diff in rule.param_diff_conds:
                     log.debug(f"Checking diff condition {feature}({param1},{param2})={diff}")
                     assert diff in [-1, 0, 1], f"Invalid diff value: {diff}"
-                    aug_state1 = State(
+                    aug_state1 = dlplan.core.State(
                         -1,
                         instance,
                         [
@@ -217,7 +233,7 @@ def execute_datalog_policy(domain, problem, datalog_policy, config):
                             for fact in get_param_augmented_state(problem, state, param1, object_combination[param1])
                         ],
                     )
-                    aug_state2 = State(
+                    aug_state2 = dlplan.core.State(
                         -1,
                         instance,
                         [
