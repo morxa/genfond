@@ -1,3 +1,5 @@
+from typing import Optional, TextIO
+
 import mergedeep
 import yaml
 
@@ -138,7 +140,9 @@ DEFAULT_TYPE_CONFIGS = {
 
 class ConfigHandler(dict):
 
-    def __init__(self, config_file_object=None, type=None, override=None):
+    def __init__(
+        self, config_file_object: Optional[TextIO] = None, type: Optional[str] = None, override: Optional[dict] = None
+    ):
         mergedeep.merge(self, DEFAULT_CONFIG)
         if type and type in DEFAULT_TYPE_CONFIGS:
             mergedeep.merge(self, DEFAULT_TYPE_CONFIGS[type])
@@ -148,7 +152,7 @@ class ConfigHandler(dict):
             # Only override values that are already in the config that have been set to a non-None value
             mergedeep.merge(self, {k: v for k, v in override.items() if k in self and v is not None})
 
-    def dump(self):
-        dump = dict()
+    def dump(self) -> str:
+        dump: dict = dict()
         mergedeep.merge(dump, self)
         return yaml.dump(dump, default_flow_style=False)
