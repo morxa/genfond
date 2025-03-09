@@ -3,20 +3,12 @@ import random
 from typing import Collection, Mapping, Optional
 
 import dlplan.core
-from dlplan.core import (
-    Boolean,
-    Concept,
-    ConceptDenotation,
-    InstanceInfo,
-    Numerical,
-    Role,
-    RoleDenotation,
-    SyntacticElementFactory,
-)
+from dlplan.core import InstanceInfo, SyntacticElementFactory
 from pddl.action import Action
 from pddl.core import Domain, Problem
 
 from .feature_generator import (
+    Feature,
     _get_state_from_goal,
     construct_instance_info,
     construct_vocabulary_info,
@@ -29,8 +21,6 @@ from .rule_policy import Cond, Effect, Policy
 from .state_space_generator import State, apply_action_effects, check_formula
 
 log = logging.getLogger("genfond.execution.rule")
-
-type Feature = Boolean | Numerical
 
 
 class PolicyExecutionError(RuntimeError):
