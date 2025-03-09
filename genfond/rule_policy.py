@@ -1,6 +1,7 @@
 import itertools
 import logging
 from enum import Enum
+from typing import Collection, Optional
 
 from .policy import PolicyType
 
@@ -51,14 +52,16 @@ def eff_to_str(feature, val):
 
 class PolicyRule:
 
-    def __init__(self, conds, effs):
+    def __init__(self, conds: dict[str, Cond], effs: Collection[Collection[tuple[str, Effect]]]):
         self.conds = conds
-        self.effs = frozenset({frozenset(eff) for eff in effs})
+        self.effs: set[frozenset[tuple[str, Effect]]] = set({frozenset(eff) for eff in effs})
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, PolicyRule):
+            raise NotImplementedError
         return self.conds == other.conds and self.effs == other.effs
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         s_conds = []
         for feature, val in self.conds.items():
             s_conds.append(cond_to_str(feature, val))
@@ -68,23 +71,25 @@ class PolicyRule:
             s_effs.append(" ∧ ".join(s_eff))
         return f'{{ {" ∧ ".join(sorted(s_conds))} }}  ⇒  {{ {" ; ".join(sorted(s_effs))} }}'
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash(repr(self))
 
 
 class StateConstraint:
 
-    def __init__(self, conds):
+    def __init__(self, conds: dict[str, Cond]):
         self.conds = conds
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, StateConstraint):
+            raise NotImplementedError
         return self.conds == other.conds
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         s_conds = [cond_to_str(feature, val) for feature, val in self.conds.items()]
         return f'{{ {" ∧ ".join(sorted(s_conds))} }}'
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash(repr(self))
 
 
@@ -92,22 +97,22 @@ class Policy:
 
     def __init__(
         self,
-        features,
-        rules,
-        cost=None,
-        constraints=None,
-        state_constraints=None,
-        type=PolicyType.EXACT,
+        features: Collection[str],
+        rules: Collection[PolicyRule],
+        cost: Optional[int] = None,
+        constraints: Optional[Collection[PolicyRule]] = None,
+        state_constraints: Optional[set[StateConstraint]] = None,
+        type: PolicyType = PolicyType.EXACT,
     ):
         self.type = type
         self.features = frozenset(features)
         self.rules = frozenset(rules)
         self.constraints = constraints or set()
-        self.state_constraints = state_constraints or set()
+        self.state_constraints: set[StateConstraint] = state_constraints or set()
         self.cost = cost
         assert not constraints or type == PolicyType.CONSTRAINED
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         if self.type == PolicyType.CONSTRAINED:
             s_constraints = ""
             s_state_constraints = ""
@@ -143,11 +148,11 @@ class Policy:
                 "\n".join(sorted({repr(rule) for rule in self.rules})),
             )
 
-    def simplify(self):
+    def simplify(self) -> None:
         self.simplify_rules()
         self.simplify_state_constraints()
 
-    def simplify_rules(self):
+    def simplify_rules(self) -> None:
         new_rules = set()
         pruned_rules = set()
         for r1, r2 in itertools.combinations(self.rules, 2):
@@ -182,10 +187,10 @@ class Policy:
                 pruned_rules |= {r1, r2}
         new_rules |= self.rules - pruned_rules
         if new_rules != self.rules:
-            self.rules = new_rules
+            self.rules = frozenset(new_rules)
             self.simplify_rules()
 
-    def simplify_state_constraints(self):
+    def simplify_state_constraints(self) -> None:
         new_constraints = set()
         pruned_constraints = set()
         for sc1, sc2 in itertools.combinations(self.state_constraints, 2):

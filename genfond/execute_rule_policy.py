@@ -1,7 +1,11 @@
 import logging
 import random
+from typing import Collection, Optional
 
-from dlplan.core import State, SyntacticElementFactory
+import dlplan.core
+from dlplan.core import Boolean, InstanceInfo, Numerical, SyntacticElementFactory
+from pddl.action import Action
+from pddl.core import Domain, Problem
 
 from .feature_generator import (
     _get_state_from_goal,
@@ -12,21 +16,23 @@ from .feature_generator import (
 from .generate_rule_policy import feature_eval_to_cond
 from .ground import ground
 from .policy import PolicyType
-from .rule_policy import Effect
-from .state_space_generator import apply_action_effects, check_formula
+from .rule_policy import Cond, Effect, Policy
+from .state_space_generator import State, apply_action_effects, check_formula
 
 log = logging.getLogger("genfond.execution.rule")
+
+type Feature = Boolean | Numerical
 
 
 class PolicyExecutionError(RuntimeError):
 
-    def __init__(self, message):
+    def __init__(self, message: str):
         super().__init__(message)
 
 
 class NoActionError(PolicyExecutionError):
 
-    def __init__(self, trace, state):
+    def __init__(self, trace: dict[State, State], state: State):
         self.trace = trace
         self.state = state
         super().__init__(f"No action found for state: {", ".join([str(p) for p in state])}")
@@ -34,15 +40,24 @@ class NoActionError(PolicyExecutionError):
 
 class CycleError(PolicyExecutionError):
 
-    def __init__(self, trace, cycle):
+    def __init__(self, trace: dict[State, State], cycle: list[State]):
         self.trace = trace
         self.cycle = cycle
         super().__init__("Cycle detected")
 
 
-def eval_state(instance, mapping, features, domain, problem, state, config, action=None):
+def eval_state(
+    instance: InstanceInfo,
+    mapping: dict,
+    features: dict[str, Feature],
+    _,
+    problem: Problem,
+    state: State,
+    config: dict,
+    action: Optional[Action] = None,
+) -> dict[str, int]:
     try:
-        fstate = State(
+        fstate = dlplan.core.State(
             -1,
             instance,
             [mapping[predicate] for predicate in get_action_augmented_state(problem, state, config, action)],
@@ -56,7 +71,16 @@ def eval_state(instance, mapping, features, domain, problem, state, config, acti
     return feature_eval
 
 
-def bool_eval_state(instance, mapping, features, domain, problem, state, config, action=None):
+def bool_eval_state(
+    instance: InstanceInfo,
+    mapping: dict,
+    features: dict[str, Feature],
+    domain: Domain,
+    problem: Problem,
+    state: State,
+    config: dict,
+    action: Optional[Action] = None,
+) -> dict[str, Cond]:
     feature_eval = eval_state(instance, mapping, features, domain, problem, state, config, action)
     log.debug(f"feature eval: {feature_eval}")
     bool_feature_eval = dict()
@@ -65,51 +89,51 @@ def bool_eval_state(instance, mapping, features, domain, problem, state, config,
     return bool_feature_eval
 
 
-def eval_state_diff(state, succ):
-    log.debug(f"eval state diff: {state} -> {succ}")
+def eval_state_diff(state_eval: dict[str, int], succ_eval: dict[str, int]) -> frozenset[tuple[str, Effect]]:
+    log.debug(f"eval state diff: {state_eval} -> {succ_eval}")
     diff = set()
-    for feature in succ:
-        if state[feature] == succ[feature]:
+    for feature in succ_eval:
+        if state_eval[feature] == succ_eval[feature]:
             continue
         elif feature.startswith("b_"):
-            if not state[feature] and succ[feature]:
+            if not state_eval[feature] and succ_eval[feature]:
                 diff.add((feature, Effect.SET))
-            elif state[feature] and not succ[feature]:
+            elif state_eval[feature] and not succ_eval[feature]:
                 diff.add((feature, Effect.UNSET))
             else:
-                raise RuntimeError(f"Inconsistent state transition: {state} -> {succ}")
+                raise RuntimeError(f"Inconsistent state transition: {state_eval} -> {succ_eval}")
         elif feature.startswith("n_"):
-            if state[feature] < succ[feature]:
+            if state_eval[feature] < succ_eval[feature]:
                 diff.add((feature, Effect.INCREASE))
-            elif state[feature] > succ[feature]:
+            elif state_eval[feature] > succ_eval[feature]:
                 diff.add((feature, Effect.DECREASE))
             else:
-                raise RuntimeError(f"Inconsistent state transition: {state} -> {succ}")
+                raise RuntimeError(f"Inconsistent state transition: {state_eval} -> {succ_eval}")
         else:
             raise ValueError(f"Unknown feature type: {feature}")
     return frozenset(diff)
 
 
-def state_satisfies_rule_conds(bool_feature_eval, rule_conds):
+def state_satisfies_rule_conds(bool_feature_eval: dict[str, Cond], rule_conds: Mapping[str, Cond]) -> bool:
     for feature, cond in rule_conds.items():
         if cond != bool_feature_eval[feature]:
             return False
     return True
 
 
-def get_next_state(states, action):
+def get_next_state(states: Collection[State], _) -> State:
     return random.choice([state for state in states])
 
 
-def action_string(action):
+def action_string(action: Action) -> str:
     return f'{action.name}({",".join([str(p) for p in action.parameters])})'
 
 
-def state_string(state):
+def state_string(state: State) -> str:
     return ",".join([str(p) for p in state])
 
 
-def execute_rule_policy(domain, problem, policy, config):
+def execute_rule_policy(domain: Domain, problem: Problem, policy: Policy, config: dict) -> list[str]:
     log.info(
         f"Executing policy:\n{policy}\nin {domain.name} for problem {problem.name} with features {policy.features}"
     )
@@ -130,7 +154,7 @@ def execute_rule_policy(domain, problem, policy, config):
     grounded_actions = ground(domain, problem)
     log.debug("Grounding actions done.")
     state = problem.init
-    trace = dict()
+    trace: dict[State, State] = dict()
     num_steps = 0
     actions_taken = []
     max_steps = config["policy_steps"]

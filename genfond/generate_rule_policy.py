@@ -1,4 +1,5 @@
 import logging
+from typing import Any, Optional
 
 from .policy import PolicyType
 from .rule_policy import Cond, Effect, Policy, PolicyRule, StateConstraint
@@ -6,8 +7,10 @@ from .rule_policy import Cond, Effect, Policy, PolicyRule, StateConstraint
 log = logging.getLogger("genfond.generation.rule")
 
 
-def trans_deltas_to_effects(instance, state, action, trans_deltas):
-    effs = dict()
+def trans_deltas_to_effects(
+    instance: int, state: int, action: str, trans_deltas: list[tuple[int, int, str, int, str, int]]
+):
+    effs: dict[int, set[tuple[str, Effect]]] = dict()
     for i, s1, a, s2, f, v in trans_deltas:
         if i == instance and s1 == state and a == action:
             log.debug(f"Evaluating ({i}, {s1}, {s2}, {f}, {v}) for effects")
@@ -39,7 +42,7 @@ def trans_deltas_to_effects(instance, state, action, trans_deltas):
     return effs
 
 
-def feature_eval_to_cond(feature_str, feature_eval):
+def feature_eval_to_cond(feature_str: str, feature_eval: int) -> Cond:
     log.debug(f"eval to cond: {feature_str} -> {feature_eval}")
     if feature_str.startswith("b_"):
         if feature_eval:
@@ -55,8 +58,10 @@ def feature_eval_to_cond(feature_str, feature_eval):
         raise ValueError(f"Unknown feature type: {feature_str}")
 
 
-def crit_states_to_constraints(crit_states, bool_eval):
-    constraints = dict()
+def crit_states_to_constraints(
+    crit_states: tuple[int, int], bool_eval: list[tuple[int, int, str, int]]
+) -> set[StateConstraint]:
+    constraints: dict[tuple[int, int], dict[str, Cond]] = dict()
     for i, s, f, v in bool_eval:
         if (i, s) in crit_states:
             log.debug(f"Adding state constraint {f}={v}")
@@ -64,7 +69,13 @@ def crit_states_to_constraints(crit_states, bool_eval):
     return {StateConstraint(conds) for conds in constraints.values()}
 
 
-def selected_action_to_rule(instance, state, action, bool_evals, trans_deltas):
+def selected_action_to_rule(
+    instance: int,
+    state: int,
+    action: str,
+    bool_evals: list[tuple[int, int, str, int]],
+    trans_deltas: list[tuple[int, int, str, int, str, int]],
+) -> Optional[PolicyRule]:
     log.debug(f"Generating rule for instance {instance}, state {state}, action {action}")
     conds = dict()
     for i, s, f, v in bool_evals:
@@ -79,7 +90,7 @@ def selected_action_to_rule(instance, state, action, bool_evals, trans_deltas):
     return None
 
 
-def generate_rule_policy(solution, policy_type=PolicyType.EXACT):
+def generate_rule_policy(solution: dict[str, Any], policy_type: PolicyType = PolicyType.EXACT) -> Policy:
     rules = set()
     constraints = set()
     state_constraints = set()
