@@ -1,5 +1,6 @@
 import logging
 import re
+from typing import Any, Collection, Optional
 
 from frozendict import frozendict
 
@@ -11,7 +12,7 @@ ACTION_REGEX = r"^([^(]+)\(([^(]*)\)$"
 RULE_VARS = ["P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z"]
 
 
-def split_action_string(action):
+def split_action_string(action: str) -> tuple[str, list[str]]:
     match = re.search(ACTION_REGEX, action.strip('"'))
     if not match:
         raise ValueError(f"Invalid action string: {action}")
@@ -27,29 +28,29 @@ class DatalogPolicyRule:
 
     def __init__(
         self,
-        head,
-        concepts=None,
-        roles=None,
-        conds=None,
-        state_aug_conds=None,
-        param_aug_conds=None,
-        param_diff_conds=None,
+        head: str,
+        concepts: Optional[list[tuple[str, str]]] = None,
+        roles: Optional[list[tuple[str, str, str]]] = None,
+        conds: Optional[dict[str, Cond]] = None,
+        state_aug_conds: Optional[dict[str, Cond]] = None,
+        param_aug_conds: Optional[dict[str, tuple[int, Cond]]] = None,
+        param_diff_conds: Optional[list[tuple[str, int, int, int]]] = None,
     ):
         if not concepts:
             concepts = []
         if not roles:
             roles = []
         if not conds:
-            conds = []
+            conds = dict()
         if not state_aug_conds:
-            state_aug_conds = []
+            state_aug_conds = dict()
         if not param_aug_conds:
-            param_aug_conds = []
+            param_aug_conds = dict()
         if not param_diff_conds:
             param_diff_conds = []
         self.name, self.parameters = split_action_string(head)
-        concepts_by_parameter = {name: [] for name in self.parameters}
-        roles_by_parameter = {}
+        concepts_by_parameter: dict[str, list[str]] = {name: [] for name in self.parameters}
+        roles_by_parameter: dict[tuple[str, str], list[str]] = {}
         for parameter, concept in concepts or []:
             if parameter not in self.parameters:
                 raise ValueError(f"Free variable {parameter} not in head parameters {self.parameters}!")
@@ -67,7 +68,9 @@ class DatalogPolicyRule:
         self.param_aug_conds = frozendict(param_aug_conds)
         self.param_diff_conds = frozenset(param_diff_conds)
 
-    def __eq__(self, other):
+    def __eq__(self, other: Any) -> bool:
+        if not isinstance(other, DatalogPolicyRule):
+            raise NotImplementedError
         if self.name != other.name:
             return False
         if len(self.parameters) != len(other.parameters):
@@ -90,7 +93,7 @@ class DatalogPolicyRule:
                 return False
         return True
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         state_cond_strs = [cond_to_str(cond, val) for cond, val in self.conds.items()]
         state_cond_strs.sort()
         state_aug_cond_strs = [cond_to_str(cond, val) for cond, val in self.state_aug_conds.items()]
@@ -121,7 +124,7 @@ class DatalogPolicyRule:
         conds = state_cond_strs + state_aug_cond_strs + concept_cond_strs + roles_cond_strs + diff_cond_strs
         return f'{self.name}({', '.join(self.parameters)}){f" :- {', '.join(conds)}" if conds else ""}.'
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash(
             (
                 self.name,
@@ -138,15 +141,17 @@ class DatalogPolicyRule:
 
 class DatalogPolicy:
 
-    def __init__(self, rules, cost=0):
+    def __init__(self, rules: Collection[DatalogPolicyRule], cost: int = 0):
         self.cost = cost
         self.rules = frozenset(rules)
 
-    def __eq__(self, other):
+    def __eq__(self, other: Any) -> bool:
+        if not isinstance(other, DatalogPolicy):
+            raise NotImplementedError
         return self.rules == other.rules
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"{len(self.rules)} rules\n" + "\n".join([str(r) for r in self.rules])
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash(self.rules)

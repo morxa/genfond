@@ -1,9 +1,18 @@
 import logging
 import random
-from typing import Collection, Optional
+from typing import Collection, Mapping, Optional
 
 import dlplan.core
-from dlplan.core import Boolean, InstanceInfo, Numerical, SyntacticElementFactory
+from dlplan.core import (
+    Boolean,
+    Concept,
+    ConceptDenotation,
+    InstanceInfo,
+    Numerical,
+    Role,
+    RoleDenotation,
+    SyntacticElementFactory,
+)
 from pddl.action import Action
 from pddl.core import Domain, Problem
 
@@ -46,18 +55,16 @@ class CycleError(PolicyExecutionError):
         super().__init__("Cycle detected")
 
 
-def eval_state(
+def _get_dlplan_state(
     instance: InstanceInfo,
     mapping: dict,
-    features: dict[str, Feature],
-    _,
     problem: Problem,
     state: State,
     config: dict,
     action: Optional[Action] = None,
-) -> dict[str, int]:
+) -> dlplan.core.State:
     try:
-        fstate = dlplan.core.State(
+        return dlplan.core.State(
             -1,
             instance,
             [mapping[predicate] for predicate in get_action_augmented_state(problem, state, config, action)],
@@ -65,6 +72,18 @@ def eval_state(
     except KeyError as e:
         log.critical(f'Cannot find predicate in mapping {"\n".join(f"{k}: {v}" for k, v in mapping.items())}: {e}')
         raise
+
+
+def eval_state(
+    instance: InstanceInfo,
+    mapping: dict,
+    features: dict[str, Feature],
+    problem: Problem,
+    state: State,
+    config: dict,
+    action: Optional[Action] = None,
+) -> dict[str, int]:
+    fstate = _get_dlplan_state(instance, mapping, problem, state, config, action)
     feature_eval = dict()
     for fstring, feature in features.items():
         feature_eval[fstring] = feature.evaluate(fstate)
@@ -75,13 +94,12 @@ def bool_eval_state(
     instance: InstanceInfo,
     mapping: dict,
     features: dict[str, Feature],
-    domain: Domain,
     problem: Problem,
     state: State,
     config: dict,
     action: Optional[Action] = None,
 ) -> dict[str, Cond]:
-    feature_eval = eval_state(instance, mapping, features, domain, problem, state, config, action)
+    feature_eval = eval_state(instance, mapping, features, problem, state, config, action)
     log.debug(f"feature eval: {feature_eval}")
     bool_feature_eval = dict()
     for feature, eval in feature_eval.items():
@@ -168,8 +186,8 @@ def execute_rule_policy(domain: Domain, problem: Problem, policy: Policy, config
                     state = trace[state]
                 raise CycleError(trace, cycle)
         log.info(f'New state: {",".join([str(p) for p in state])}')
-        feature_eval = eval_state(instance, mapping, features, domain, problem, state, config)
-        bool_feature_eval = bool_eval_state(instance, mapping, features, domain, problem, state, config)
+        feature_eval = eval_state(instance, mapping, features, problem, state, config)
+        bool_feature_eval = bool_eval_state(instance, mapping, features, problem, state, config)
         enabled_rules = {rule for rule in policy.rules if state_satisfies_rule_conds(bool_feature_eval, rule.conds)}
         log.debug("Enabled rules: {}".format(",  ".join([str(r) for r in enabled_rules])))
         enabled_constraints = {
@@ -198,7 +216,7 @@ def execute_rule_policy(domain: Domain, problem: Problem, policy: Policy, config
                     "; ".join([state_string(s) for s in succs]),
                 )
             )
-            succs_evals = [eval_state(instance, mapping, features, domain, problem, succ, config) for succ in succs]
+            succs_evals = [eval_state(instance, mapping, features, problem, succ, config) for succ in succs]
             log.debug(f"succs_evals: {succs_evals}")
             succs_diffs = {eval_state_diff(feature_eval, succ_eval) for succ_eval in succs_evals}
             log.debug(f'succs_diffs:\n{"\n".join([", ".join([str(d) for d in ds]) for ds in succs_diffs])}')
@@ -208,9 +226,7 @@ def execute_rule_policy(domain: Domain, problem: Problem, policy: Policy, config
                     log.info(f"Constraint {constraint} violated!")
                     ok = False
                     break
-            bool_succs_evals = [
-                bool_eval_state(instance, mapping, features, domain, problem, succ, config) for succ in succs
-            ]
+            bool_succs_evals = [bool_eval_state(instance, mapping, features, problem, succ, config) for succ in succs]
             for bool_succs_eval in bool_succs_evals:
                 for state_constraint in policy.state_constraints:
                     violated = True
