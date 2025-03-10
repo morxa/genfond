@@ -1,0 +1,32 @@
+name: genfond
+
+on: [push]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ["3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install system packages
+        run: sudo apt-get install libgraphviz-dev
+      - name: Install poetry
+        run: pip install poetry
+      - name: Install packages with poetry
+        run: poetry install --no-root --with=dev
+      - name: Run tests
+        run: poetry run pytest
+      - name: Check imports
+        run: poetry run isort --check genfond tests
+      - name: Check formatting
+        run: poetry run black genfond tests
+      - name: Check types
+        run: poetry run mypy genfond tests

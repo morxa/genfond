@@ -7,7 +7,7 @@ license = "MIT"
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "^3.11"
+python = "^3.12"
 pddl = { git = "https://github.com/morxa/pddl", rev = '39d4898ddb67ca2c775a3d9715fab68ced89cfcd' }
 dlplan = { git = "https://github.com/morxa/dlplan", rev = '961400e4cd493e0dfeb023b419d2b41f0c0600b5' }
 clingo = "*"
@@ -18,7 +18,6 @@ filelock = "*"
 frozendict = "*"
 pyyaml = "*"
 mergedeep = "^1.3.4"
-tox = "^4.24.2"
 
 
 [tool.poetry.group.dev.dependencies]
@@ -45,5 +44,5 @@ profile = "black"
 line-length = 119
 
 [build-system]
-requires = ["poetry-core"]
+requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
