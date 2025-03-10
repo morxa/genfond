@@ -1,8 +1,9 @@
-from helpers import get_action
 from pddl.logic import Predicate, constants
 
 from genfond.ground import ground
 from genfond.state_space_generator import apply_action_effects, generate_state_space
+
+from .helpers import get_action
 
 
 def test_generate_state_space_simple_blocks(simple_blocks):

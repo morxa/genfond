@@ -1,9 +1,10 @@
-from helpers import get_action
 from pddl.logic import Constant
 from pddl.logic.functions import NumericFunction
 
 from genfond.ground import ground
 from genfond.state_space_generator import apply_action_effects, eval_function_term, generate_state_space
+
+from .helpers import get_action
 
 
 def test_generate_state_space_childsnack(childsnack):

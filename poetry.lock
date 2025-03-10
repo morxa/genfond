@@ -60,6 +60,17 @@ jupyter = ["ipython (>=7.8.0)", "tokenize-rt (>=3.2.0)"]
 uvloop = ["uvloop (>=0.15.2)"]
 
 [[package]]
+name = "cachetools"
+version = "5.5.2"
+description = "Extensible memoizing collections and decorators"
+optional = false
+python-versions = ">=3.7"
+files = [
+    {file = "cachetools-5.5.2-py3-none-any.whl", hash = "sha256:d26a22bcc62eb95c3beabd9f1ee5e820d3d2704fe2967cbe350e20c8ffcd3f0a"},
+    {file = "cachetools-5.5.2.tar.gz", hash = "sha256:1a661caa9175d26759571b2e19580f9d6393969e5dfca11fdb1f947a23e640d4"},
+]
+
+[[package]]
 name = "cffi"
 version = "1.17.1"
 description = "Foreign Function Interface for Python calling C code."
@@ -137,6 +148,17 @@ files = [
 
 [package.dependencies]
 pycparser = "*"
+
+[[package]]
+name = "chardet"
+version = "5.2.0"
+description = "Universal encoding detector for Python 3"
+optional = false
+python-versions = ">=3.7"
+files = [
+    {file = "chardet-5.2.0-py3-none-any.whl", hash = "sha256:e1cf59446890a00105fe7b7912492ea04b6e6f06d4b742b2c788469e34c82970"},
+    {file = "chardet-5.2.0.tar.gz", hash = "sha256:1b3b6ff479a8c414bc3fa2c0852995695c4a026dcd6d0633b2dd092ca39c1cf7"},
+]
 
 [[package]]
 name = "click"
@@ -310,6 +332,17 @@ python-versions = ">=3.8"
 files = [
     {file = "decorator-5.2.1-py3-none-any.whl", hash = "sha256:d316bb415a2d9e2d2b3abcc4084c6502fc09240e292cd76a76afc106a1c8e04a"},
     {file = "decorator-5.2.1.tar.gz", hash = "sha256:65f266143752f734b0a7cc83c46f4618af75b8c5911b00ccb61d0ac9b6da0360"},
+]
+
+[[package]]
+name = "distlib"
+version = "0.3.9"
+description = "Distribution utilities"
+optional = false
+python-versions = "*"
+files = [
+    {file = "distlib-0.3.9-py2.py3-none-any.whl", hash = "sha256:47f8c22fd27c27e25a65601af709b38e4f0a45ea4fc2e710f65755fa8caaaf87"},
+    {file = "distlib-0.3.9.tar.gz", hash = "sha256:a60f20dea646b8a33f3e7772f74dc0b2d0772d2837ee1342a00645c81edf9403"},
 ]
 
 [[package]]
@@ -833,6 +866,24 @@ files = [
 ]
 
 [[package]]
+name = "pyproject-api"
+version = "1.9.0"
+description = "API to interact with the python pyproject.toml based projects"
+optional = false
+python-versions = ">=3.9"
+files = [
+    {file = "pyproject_api-1.9.0-py3-none-any.whl", hash = "sha256:326df9d68dea22d9d98b5243c46e3ca3161b07a1b9b18e213d1e24fd0e605766"},
+    {file = "pyproject_api-1.9.0.tar.gz", hash = "sha256:7e8a9854b2dfb49454fae421cb86af43efbb2b2454e5646ffb7623540321ae6e"},
+]
+
+[package.dependencies]
+packaging = ">=24.2"
+
+[package.extras]
+docs = ["furo (>=2024.8.6)", "sphinx-autodoc-typehints (>=3)"]
+testing = ["covdefaults (>=2.3)", "pytest (>=8.3.4)", "pytest-cov (>=6)", "pytest-mock (>=3.14)", "setuptools (>=75.8)"]
+
+[[package]]
 name = "pytest"
 version = "8.3.4"
 description = "pytest: simple powerful testing with Python"
@@ -968,6 +1019,31 @@ files = [
 ]
 
 [[package]]
+name = "tox"
+version = "4.24.2"
+description = "tox is a generic virtualenv management and test command line tool"
+optional = false
+python-versions = ">=3.8"
+files = [
+    {file = "tox-4.24.2-py3-none-any.whl", hash = "sha256:92e8290e76ad4e15748860a205865696409a2d014eedeb796a34a0f3b5e7336e"},
+    {file = "tox-4.24.2.tar.gz", hash = "sha256:d5948b350f76fae436d6545a5e87c2b676ab7a0d7d88c1308651245eadbe8aea"},
+]
+
+[package.dependencies]
+cachetools = ">=5.5.1"
+chardet = ">=5.2"
+colorama = ">=0.4.6"
+filelock = ">=3.16.1"
+packaging = ">=24.2"
+platformdirs = ">=4.3.6"
+pluggy = ">=1.5"
+pyproject-api = ">=1.8"
+virtualenv = ">=20.29.1"
+
+[package.extras]
+test = ["devpi-process (>=1.0.2)", "pytest (>=8.3.4)", "pytest-mock (>=3.14)"]
+
+[[package]]
 name = "tqdm"
 version = "4.67.1"
 description = "Fast, Extensible Progress Meter"
@@ -1071,6 +1147,26 @@ socks = ["pysocks (>=1.5.6,!=1.5.7,<2.0)"]
 zstd = ["zstandard (>=0.18.0)"]
 
 [[package]]
+name = "virtualenv"
+version = "20.29.3"
+description = "Virtual Python Environment builder"
+optional = false
+python-versions = ">=3.8"
+files = [
+    {file = "virtualenv-20.29.3-py3-none-any.whl", hash = "sha256:3e3d00f5807e83b234dfb6122bf37cfadf4be216c53a49ac059d02414f819170"},
+    {file = "virtualenv-20.29.3.tar.gz", hash = "sha256:95e39403fcf3940ac45bc717597dba16110b74506131845d9b687d5e73d947ac"},
+]
+
+[package.dependencies]
+distlib = ">=0.3.7,<1"
+filelock = ">=3.12.2,<4"
+platformdirs = ">=3.9.1,<5"
+
+[package.extras]
+docs = ["furo (>=2023.7.26)", "proselint (>=0.13)", "sphinx (>=7.1.2,!=7.3)", "sphinx-argparse (>=0.4)", "sphinxcontrib-towncrier (>=0.2.1a0)", "towncrier (>=23.6)"]
+test = ["covdefaults (>=2.3)", "coverage (>=7.2.7)", "coverage-enable-subprocess (>=1)", "flaky (>=3.7)", "packaging (>=23.1)", "pytest (>=7.4)", "pytest-env (>=0.8.2)", "pytest-freezer (>=0.4.8)", "pytest-mock (>=3.11.1)", "pytest-randomly (>=3.12)", "pytest-timeout (>=2.1)", "setuptools (>=68)", "time-machine (>=2.10)"]
+
+[[package]]
 name = "wcwidth"
 version = "0.2.13"
 description = "Measures the displayed width of unicode strings in a terminal"
@@ -1084,4 +1180,4 @@ files = [
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "4b05b0cfdb5e9e7145a50adb404a1c4ea5cd56a7f2be39a887c6735e14ccf840"
+content-hash = "63cad4f9dbf0c239229128df0c19f6022182369c5803d3b90a945212719323b8"

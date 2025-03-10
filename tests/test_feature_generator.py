@@ -1,13 +1,14 @@
 import re
 
 import pytest
-from helpers import get_action
 from pddl.logic import Predicate, constants
 
 from genfond.config_handler import ConfigHandler
 from genfond.feature_generator import FeaturePool
 from genfond.ground import ground
 from genfond.state_space_generator import apply_action_effects, check_formula
+
+from .helpers import get_action
 
 
 def test_generate_features_simple_blocks(simple_blocks):

@@ -1,4 +1,3 @@
-from helpers import get_action
 from pddl.action import Action
 from pddl.logic import Constant, Variable
 from pddl.logic.base import And
@@ -6,6 +5,8 @@ from pddl.logic.functions import Decrease, LesserEqualThan, NumericFunction, Num
 from pddl.logic.predicates import Predicate
 
 from genfond.ground import ground
+
+from .helpers import get_action
 
 
 def test_ground_childsnack(childsnack):
