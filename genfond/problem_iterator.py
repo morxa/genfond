@@ -1,8 +1,11 @@
 import enum
 import logging
 import sys
+from typing import Collection, Mapping, Optional
 
-from .state_space_generator import state_to_string
+from pddl.core import Problem
+
+from .state_space_generator import State, state_to_string
 
 log = logging.getLogger("genfond.problem_iterator")
 
@@ -18,14 +21,14 @@ class Result(enum.Enum):
 
 class ProblemIterator:
 
-    def __init__(self, problems, config):
+    def __init__(self, problems: list[Problem], config: Mapping):
         self.problems = problems
         self.config = config
 
-    def __iter__(self):
-        self.active_problems = []
-        self.selected_states = dict()
-        self.new_states = dict()
+    def __iter__(self) -> "ProblemIterator":
+        self.active_problems: list[Problem] = []
+        self.selected_states: dict[str, set[State]] = dict()
+        self.new_states: dict[str, set[State]] = dict()
         self.all_features = False
         self.complexity = self.config["min_complexity"]
         self.last_result = Result.SUCCESS
@@ -36,9 +39,10 @@ class ProblemIterator:
         self.solved = {problem.name: False for problem in self.problems}
         return self
 
-    def set_last_result(self, result, cost=None):
+    def set_last_result(self, result: Result, cost: Optional[tuple[int]] = None) -> None:
         self.last_result = result
         if result == Result.SUCCESS:
+            assert cost
             self.active_problems_solved = True
             if len(cost) > 1:
                 self.max_cost = cost[-1] - 1
@@ -56,14 +60,14 @@ class ProblemIterator:
                 if problem.name in self.selected_states and problem not in self.active_problems:
                     del self.selected_states[problem.name]
 
-    def set_new_state(self, problem_name, state):
+    def set_new_state(self, problem_name: str, state: State) -> None:
         if not self.config["use_selected_states"]:
             return
         log.debug(f"Adding new state for {problem_name}: {state_to_string(state)}")
         self.solved[problem_name] = False
         self.new_states.setdefault(problem_name, set()).add(state)
 
-    def _update_selected_states(self):
+    def _update_selected_states(self) -> int:
         log.debug(f'active problems: {", ".join([p.name for p in self.active_problems])}')
         log.debug(f'new states: {", ".join([f"{k}: {len(v)}" for k, v in self.new_states.items()])}')
         before = sum(len(states) for states in self.selected_states.values())
@@ -76,13 +80,13 @@ class ProblemIterator:
         log.debug(f"Updated selected states: {after - before} new states")
         return after - before
 
-    def set_solved(self, problem, solved=True):
+    def set_solved(self, problem: Problem, solved: bool = True):
         self.solved[problem.name] = solved
 
-    def get_unsolved_problems(self):
+    def get_unsolved_problems(self) -> list[Problem]:
         return [problem for problem in self.problems if not self.solved[problem.name]]
 
-    def __next__(self):
+    def __next__(self) -> tuple[list[Problem], int, bool, int, int, dict[str, set[State]]]:
         assert self.last_result != Result.UNKNOWN, "You must set the result of the last problem before calling next"
         log.debug(
             f"last result: {self.last_result.name}, all features: {self.all_features}, complexity: {self.complexity}"

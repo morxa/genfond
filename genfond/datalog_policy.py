@@ -141,7 +141,7 @@ class DatalogPolicyRule:
 
 class DatalogPolicy:
 
-    def __init__(self, rules: Collection[DatalogPolicyRule], cost: int = 0):
+    def __init__(self, rules: Collection[DatalogPolicyRule], cost: Optional[tuple[int]] = None):
         self.cost = cost
         self.rules = frozenset(rules)
 

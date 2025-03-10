@@ -3,34 +3,38 @@ import pickle
 import statistics
 import sys
 import time
+from typing import Any, Collection, Mapping, Optional
 
 import tqdm
+from pddl.core import Domain, Problem
 from tqdm.contrib.logging import logging_redirect_tqdm
 
+from .datalog_policy import DatalogPolicy
 from .execute_datalog_policy import CycleError, NoActionError
 from .execute_policy import execute_policy
 from .feature_generator import FeaturePool
 from .generate_policy import generate_policy
 from .policy import PolicyType
 from .problem_iterator import MAX_COST, ProblemIterator, Result
+from .rule_policy import Policy
 from .solver import Solver
-from .state_space_generator import check_formula, random_walk
+from .state_space_generator import State, check_formula, random_walk
 
 log = logging.getLogger("genfond.iterative_solver")
 
 
 def solve(
-    domain,
-    problems,
-    config,
-    complexity,
-    max_cost,
-    max_prune_cost,
-    all_generators=True,
-    enforce_highest_complexity=False,
-    selected_states=None,
-):
-    stats = dict()
+    domain: Domain,
+    problems: Collection[Problem],
+    config: Mapping,
+    complexity: int,
+    max_cost: int,
+    max_prune_cost: int,
+    all_generators: bool = True,
+    enforce_highest_complexity: bool = False,
+    selected_states: Optional[dict[str, set[State]]] = None,
+) -> Optional[tuple[DatalogPolicy | Policy, dict[str, Any]]]:
+    stats: dict[str, Any] = dict()
     log.debug("Generating feature pool ...")
     feature_pool = FeaturePool(
         domain,
@@ -100,17 +104,19 @@ def solve(
     return policy, stats
 
 
-def pnames(problems):
+def pnames(problems: Collection[Problem]) -> str:
     return ", ".join([p.name for p in problems])
 
 
-def solve_iteratively(domain, problems, config):
+def solve_iteratively(
+    domain: Domain, problems: list[Problem], config: Mapping
+) -> tuple[Optional[Policy | DatalogPolicy], list[Problem], dict[str, str | int | float]]:
     policy = None
     problems.sort(key=lambda p: len(p.objects))
-    total_solve_cpu_time = 0
-    best_solve_cpu_time = 0
-    best_solve_wall_time = 0
-    stats = dict()
+    total_solve_cpu_time = 0.0
+    best_solve_cpu_time = 0.0
+    best_solve_wall_time = 0.0
+    stats: dict[str, str | int | float] = dict()
     problem_iterator = ProblemIterator(problems, config)
     for (
         solver_problems,
@@ -129,7 +135,7 @@ def solve_iteratively(domain, problems, config):
                     walk_states = random_walk(
                         domain,
                         problem,
-                        selected_states.get(problem.name, [problem.init]),
+                        selected_states.get(problem.name, {problem.init}),
                     )
                     log.info(f"Random walk found {len(walk_states)} states")
                     for state in walk_states:

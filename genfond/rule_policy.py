@@ -99,7 +99,7 @@ class Policy:
         self,
         features: Collection[str],
         rules: Collection[PolicyRule],
-        cost: Optional[int] = None,
+        cost: Optional[tuple[int]] = None,
         constraints: Optional[Collection[PolicyRule]] = None,
         state_constraints: Optional[set[StateConstraint]] = None,
         type: PolicyType = PolicyType.EXACT,
