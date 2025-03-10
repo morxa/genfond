@@ -1,0 +1,25 @@
+name: genfond
+
+on: [push]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ["3.11", "3.13"]
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install system packages
+        run: sudo apt-get install libgraphviz-dev
+      - name: Install tox
+        run: pip install tox poetry
+      - name: Run tox
+        # Run tox using the version of Python in `PATH`
+        run: tox -e py
