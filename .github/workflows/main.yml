@@ -18,8 +18,15 @@ jobs:
           python-version: ${{ matrix.python }}
       - name: Install system packages
         run: sudo apt-get install libgraphviz-dev
-      - name: Install tox
-        run: pip install tox poetry
-      - name: Run tox
-        # Run tox using the version of Python in `PATH`
-        run: tox -e py
+      - name: Install poetry
+        run: pip install poetry
+      - name: Install packages with poetry
+        run: poetry install --no-root --with=dev
+      - name: Run tests
+        run: poetry run pytest
+      - name: Check imports
+        run: poetry run isort --check genfond tests
+      - name: Check formatting
+        run: poetry run black genfond tests
+      - name: Check types
+        run: poetry run mypy genfond tests
