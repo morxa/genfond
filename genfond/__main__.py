@@ -42,6 +42,7 @@ def main():
     parser.add_argument(
         "--type",
         choices=DEFAULT_TYPE_CONFIGS.keys(),
+        default="state",
         help="generate policies of the given type",
     )
     config_args = parser.add_argument_group("config", "Overwrite config parameters")
