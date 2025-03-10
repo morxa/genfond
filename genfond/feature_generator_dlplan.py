@@ -108,7 +108,7 @@ def get_action_augmented_state(problem: Problem, state: State, config: Mapping, 
     return frozenset(augmented_state)
 
 
-class FeaturePool:
+class DlPlanFeaturePool:
 
     def __init__(
         self,

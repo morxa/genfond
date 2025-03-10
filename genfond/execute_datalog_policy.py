@@ -19,7 +19,7 @@ from .execute_rule_policy import (
     bool_eval_state,
     state_satisfies_rule_conds,
 )
-from .feature_generator import (
+from .feature_generator_dlplan import (
     _get_state_from_goal,
     construct_instance_info,
     construct_vocabulary_info,

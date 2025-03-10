@@ -12,7 +12,7 @@ from tqdm.contrib.logging import logging_redirect_tqdm
 from .datalog_policy import DatalogPolicy
 from .execute_datalog_policy import CycleError, NoActionError
 from .execute_policy import execute_policy
-from .feature_generator import FeaturePool
+from .feature_generator_dlplan import DlPlanFeaturePool
 from .generate_policy import generate_policy
 from .policy import PolicyType
 from .problem_iterator import MAX_COST, ProblemIterator, Result
@@ -36,7 +36,7 @@ def solve(
 ) -> Optional[tuple[DatalogPolicy | Policy, dict[str, Any]]]:
     stats: dict[str, Any] = dict()
     log.debug("Generating feature pool ...")
-    feature_pool = FeaturePool(
+    feature_pool = DlPlanFeaturePool(
         domain,
         problems,
         config=config,

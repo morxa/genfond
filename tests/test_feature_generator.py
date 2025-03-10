@@ -4,7 +4,7 @@ import pytest
 from pddl.logic import Predicate, constants
 
 from genfond.config_handler import ConfigHandler
-from genfond.feature_generator import FeaturePool
+from genfond.feature_generator_dlplan import DlPlanFeaturePool
 from genfond.ground import ground
 from genfond.state_space_generator import apply_action_effects, check_formula
 
@@ -16,7 +16,7 @@ def test_generate_features_simple_blocks(simple_blocks):
     config = ConfigHandler(type="datalog")
     config["include_numerical_features"] = True
     config["feature_generator"]["generate_count_numerical"] = True
-    feature_pool = FeaturePool(domain, [problem], config=config, all_generators=True)
+    feature_pool = DlPlanFeaturePool(domain, [problem], config=config, all_generators=True)
     a, b, c = constants("a b c")
     assert "b_empty(c_primitive(holding,0))" in feature_pool.features
     assert "b_empty(r_primitive(on,0,1))" in feature_pool.features
@@ -58,7 +58,7 @@ def test_generate_features_fond_blocks(fond_blocks):
     ground_actions = ground(domain, problem)
     config = ConfigHandler(type="datalog")
     config["include_numerical_features"] = True
-    feature_pool = FeaturePool(domain, [problem], config=config, all_generators=False)
+    feature_pool = DlPlanFeaturePool(domain, [problem], config=config, all_generators=False)
     gstates = [
         node.state
         for node in feature_pool.state_graphs[problem.name].nodes.values()
@@ -106,7 +106,7 @@ def test_features_to_clingo(simple_blocks):
     config = ConfigHandler()
     config["max_complexity"] = 2
     config["prune_features"] = False
-    feature_pool = FeaturePool(domain, [problem], config=config)
+    feature_pool = DlPlanFeaturePool(domain, [problem], config=config)
     clingo_program = feature_pool.to_clingo()
     print(f"full program:\n{clingo_program}")
     assert 'feature("b_empty(c_primitive(holding,0))").' in clingo_program
@@ -146,7 +146,7 @@ def test_concepts_to_clingo(simple_blocks):
     config["max_complexity"] = 2
     config["prune_concepts"] = False
     config["prune_roles"] = False
-    feature_pool = FeaturePool(domain, [problem], config=config)
+    feature_pool = DlPlanFeaturePool(domain, [problem], config=config)
     clingo_program = feature_pool.to_clingo()
     print(f"full program:\n{clingo_program}")
     assert 'concept("c_top").' in clingo_program
@@ -183,7 +183,7 @@ def test_features_clingo_upper_case(fond_blocks):
     domain, problem = fond_blocks
     config = ConfigHandler()
     config["max_complexity"] = 2
-    feature_pool = FeaturePool(domain, [problem], config=config)
+    feature_pool = DlPlanFeaturePool(domain, [problem], config=config)
     clingo_program = feature_pool.to_clingo()
     # Omit the target state as it might vary.
     assert 'trans(0, 0, "puton(B,C,Table)"' in clingo_program
@@ -195,7 +195,7 @@ def test_features_with_augmented_states(blocks_clear):
     config = ConfigHandler()
     config["include_actions"] = True
     config["max_complexity"] = 4
-    feature_pool = FeaturePool(domain, [problem], config=config)
+    feature_pool = DlPlanFeaturePool(domain, [problem], config=config)
     b0, b1 = constants("b0 b1")
     unstack10 = get_action(ground_actions, "unstack", (b1, b0))
     unstack01 = get_action(ground_actions, "unstack", (b0, b1))
@@ -221,7 +221,7 @@ def test_augmented_states_to_clingo(blocks_clear):
     config = ConfigHandler()
     config["include_actions"] = True
     config["max_complexity"] = 4
-    feature_pool = FeaturePool(domain, [problem], config=config)
+    feature_pool = DlPlanFeaturePool(domain, [problem], config=config)
     clingo_program = feature_pool.to_clingo()
     print(f"full program:\n{clingo_program}")
     assert 'aug_state(0, 0, "unstack(b1,b0)", 0).' in clingo_program

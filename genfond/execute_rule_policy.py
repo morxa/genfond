@@ -7,7 +7,7 @@ from dlplan.core import InstanceInfo, SyntacticElementFactory
 from pddl.action import Action
 from pddl.core import Domain, Problem
 
-from .feature_generator import (
+from .feature_generator_dlplan import (
     Feature,
     _get_state_from_goal,
     construct_instance_info,

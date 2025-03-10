@@ -8,7 +8,7 @@ import pddl
 import pygraphviz
 
 from genfond.config_handler import ConfigHandler
-from genfond.feature_generator import FeaturePool
+from genfond.feature_generator_dlplan import DlPlanFeaturePool
 from genfond.generate_policy import PolicyType, generate_policy
 from genfond.solver import Solver
 from genfond.state_space_generator import Alive
@@ -151,7 +151,7 @@ def main():
     problems = []
     for problem_file in args.problem_file:
         problems.append(pddl.parse_problem(problem_file))
-    feature_pool = FeaturePool(domain, problems, config=config)
+    feature_pool = DlPlanFeaturePool(domain, problems, config=config)
     log.info(
         f"Generated {len(feature_pool.features)} features, {len(feature_pool.concepts)} concepts, {len(feature_pool.roles)} roles."
     )
