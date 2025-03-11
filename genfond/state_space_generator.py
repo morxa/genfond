@@ -9,7 +9,12 @@ from pddl.core import Domain, Problem
 from pddl.logic import Predicate
 from pddl.logic.base import And, Formula, Not, OneOf
 from pddl.logic.effects import When
-from pddl.logic.functions import Assign, BinaryFunction, Decrease, Divide
+from pddl.logic.functions import (
+    Assign,
+    BinaryFunction,
+    Decrease,
+    Divide,
+)
 from pddl.logic.functions import EqualTo as FunctionEqualTo
 from pddl.logic.functions import (
     FunctionExpression,
