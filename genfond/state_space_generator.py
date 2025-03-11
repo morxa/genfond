@@ -24,7 +24,7 @@ from pddl.logic.functions import (
     Plus,
     ScaleDown,
     ScaleUp,
-    Times
+    Times,
 )
 from pddl.logic.predicates import EqualTo
 
@@ -44,8 +44,7 @@ def state_to_string(state: State) -> str:
             state_str.append(f"{p.operands[0]}={p.operands[1]}")
         else:
             raise ValueError("Unknown state type: {}".format(type(p)))
-    state_str = ",".join(sorted(state_str))
-    return state_str
+    return ",".join(sorted(state_str))
 
 
 def eval_function_term(term: FunctionExpression, state: State) -> float | int:
