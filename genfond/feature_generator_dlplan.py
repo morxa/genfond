@@ -244,7 +244,7 @@ class DlPlanFeaturePool:
         log.debug(", ".join(uninformative_roles))
         return uninformative_roles
 
-    def is_feature_informative(self, feature: Feature) -> bool:
+    def is_feature_informative(self, feature: str) -> bool:
         has_false = False
         has_true = False
         for state_graph in self.state_graphs.values():
@@ -253,7 +253,7 @@ class DlPlanFeaturePool:
                     continue
                 if node.alive != Alive.ALIVE and not self.config["include_dead_states"]:
                     continue
-                eval = self.evaluate_feature(str(feature), state_graph.problem, node.state)
+                eval = self.evaluate_feature(feature, state_graph.problem, node.state)
                 if eval:
                     has_true = True
                 else:
@@ -264,9 +264,9 @@ class DlPlanFeaturePool:
 
     def compute_uninformative_features(self) -> set[str]:
         uninformative_features = set()
-        for feature_str, feature in self.features.items():
+        for feature in self.features.keys():
             if not self.is_feature_informative(feature):
-                uninformative_features.add(feature_str)
+                uninformative_features.add(feature)
         log.info(f"Found {len(uninformative_features)} uninformative feature(s)")
         log.debug(", ".join(uninformative_features))
         return uninformative_features
@@ -289,18 +289,17 @@ class DlPlanFeaturePool:
             clingo_program += f"goal({problem_id}, {node.id}).\n"
             if not self.config["include_goal_states"]:
                 return clingo_program
-        for feature_str, feature in self.features.items():
-            if feature_str in stats["uninformative_features"]:
+        for feature in self.features.keys():
+            if feature in stats["uninformative_features"]:
                 stats["num_skipped_feature_evals"] += 1
                 continue
-            feature_str = f'"{feature_str}"'
-            eval = self.evaluate_feature(feature_str, problem, get_goal_augmented_state(problem, node.state))
+            eval = self.evaluate_feature(feature, problem, get_goal_augmented_state(problem, node.state))
             eval_str = ""
             if type(eval) is bool:
                 eval_str = "1" if eval else "0"
             else:
                 eval_str = str(eval)
-            clingo_program += f"eval({problem_id}, {node.id}, {feature_str}, {eval_str}).\n"
+            clingo_program += f'eval({problem_id}, {node.id}, "{feature}", {eval_str}).\n'
             stats["num_feature_evals"] += 1
         all_action_args = {str(p) for action in node.children.keys() for p in action.parameters}
         for concept_str in self.concepts.keys():
