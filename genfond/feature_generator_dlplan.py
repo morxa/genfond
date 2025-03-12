@@ -82,13 +82,9 @@ class DlPlanFeaturePool:
         self.problem_name_to_id = {problem.name: i for i, problem in enumerate(problems)}
         vocabulary = construct_vocabulary_info(domain, config)
         log.debug(f"Constructed vocabulary: {vocabulary}")
-        self.states: dict[State, dlplan.core.State] = dict()
-        self.node_id_to_state_ids: dict[tuple[int, int], State] = dict()
-        self.state_id_to_node: dict[State, list[StateSpaceNode]] = dict()
-        self.state_graphs = dict()
+        self.state_graphs: dict[str, StateSpaceGraph] = dict()
         self.instances: dict[str, InstanceInfo] = dict()
         self.mappings = dict()
-        self.next_state_id = 0
         if not max_complexity:
             max_complexity = config["max_complexity"]
         for problem in problems:
@@ -106,8 +102,14 @@ class DlPlanFeaturePool:
             )
             self.instances[problem.name] = instance
             self.mappings[problem.name] = mapping
-            for node in self.state_graphs[problem.name].nodes.values():
-                self.node_to_state(problem, node)
+        dlplan_states: list[dlplan.core.State] = []
+        for state_graph in self.state_graphs.values():
+            for node in state_graph.nodes.values():
+                dlplan_states.append(
+                    self.state_to_dlplan_state(
+                        state_graph.problem, get_goal_augmented_state(state_graph.problem, node.state)
+                    )
+                )
         factory = SyntacticElementFactory(vocabulary)
         if config.get("preset_features", None):
             booleans = [factory.parse_boolean(f) for f in config["preset_features"].get("booleans", [])]
@@ -121,7 +123,7 @@ class DlPlanFeaturePool:
                 feature_generator_kwargs = config["feature_generator"]
             booleans, numericals, concepts, roles = dlplan_gen.generate_features(
                 factory,
-                list(self.states.values()),
+                dlplan_states,
                 *5 * [max_complexity],
                 3600,
                 10000,
@@ -150,14 +152,6 @@ class DlPlanFeaturePool:
             self.instances[problem.name],
             [self.mappings[problem.name][fact] for fact in state],
         )
-
-    def node_to_state(self, problem: Problem, node: StateSpaceNode) -> None:
-        state_id = self.next_state_id
-        self.next_state_id += 1
-        fstate = get_goal_augmented_state(problem, node.state)
-        self.states[fstate] = self.state_to_dlplan_state(problem, fstate, state_id)
-        self.node_id_to_state_ids[(self.problem_name_to_id[problem.name], node.id)] = fstate
-        self.state_id_to_node.setdefault(fstate, []).append(node)
 
     def generate_augmented_state_space(self, problem: Problem) -> StateSpaceGraph:
         return generate_state_space(self.domain, problem)
@@ -197,13 +191,13 @@ class DlPlanFeaturePool:
         raise KeyError(f"Cannot find object with id {obj_id}")
 
     def is_concept_informative(self, concept_str: str) -> bool:
-        for problem, state_graph in self.state_graphs.items():
+        for state_graph in self.state_graphs.values():
             for node in state_graph.nodes.values():
                 if node.goal and not self.config["include_goal_states"]:
                     continue
                 if node.alive != Alive.ALIVE and not self.config["include_dead_states"]:
                     continue
-                extension = self.evaluate_concept(concept_str, self.problems[problem], node.state)
+                extension = self.evaluate_concept(concept_str, state_graph.problem, node.state)
                 if not extension:
                     return True
                 for action in node.children.keys():
@@ -222,13 +216,13 @@ class DlPlanFeaturePool:
         return uninformative_concepts
 
     def is_role_informative(self, role_str: str) -> bool:
-        for problem, state_graph in self.state_graphs.items():
+        for state_graph in self.state_graphs.values():
             for node in state_graph.nodes.values():
                 if node.goal and not self.config["include_goal_states"]:
                     continue
                 if node.alive != Alive.ALIVE and not self.config["include_dead_states"]:
                     continue
-                extension = self.evaluate_role(role_str, self.problems[problem], node.state)
+                extension = self.evaluate_role(role_str, state_graph.problem, node.state)
                 if not extension:
                     return True
                 log.debug(f"Role {role_str} extension: {extension}")
@@ -253,24 +247,19 @@ class DlPlanFeaturePool:
     def is_feature_informative(self, feature: Feature) -> bool:
         has_false = False
         has_true = False
-        for fstate, state in self.states.items():
-            if all(
-                [
-                    node.goal
-                    and not self.config["include_goal_states"]
-                    or node.alive != Alive.ALIVE
-                    and not self.config["include_dead_states"]
-                    for node in self.state_id_to_node[fstate]
-                ]
-            ):
-                continue
-            eval = feature.evaluate(state)
-            if eval:
-                has_true = True
-            else:
-                has_false = True
-            if has_true and has_false:
-                return True
+        for state_graph in self.state_graphs.values():
+            for node in state_graph.nodes.values():
+                if node.goal and not self.config["include_goal_states"]:
+                    continue
+                if node.alive != Alive.ALIVE and not self.config["include_dead_states"]:
+                    continue
+                eval = self.evaluate_feature(str(feature), state_graph.problem, node.state)
+                if eval:
+                    has_true = True
+                else:
+                    has_false = True
+                if has_true and has_false:
+                    return True
         return has_true and has_false
 
     def compute_uninformative_features(self) -> set[str]:
