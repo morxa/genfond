@@ -1,6 +1,6 @@
 import logging
 import random
-from typing import Collection, Mapping, Optional
+from typing import Any, Collection, Mapping, Optional
 
 import dlplan.core
 from dlplan.core import InstanceInfo, SyntacticElementFactory
@@ -12,7 +12,7 @@ from .feature_generator_dlplan import (
     _get_state_from_goal,
     construct_instance_info,
     construct_vocabulary_info,
-    get_action_augmented_state,
+    get_goal_augmented_state,
 )
 from .generate_rule_policy import feature_eval_to_cond
 from .ground import ground
@@ -50,14 +50,14 @@ def _get_dlplan_state(
     mapping: dict,
     problem: Problem,
     state: State,
-    config: dict,
+    _: Any,
     action: Optional[Action] = None,
 ) -> dlplan.core.State:
     try:
         return dlplan.core.State(
             -1,
             instance,
-            [mapping[predicate] for predicate in get_action_augmented_state(problem, state, config, action)],
+            [mapping[predicate] for predicate in get_goal_augmented_state(problem, state)],
         )
     except KeyError as e:
         log.critical(f'Cannot find predicate in mapping {"\n".join(f"{k}: {v}" for k, v in mapping.items())}: {e}')

@@ -23,8 +23,7 @@ from .feature_generator_dlplan import (
     _get_state_from_goal,
     construct_instance_info,
     construct_vocabulary_info,
-    get_action_augmented_state,
-    get_param_augmented_state,
+    get_goal_augmented_state,
 )
 from .generate_rule_policy import feature_eval_to_cond
 from .ground import ground
@@ -94,12 +93,7 @@ def execute_datalog_policy(
     ground_actions = {(a.name, a.parameters): a for a in ground(domain, problem)}
     log.info("Grounding actions done!")
     for rule in datalog_policy.rules:
-        for cond, _ in (
-            rule.conds
-            | rule.state_aug_conds
-            | rule.param_aug_conds
-            | {cond[0]: None for cond in rule.param_diff_conds}
-        ).items():
+        for cond in rule.conds.keys():
             if cond.startswith("b_"):
                 features[cond] = factory.parse_boolean(cond)
             elif cond.startswith("n_"):
@@ -131,9 +125,9 @@ def execute_datalog_policy(
         log.info(f"New state: {state_string(state)}")
         found_rule = False
 
-        concepts_eval = eval_concepts(instance, mapping, concepts, problem, state, config | {"include_actions": False})
-        roles_eval = eval_roles(instance, mapping, roles, problem, state, config | {"include_actions": False})
-        bool_eval = bool_eval_state(instance, mapping, features, problem, state, config | {"include_actions": False})
+        concepts_eval = eval_concepts(instance, mapping, concepts, problem, state, config)
+        roles_eval = eval_roles(instance, mapping, roles, problem, state, config)
+        bool_eval = bool_eval_state(instance, mapping, features, problem, state, config)
 
         for rule in random.sample(list(datalog_policy.rules), len(datalog_policy.rules)):
             log.debug(f"Checking rule: {rule}")
@@ -193,65 +187,8 @@ def execute_datalog_policy(
                     log.debug(f"... Rule not applicable! Precondition not satisfied!")
                     continue
                 action = grounded_action
-                # aug_state = get_augmented_state(problem, state, config, action)
-
-                for cond, val in rule.state_aug_conds.items():
-                    aug_bool_eval = bool_eval_state(instance, mapping, features, problem, state, config, action)
-                    if aug_bool_eval[cond] != val:
-                        log.debug(
-                            f"... Rule not applicable! Augmented state does not satisfy condition {cond}"
-                            f"(valuation is {aug_bool_eval[cond]} instead of {val})"
-                        )
-                        action = None
-                        break
-                for cond, pval in rule.param_aug_conds.items():
-                    param_index, val = pval
-                    param = action.parameters[param_index]
-                    aug_fstate = get_param_augmented_state(problem, state, param_index, param)
-                    aug_state = dlplan.core.State(-1, instance, [mapping[fact] for fact in aug_fstate])
-                    feval = feature_eval_to_cond(cond, features[cond].evaluate(aug_state))
-                    if feval != val:
-                        log.debug(
-                            "... Rule not applicable! "
-                            f'Augmented state [{", ".join([str(f) for f in aug_fstate])}] '
-                            "does not satisfy condition {cond} on {param}"
-                            f" (valuation is {feval} instead of {val})"
-                        )
-                        action = None
-                        break
                 if not action:
                     continue
-                log.debug(f"... Checking {len(rule.param_diff_conds)} diff conditions")
-                for feature, param1, param2, diff in rule.param_diff_conds:
-                    log.debug(f"Checking diff condition {feature}({param1},{param2})={diff}")
-                    assert diff in [-1, 0, 1], f"Invalid diff value: {diff}"
-                    aug_state1 = dlplan.core.State(
-                        -1,
-                        instance,
-                        [
-                            mapping[fact]
-                            for fact in get_param_augmented_state(problem, state, param1, object_combination[param1])
-                        ],
-                    )
-                    aug_state2 = dlplan.core.State(
-                        -1,
-                        instance,
-                        [
-                            mapping[fact]
-                            for fact in get_param_augmented_state(problem, state, param2, object_combination[param2])
-                        ],
-                    )
-                    eval1 = features[feature].evaluate(aug_state1)
-                    eval2 = features[feature].evaluate(aug_state2)
-                    eval_diff = 1 if eval1 < eval2 else -1 if eval1 > eval2 else 0
-                    if eval_diff != diff:
-                        log.debug(
-                            f"... Rule not applicable! Augmented state does not satisfy condition {feature} "
-                            f"(valuation is {eval_diff} instead of {diff})"
-                        )
-                        action = None
-                        break
-
                 if action:
                     break
 
