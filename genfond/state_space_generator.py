@@ -41,16 +41,15 @@ type State = frozenset[Formula]
 
 
 def state_to_string(state: State) -> str:
-    state_str = ""
+    state_str = []
     for p in state:
         if isinstance(p, Predicate):
-            state_str += f'{p.name}({",".join([str(p) for p in p.terms])})'
+            state_str.append(f'{p.name}({",".join([str(p) for p in p.terms])})')
         elif isinstance(p, FunctionEqualTo):
-            state_str += f"{p.operands[0]}={p.operands[1]}"
+            state_str.append(f"{p.operands[0]}={p.operands[1]}")
         else:
             raise ValueError("Unknown state type: {}".format(type(p)))
-        state_str += ","
-    return state_str
+    return ",".join(sorted(state_str))
 
 
 def eval_function_term(term: FunctionExpression, state: State) -> float | int:
@@ -63,8 +62,12 @@ def eval_function_term(term: FunctionExpression, state: State) -> float | int:
             if f.operands[0] == term:
                 return f.operands[1].value
         # TODO: check if this is correct
+        # DZC: This is probably be fine. If a numeric fluent does not appear in the initial
+        # state of the PDDL, its value is assumed to be 0.
         return 0
         # raise ValueError(f'Function {term} not found in state {state_to_string(state)}')
+    elif isinstance(term, Plus):
+        return eval_function_term(term.operands[0], state) + eval_function_term(term.operands[1], state)
     else:
         raise ValueError("Unknown term type: {}".format(type(term)))
 
@@ -129,12 +132,14 @@ def apply_effects_to_state(state: State, effects: Collection[Optional[Formula]])
     elif isinstance(effects, BinaryFunction):
         if isinstance(effects.operands[0], NumericFunction):
             fct = effects.operands[0]
-            change = effects.operands[1]
+            change = eval_function_term(effects.operands[1], state)
         else:
+            # DZC: What is this else case?
             fct = effects.operands[1]
             change = effects.operands[0]
         assert isinstance(fct, NumericFunction)
-        assert isinstance(change, NumericValue)
+        # DZC: remove this assert by evaluating change = eval_function_term(...)
+        # assert isinstance(change, NumericValue)
         current_evals = [f for f in state if isinstance(f, FunctionEqualTo) and f.operands[0] == fct]
         if not current_evals:
             current_eval = FunctionEqualTo(fct, NumericValue(0))
@@ -143,11 +148,11 @@ def apply_effects_to_state(state: State, effects: Collection[Optional[Formula]])
             current_eval = current_evals[0]
         current_value = current_eval.operands[1].value
         if isinstance(effects, Assign):
-            new_value = change.value
+            new_value = change
         elif isinstance(effects, Increase):
-            new_value = current_value + change.value
+            new_value = current_value + change
         elif isinstance(effects, Decrease):
-            new_value = current_value - change.value
+            new_value = current_value - change
         elif isinstance(effects, (Plus, Minus, Times, Divide, ScaleUp, ScaleDown)):
             raise NotImplementedError()
         else:
