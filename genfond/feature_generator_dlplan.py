@@ -243,15 +243,6 @@ class DlPlanFeaturePool:
     def generate_augmented_state_space(self, problem: Problem) -> StateSpaceGraph:
         return generate_state_space(self.domain, problem)
 
-    def evaluate_concept(self, concept: str, problem: Problem, state: State) -> set[str]:
-        return self.evaluate_concept_from_problem(concept, problem, state)
-
-    def evaluate_role(self, role: str, problem: Problem, state: State) -> set[tuple[str, str]]:
-        return self.evaluate_role_from_problem(role, problem, state)
-
-    def evaluate_feature(self, feature: str, problem: Problem, state: State, action: Optional[Action] = None) -> bool:
-        return self.evaluate_feature_from_problem(feature, problem, state, action)
-
     def get_augmented_dlplan_state(
         self, problem: Problem, state: State, action: Optional[Action] = None
     ) -> dlplan.core.State:
@@ -264,13 +255,22 @@ class DlPlanFeaturePool:
             ],
         )
 
-    def evaluate_feature_from_problem(
-        self, feature: str, problem: Problem, state: State, action: Optional[Action] = None
-    ) -> bool:
+    def evaluate_feature(self, feature: str, problem: Problem, state: State, action: Optional[Action] = None) -> bool:
         feature = feature.strip('"')
         return self.features[feature].evaluate(self.get_augmented_dlplan_state(problem, state, action))
 
-    def evaluate_role_from_problem(self, role: str, problem: Problem, state: State) -> set[tuple[str, str]]:
+    def evaluate_concept(self, concept: str, problem: Problem, state: State) -> set[str]:
+        concept = concept.strip('"')
+        return set(
+            [
+                self.obj_id_to_obj(problem, id)
+                for id in self.concepts[concept]
+                .evaluate(self.get_augmented_dlplan_state(problem, state))
+                .to_sorted_vector()
+            ]
+        )
+
+    def evaluate_role(self, role: str, problem: Problem, state: State) -> set[tuple[str, str]]:
         role = role.strip('"')
         return set(
             [
@@ -287,17 +287,6 @@ class DlPlanFeaturePool:
                 return obj.get_name()
         raise KeyError(f"Cannot find object with id {obj_id}")
 
-    def evaluate_concept_from_problem(self, concept: str, problem: Problem, state: State) -> set[str]:
-        concept = concept.strip('"')
-        return set(
-            [
-                self.obj_id_to_obj(problem, id)
-                for id in self.concepts[concept]
-                .evaluate(self.get_augmented_dlplan_state(problem, state))
-                .to_sorted_vector()
-            ]
-        )
-
     def is_concept_informative(self, concept_str: str) -> bool:
         for problem, state_graph in self.state_graphs.items():
             for node in state_graph.nodes.values():
@@ -305,7 +294,7 @@ class DlPlanFeaturePool:
                     continue
                 if node.alive != Alive.ALIVE and not self.config["include_dead_states"]:
                     continue
-                extension = self.evaluate_concept_from_problem(concept_str, self.problems[problem], node.state)
+                extension = self.evaluate_concept(concept_str, self.problems[problem], node.state)
                 if not extension:
                     return True
                 for action in node.children.keys():
@@ -330,7 +319,7 @@ class DlPlanFeaturePool:
                     continue
                 if node.alive != Alive.ALIVE and not self.config["include_dead_states"]:
                     continue
-                extension = self.evaluate_role_from_problem(role_str, self.problems[problem], node.state)
+                extension = self.evaluate_role(role_str, self.problems[problem], node.state)
                 if not extension:
                     return True
                 log.debug(f"Role {role_str} extension: {extension}")
@@ -451,11 +440,11 @@ class DlPlanFeaturePool:
             if concept_str in stats["uninformative_concepts"]:
                 # log.debug(f'Concept {concept_str} does not distinguish any action arguments, skipping')
                 stats["num_skipped_concept_evals"] += len(
-                    self.evaluate_concept_from_problem(f'"{concept_str}"', problem, node.state)
+                    self.evaluate_concept(f'"{concept_str}"', problem, node.state)
                 )
                 continue
             concept_str = f'"{concept_str}"'
-            extension = self.evaluate_concept_from_problem(concept_str, problem, node.state)
+            extension = self.evaluate_concept(concept_str, problem, node.state)
             for obj in extension:
                 if obj in all_action_args:
                     clingo_program += f'c_eval({problem_id}, {node.id}, {concept_str}, "{obj}").\n'
@@ -465,12 +454,10 @@ class DlPlanFeaturePool:
         for role_str, role in self.roles.items():
             if role_str in stats["uninformative_roles"]:
                 # log.debug(f'Role {role_str} does not distinguish any action argument pairs, skipping')
-                stats["num_skipped_role_evals"] += len(
-                    self.evaluate_role_from_problem(f'"{role_str}"', problem, node.state)
-                )
+                stats["num_skipped_role_evals"] += len(self.evaluate_role(f'"{role_str}"', problem, node.state))
                 continue
             role_str = f'"{role_str}"'
-            for obj1, obj2 in self.evaluate_role_from_problem(role_str, problem, node.state):
+            for obj1, obj2 in self.evaluate_role(role_str, problem, node.state):
                 if obj1 in all_action_args and obj2 in all_action_args:
                     clingo_program += f'r_eval({problem_id}, {node.id}, {role_str}, "{obj1}", "{obj2}").\n'
                     stats["num_role_evals"] += 1
