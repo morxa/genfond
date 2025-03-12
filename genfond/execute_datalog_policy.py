@@ -20,10 +20,8 @@ from .execute_rule_policy import (
     state_satisfies_rule_conds,
 )
 from .feature_generator_dlplan import (
-    _get_state_from_goal,
     construct_instance_info,
     construct_vocabulary_info,
-    get_goal_augmented_state,
 )
 from .generate_rule_policy import feature_eval_to_cond
 from .ground import ground
