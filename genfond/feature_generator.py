@@ -36,7 +36,6 @@ class FeaturePool:
         domain: Domain,
         problems: Collection[Problem],
         config: Mapping,
-        max_complexity: Optional[int] = None,
         selected_states: Optional[dict[str, set[State]]] = None,
     ):
         assert len({problem.name for problem in problems}) == len(problems), "Problem names must be unique."
@@ -44,7 +43,6 @@ class FeaturePool:
         self.problems = {problem.name: problem for problem in problems}
         self.config = config
         self.problem_name_to_id = {problem.name: i for i, problem in enumerate(problems)}
-        self.max_complexity = max_complexity or config["max_complexity"]
         self.features: dict[str, Any] = dict()
         self.concepts: dict[str, Any] = dict()
         self.roles: dict[str, Any] = dict()

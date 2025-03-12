@@ -3,7 +3,16 @@ from typing import Collection, Mapping, Optional
 
 import dlplan.core
 import dlplan.generator as dlplan_gen
-from dlplan.core import Atom, Boolean, Concept, InstanceInfo, Numerical, Role, SyntacticElementFactory, VocabularyInfo
+from dlplan.core import (
+    Atom,
+    Boolean,
+    Concept,
+    InstanceInfo,
+    Numerical,
+    Role,
+    SyntacticElementFactory,
+    VocabularyInfo,
+)
 from pddl.core import Domain, Problem
 from pddl.logic import Predicate
 
@@ -13,7 +22,7 @@ from .state_space_generator import State
 
 type Feature = Boolean | Numerical
 
-log = logging.getLogger("genfond.feature_generation")
+log = logging.getLogger("genfond.feature_generation_dlplan")
 
 
 def construct_vocabulary_info(domain: Domain, config: Mapping) -> VocabularyInfo:
@@ -54,9 +63,10 @@ class DlPlanFeaturePool(FeaturePool):
         all_generators: bool = False,
         selected_states: Optional[dict[str, set[State]]] = None,
     ):
-        super().__init__(domain, problems, config, max_complexity, selected_states)
+        super().__init__(domain, problems, config, selected_states)
         self.instances: dict[str, InstanceInfo] = dict()
         self.mappings: dict[str, dict[Predicate, Atom]] = dict()
+        self.max_complexity = max_complexity or config["max_complexity"]
         vocabulary = construct_vocabulary_info(domain, config)
         log.debug(f"Constructed vocabulary: {vocabulary}")
         for problem in problems:
