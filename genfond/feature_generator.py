@@ -19,10 +19,10 @@ log = logging.getLogger("genfond.feature_generation")
 
 
 def get_goal_augmented_state(problem: Problem, state: State) -> State:
-    return frozenset(state | _get_state_from_goal(problem.goal))
+    return frozenset(state | get_state_from_goal(problem.goal))
 
 
-def _get_state_from_goal(goal_formula: Formula):
+def get_state_from_goal(goal_formula: Formula):
     states = apply_effects(set([frozenset()]), goal_formula)
     assert len(states) == 1, f"Goal formula must define a unique goal state, found {len(states)} states: {states}"
     state = next(iter(states))
@@ -36,6 +36,7 @@ class FeaturePool:
         domain: Domain,
         problems: Collection[Problem],
         config: Mapping,
+        max_complexity: Optional[int] = None,
         selected_states: Optional[dict[str, set[State]]] = None,
     ):
         assert len({problem.name for problem in problems}) == len(problems), "Problem names must be unique."
@@ -43,6 +44,7 @@ class FeaturePool:
         self.problems = {problem.name: problem for problem in problems}
         self.config = config
         self.problem_name_to_id = {problem.name: i for i, problem in enumerate(problems)}
+        self.max_complexity = max_complexity or config["max_complexity"]
         self.features: dict[str, Any] = dict()
         self.concepts: dict[str, Any] = dict()
         self.roles: dict[str, Any] = dict()
@@ -53,6 +55,9 @@ class FeaturePool:
                 problem,
                 selected_states=(selected_states.get(problem.name, None) if selected_states else None),
             )
+
+    def get_augmented_state(self, problem: Problem, state: State) -> State:
+        raise NotImplementedError()
 
     def evaluate_feature(self, feature: str, problem: Problem, state: State) -> bool:
         raise NotImplementedError()
@@ -147,9 +152,10 @@ class FeaturePool:
     def node_to_clingo(self, problem: Problem, node: StateSpaceNode, stats: dict) -> str:
         problem_id = self.problem_name_to_id[problem.name]
         clingo_program = ""
-        clingo_program += (
-            f"% " + ",".join([f'{p.name}({",".join([str(p) for p in p.terms])})' for p in node.state]) + "\n"
-        )
+        # clingo_program += (
+        #     f"% " + ",".join([f'{p.name}({",".join([str(p) for p in p.terms])})' for p in node.state]) + "\n"
+        # )
+        clingo_program += f"% " + ','.join(str(p) for p in node.state) + "\n"
         clingo_program += f"state({problem_id}, {node.id}).\n"
         if node.alive == Alive.PRUNED:
             clingo_program += f"pruned({problem_id}, {node.id}).\n"
@@ -166,7 +172,7 @@ class FeaturePool:
             if feature in stats["uninformative_features"]:
                 stats["num_skipped_feature_evals"] += 1
                 continue
-            eval = self.evaluate_feature(feature, problem, get_goal_augmented_state(problem, node.state))
+            eval = self.evaluate_feature(feature, problem, self.get_augmented_state(problem, node.state))
             eval_str = ""
             if type(eval) is bool:
                 eval_str = "1" if eval else "0"
@@ -230,6 +236,12 @@ class FeaturePool:
             "uninformative_roles": (self.compute_uninformative_roles() if self.config["prune_roles"] else set()),
         }
         clingo_program = ""
+        clingo_program += "% " + "state(problem_id, node_id)\n"
+        clingo_program += "% " + "pruned(problem_id, node_id)\n"
+        clingo_program += "% " + "alive(problem_id, node_id)\n"
+        clingo_program += "% " + "goal(problem_id, node_id)\n"
+        clingo_program += "% " + "eval(problem_id, node_id, feature, value)\n"
+        clingo_program += "% " + "trans(problem_id, node_id, action, child_id)\n"
         for feature_str, feature in self.features.items():
             feature_str = f'"{feature_str}"'
             clingo_program += f"feature({feature_str}).\n"

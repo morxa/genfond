@@ -16,7 +16,8 @@ from tqdm.contrib.logging import logging_redirect_tqdm
 from genfond.config_handler import DEFAULT_TYPE_CONFIGS, ConfigHandler
 from genfond.execute_policy import execute_policy
 
-from .iterative_solver import pnames, solve, solve_iteratively
+from .iterative_solver_dlplan import pnames, solve_dl, solve_iteratively_dl
+from .iterative_solver_wlplan import solve_iteratively_wl, solve_wl
 from .problem_iterator import MAX_COST
 
 log = logging.getLogger("genfond")
@@ -31,6 +32,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("domain_file")
     parser.add_argument("problem_file", nargs="*")
+    parser.add_argument("--features", choices=["dl", "wl"], default="dl", help="feature type")
     parser.add_argument("--one-shot", action="store_true", help="solve all problems at once")
     parser.add_argument("--name", help="Name of the problem set (default: domain name)")
     parser.add_argument("--output", "-o", help="Output file for the resulting policy (as pickle dump)")
@@ -119,15 +121,27 @@ def main():
     }
     if args.one_shot:
         solve_cpu_time_start = time.process_time()
-        solution = solve(
-            domain,
-            problems,
-            config=config,
-            complexity=config["max_complexity"],
-            all_generators=False,
-            max_cost=MAX_COST,
-            max_prune_cost=MAX_COST,
-        )
+        if args.features == "dl":
+            solution = solve_dl(
+                domain,
+                problems,
+                config=config,
+                complexity=config["max_complexity"],
+                all_generators=False,
+                max_cost=MAX_COST,
+                max_prune_cost=MAX_COST,
+            )
+        elif args.features == "wl":
+            solution = solve_wl(
+                domain,
+                problems,
+                config=config,
+                complexity=config["max_complexity"],
+                max_cost=MAX_COST,
+                max_prune_cost=MAX_COST,
+            )
+        else:
+            raise ValueError(f"Unknown feature type {args.features}")
         solve_cpu_time = time.process_time() - solve_cpu_time_start
         log.info(f"CPU time: {solve_cpu_time:.2f}s")
         mem_usage = (resource.getrusage(resource.RUSAGE_SELF).ru_maxrss) / 1024
@@ -143,6 +157,7 @@ def main():
             with open(args.output, "wb") as f:
                 pickle.dump(policy, f)
         sys.exit(0)
+    solve_iteratively = solve_iteratively_dl if args.features == "dl" else solve_iteratively_wl
     policy, succs, solve_stats = solve_iteratively(domain, problems, config)
     stats.update(solve_stats)
     if args.output:

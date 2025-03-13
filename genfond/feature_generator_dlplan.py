@@ -15,6 +15,7 @@ from dlplan.core import (
 )
 from pddl.core import Domain, Problem
 from pddl.logic import Predicate
+from pddl.requirements import Requirements
 
 from .feature_generator import FeaturePool, get_goal_augmented_state
 from .ground import ground_domain_predicates
@@ -63,10 +64,11 @@ class DlPlanFeaturePool(FeaturePool):
         all_generators: bool = False,
         selected_states: Optional[dict[str, set[State]]] = None,
     ):
-        super().__init__(domain, problems, config, selected_states)
+        super().__init__(domain, problems, config, max_complexity, selected_states)
+        if Requirements.NUMERIC_FLUENTS in domain.requirements:
+            raise ValueError("Numeric fluents are not supported by DLPlan")
         self.instances: dict[str, InstanceInfo] = dict()
         self.mappings: dict[str, dict[Predicate, Atom]] = dict()
-        self.max_complexity = max_complexity or config["max_complexity"]
         vocabulary = construct_vocabulary_info(domain, config)
         log.debug(f"Constructed vocabulary: {vocabulary}")
         for problem in problems:
@@ -129,6 +131,9 @@ class DlPlanFeaturePool(FeaturePool):
             self.instances[problem.name],
             [self.mappings[problem.name][fact] for fact in state],
         )
+    
+    def get_augmented_state(self, problem: Problem, state: State) -> State:
+        return get_goal_augmented_state(problem, state)
 
     def evaluate_feature(self, feature: str, problem: Problem, state: State) -> bool:
         feature = feature.strip('"')

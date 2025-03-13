@@ -7,7 +7,7 @@ from dlplan.core import InstanceInfo, SyntacticElementFactory
 from pddl.action import Action
 from pddl.core import Domain, Problem
 
-from .feature_generator import _get_state_from_goal
+from .feature_generator import get_state_from_goal
 from .feature_generator_dlplan import (
     Feature,
     construct_instance_info,
@@ -157,7 +157,7 @@ def execute_rule_policy(domain: Domain, problem: Problem, policy: Policy, config
         else:
             raise ValueError(f"Unknown feature type: {feature}")
     # TODO _get_state_from_goal is internal
-    goal_state = _get_state_from_goal(problem.goal)
+    goal_state = get_state_from_goal(problem.goal)
     log.debug("Grounding actions...")
     grounded_actions = ground(domain, problem)
     log.debug("Grounding actions done.")

@@ -156,7 +156,7 @@ def apply_effects_to_state(state: State, effects: Collection[Optional[Formula]])
         elif isinstance(effects, (Plus, Minus, Times, Divide, ScaleUp, ScaleDown)):
             raise NotImplementedError()
         else:
-            raise ValueError("Unknown effect type: {}".format(type(effects)))
+            raise ValueError(f"Unknown effect {effects} of type {type(effects)}")
         # log.debug(f'Change {fct} from {current_value} to {new_value}')
         return frozenset(
             {frozenset([f for f in state if f != current_eval] + [FunctionEqualTo(fct, NumericValue(new_value))])}

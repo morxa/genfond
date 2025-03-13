@@ -32,9 +32,12 @@ class Solver:
         max_prune_cost: int = MAX_COST,
         min_feature_complexity: Optional[int] = None,
     ):
+        log.info(f"{solve_prog=}")
         self.asp_code = asp_code
         self.control = clingo.Control()
         self.control.load(os.path.join(os.path.dirname(__file__), solve_prog))
+        with open("asp_code_debug.log", "w") as f:
+            f.write(asp_code)
         self.control.add("instances", [], asp_code)
         parts: list[tuple[str, list[clingo.Symbol]]] = [("base", []), ("instances", [])]
         if max_cost < MAX_COST:

@@ -20,10 +20,10 @@ from .rule_policy import Policy
 from .solver import Solver
 from .state_space_generator import State, check_formula, random_walk
 
-log = logging.getLogger("genfond.iterative_solver")
+log = logging.getLogger("genfond.iterative_solver_dlplan")
 
 
-def solve(
+def solve_dl(
     domain: Domain,
     problems: Collection[Problem],
     config: Mapping,
@@ -108,7 +108,7 @@ def pnames(problems: Collection[Problem]) -> str:
     return ", ".join([p.name for p in problems])
 
 
-def solve_iteratively(
+def solve_iteratively_dl(
     domain: Domain, problems: list[Problem], config: Mapping
 ) -> tuple[Optional[Policy | DatalogPolicy], list[Problem], dict[str, str | int | float]]:
     policy = None
@@ -147,7 +147,7 @@ def solve_iteratively(
             log.info(f"Starting solver for {pnames(solver_problems)} with max complexity {i}")
             solve_wall_time_start = time.perf_counter()
             solve_cpu_time_start = time.process_time()
-            solution = solve(
+            solution = solve_dl(
                 domain,
                 solver_problems,
                 config=config,
