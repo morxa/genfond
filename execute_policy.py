@@ -6,7 +6,7 @@ import pddl
 
 from genfond.config_handler import ConfigHandler
 from genfond.datalog_policy import DatalogPolicy
-from genfond.execute_policy import execute_policy
+from genfond.execute_policy import execute_policy_dl
 
 logging.basicConfig(format="%(message)s", level=logging.INFO)
 log = logging.getLogger(__name__)
@@ -28,7 +28,7 @@ def main():
     config = ConfigHandler(args.config, type, vars(args))
     domain = pddl.parse_domain(args.domain)
     problem = pddl.parse_problem(args.problem)
-    actions_taken = execute_policy(domain, problem, policy, config)
+    actions_taken = execute_policy_dl(domain, problem, policy, config)
     log.info(f'{len(actions_taken)} actions taken: {", ".join([str(a) for a in actions_taken])}')
 
 

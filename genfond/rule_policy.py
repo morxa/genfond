@@ -103,6 +103,7 @@ class Policy:
         constraints: Optional[Collection[PolicyRule]] = None,
         state_constraints: Optional[set[StateConstraint]] = None,
         type: PolicyType = PolicyType.EXACT,
+        save_file: Optional[str] = None,
     ):
         self.type = type
         self.features = frozenset(features)
@@ -110,6 +111,7 @@ class Policy:
         self.constraints = constraints or set()
         self.state_constraints: set[StateConstraint] = state_constraints or set()
         self.cost = cost
+        self.save_file = save_file
         assert not constraints or type == PolicyType.CONSTRAINED
 
     def __repr__(self) -> str:

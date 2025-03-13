@@ -12,6 +12,8 @@ from wlplan.data import Dataset, ProblemStates
 from wlplan.feature_generation import Features, get_feature_generator
 from wlplan.graph import to_networkx
 from wlplan.planning import Atom
+from wlplan.planning import Domain as WlDomain
+from wlplan.planning import Problem as WlProblem
 from wlplan.planning import State as WlState
 from wlplan.planning import to_wlplan_domain, to_wlplan_problem
 
@@ -19,6 +21,30 @@ from .feature_generator import FeaturePool
 from .state_space_generator import State, state_to_string
 
 log = logging.getLogger("genfond.feature_generation_wlplan")
+
+
+def to_wlplan_state(state: State, wlplan_domain: WlDomain, wlplan_problem: WlProblem) -> WlState:
+    predicate_to_id = {p.name: p for p in wlplan_domain.predicates}
+    fluent_to_id = wlplan_problem.fluent_name_to_id
+    atoms = []
+    fluents = [0 for _ in range(len(fluent_to_id))]
+    for k in state:
+        if isinstance(k, Predicate):
+            pred = predicate_to_id[k.name]
+            terms = [o.name for o in k.terms]
+            atom = Atom(pred, terms)
+            atoms.append(atom)
+        elif isinstance(k, EqualTo):
+            fluent = str(k.operands[0])
+            value = k.operands[1].value
+            toks = fluent[1:-1].split(" ")
+            function = toks[0]
+            terms = toks[1:]
+            fluent = f"{function}({', '.join(terms)})"
+            fluents[fluent_to_id[fluent]] = value
+        else:
+            raise TypeError(f"{k}: unknown type for numeric state")
+    return WlState(atoms, fluents)
 
 
 @dataclass
@@ -59,30 +85,10 @@ class WlPlanFeaturePool(FeaturePool):
 
         for problem in problems:
             wlplan_problem = to_wlplan_problem(pddl_domain=domain, pddl_problem=problem)
-            predicate_to_id = {p.name: p for p in wlplan_domain.predicates}
-            fluent_to_id = wlplan_problem.fluent_name_to_id
 
             wlplan_states = []
             for state, _ in self.state_graphs[problem.name].nodes.items():
-                atoms = []
-                fluents = [0 for _ in range(len(fluent_to_id))]
-                for k in state:
-                    if isinstance(k, Predicate):
-                        pred = predicate_to_id[k.name]
-                        terms = [o.name for o in k.terms]
-                        atom = Atom(pred, terms)
-                        atoms.append(atom)
-                    elif isinstance(k, EqualTo):
-                        fluent = str(k.operands[0])
-                        value = k.operands[1].value
-                        toks = fluent[1:-1].split(" ")
-                        function = toks[0]
-                        terms = toks[1:]
-                        fluent = f"{function}({', '.join(terms)})"
-                        fluents[fluent_to_id[fluent]] = value
-                    else:
-                        raise TypeError(f"{k}: unknown type for numeric state")
-                wlplan_states.append(WlState(atoms, fluents))
+                wlplan_states.append(to_wlplan_state(state, wlplan_domain, wlplan_problem))
                 ps_key = problem.name, state_to_string(state)
                 row = len(self.problem_state_to_row)
                 self.problem_state_to_row[ps_key] = row
@@ -99,11 +105,12 @@ class WlPlanFeaturePool(FeaturePool):
         n_cat_features = len(colour_to_layer)
         n_con_features = len(colour_to_layer)
         for c in range(len(colour_to_layer)):
-            feature = WlFeature(id=c, name=f"c{c}", complexity=colour_to_layer[c])
+            feature = WlFeature(id=c, name=f"n_{c}_cat", complexity=colour_to_layer[c])
             self.features[feature.name] = feature
-            feature = WlFeature(id=n_cat_features + c, name=f"n{c}", complexity=colour_to_layer[c])
+            feature = WlFeature(id=n_cat_features + c, name=f"n_{c}_con", complexity=colour_to_layer[c])
             self.features[feature.name] = feature
-        # TODO something about the collected features
+
+        fg.save(self.get_save_file())
 
         log.debug(f'generated features: {", ".join(self.features.keys())}')
 
@@ -113,7 +120,7 @@ class WlPlanFeaturePool(FeaturePool):
         graphs = fg.convert_to_graphs(dataset)
         # for i in [0, 1]:
         for i in range(len(graphs)):
-            graph = graphs[0]
+            graph = graphs[i]
             # graph.dump()
             G = to_networkx(graph)
             net = Network(height="1080px", notebook=False)
@@ -136,14 +143,14 @@ class WlPlanFeaturePool(FeaturePool):
             state = self.row_to_problem_state[i][1]
             log.debug(f"{state=}")
             n = self.X.shape[1]
-            top = self.X[i][:n//2]
-            bot = self.X[i][n//2:]
+            top = self.X[i][: n // 2]
+            bot = self.X[i][n // 2 :]
             assert len(top) == len(bot)
             log.debug(f"feature_vec={' '.join(map(str, top))}")
             log.debug(f"            {' '.join(map(str, bot))}")
         # breakpoint()
 
-        fg.save("features.model")
+        # fg.save("features.model")
 
     def get_augmented_state(self, problem: Problem, state: State) -> State:
         return state
@@ -159,3 +166,6 @@ class WlPlanFeaturePool(FeaturePool):
 
     def evaluate_role(self, role: str, problem: Problem, state: State) -> set[tuple[str, str]]:
         return set()
+
+    def get_save_file(self) -> str:
+        return "wlplan_features.model"

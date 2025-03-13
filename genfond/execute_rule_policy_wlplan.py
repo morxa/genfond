@@ -2,18 +2,16 @@ import logging
 import random
 from typing import Any, Collection, Mapping, Optional
 
-import dlplan.core
-from dlplan.core import InstanceInfo, SyntacticElementFactory
 from pddl.action import Action
 from pddl.core import Domain, Problem
 
-from .feature_generator import get_state_from_goal
-from .feature_generator_dlplan import (
-    Feature,
-    construct_instance_info,
-    construct_vocabulary_info,
-    get_goal_augmented_state,
-)
+from wlplan.feature_generation import Features as FeatureGenerator
+from wlplan.feature_generation import load_feature_generator
+from wlplan.planning import Domain as WlDomain
+from wlplan.planning import Problem as WlProblem
+from wlplan.planning import to_wlplan_domain, to_wlplan_problem
+
+from .feature_generator_wlplan import WlFeature, to_wlplan_state
 from .generate_rule_policy import feature_eval_to_cond
 from .ground import ground
 from .policy import PolicyType
@@ -45,51 +43,30 @@ class CycleError(PolicyExecutionError):
         super().__init__("Cycle detected")
 
 
-def _get_dlplan_state(
-    instance: InstanceInfo,
-    mapping: dict,
-    problem: Problem,
-    state: State,
-    _: Any,
-    action: Optional[Action] = None,
-) -> dlplan.core.State:
-    try:
-        return dlplan.core.State(
-            -1,
-            instance,
-            [mapping[predicate] for predicate in get_goal_augmented_state(problem, state)],
-        )
-    except KeyError as e:
-        log.critical(f'Cannot find predicate in mapping {"\n".join(f"{k}: {v}" for k, v in mapping.items())}: {e}')
-        raise
-
-
 def eval_state(
-    instance: InstanceInfo,
-    mapping: dict,
-    features: dict[str, Feature],
-    problem: Problem,
+    fg: FeatureGenerator,
+    features: dict[str, WlFeature],
+    wlplan_domain: WlDomain,
+    wlplan_problem: WlProblem,
     state: State,
-    config: dict,
-    action: Optional[Action] = None,
 ) -> dict[str, int]:
-    fstate = _get_dlplan_state(instance, mapping, problem, state, config, action)
+    wlplan_state = to_wlplan_state(state, wlplan_domain, wlplan_problem)
+    fg.set_problem(wlplan_problem)
+    x = fg.embed(wlplan_state)
     feature_eval = dict()
     for fstring, feature in features.items():
-        feature_eval[fstring] = feature.evaluate(fstate)
+        feature_eval[fstring] = x[feature.id]
     return feature_eval
 
 
 def bool_eval_state(
-    instance: InstanceInfo,
-    mapping: dict,
-    features: dict[str, Feature],
-    problem: Problem,
+    fg: FeatureGenerator,
+    features: dict[str, WlFeature],
+    wlplan_domain: WlDomain,
+    wlplan_problem: WlProblem,
     state: State,
-    config: dict,
-    action: Optional[Action] = None,
 ) -> dict[str, Cond]:
-    feature_eval = eval_state(instance, mapping, features, problem, state, config, action)
+    feature_eval = eval_state(fg, features, wlplan_domain, wlplan_problem, state)
     log.debug(f"feature eval: {feature_eval}")
     bool_feature_eval = dict()
     for feature, eval in feature_eval.items():
@@ -141,27 +118,36 @@ def state_string(state: State) -> str:
     return ",".join([str(p) for p in state])
 
 
-def execute_rule_policy(domain: Domain, problem: Problem, policy: Policy, config: dict) -> list[str]:
+def execute_rule_policy_wl(domain: Domain, problem: Problem, policy: Policy, config: dict) -> list[str]:
     log.info(
         f"Executing policy:\n{policy}\nin {domain.name} for problem {problem.name} with features {policy.features}"
     )
-    vocabulary = construct_vocabulary_info(domain, config)
-    factory = SyntacticElementFactory(vocabulary)
-    instance, mapping = construct_instance_info(vocabulary, domain, problem, 0, config)
+    fg = load_feature_generator(policy.save_file, quiet=True)
+    colour_to_layer = fg.get_colour_to_layer()
+    wlplan_domain = to_wlplan_domain(pddl_domain=domain)
+    wlplan_problem = to_wlplan_problem(pddl_domain=domain, pddl_problem=problem)
+
     features = dict()
-    for feature in policy.features:
-        if feature.startswith("b_"):
-            features[feature] = factory.parse_boolean(feature)
-        elif feature.startswith("n_"):
-            features[feature] = factory.parse_numerical(feature)
+    n_cat_features = fg.get_n_features()
+    n_con_features = fg.get_n_features()
+    for feature_str in policy.features:
+        toks = feature_str.split("_")
+        assert len(toks) == 3
+        assert toks[0] == "n"
+        assert toks[-1] in {"con", "cat"}
+        i = int(toks[1])
+        if toks[-1] == "con":
+            id = n_cat_features + i
         else:
-            raise ValueError(f"Unknown feature type: {feature}")
-    # TODO _get_state_from_goal is internal
-    goal_state = get_state_from_goal(problem.goal)
+            id = i
+        features[feature_str] = WlFeature(id=id, name=feature_str, complexity=colour_to_layer[i])
+
     log.debug("Grounding actions...")
     grounded_actions = ground(domain, problem)
     log.debug("Grounding actions done.")
+
     state = problem.init
+
     trace: dict[State, State] = dict()
     num_steps = 0
     actions_taken = []
@@ -176,8 +162,8 @@ def execute_rule_policy(domain: Domain, problem: Problem, policy: Policy, config
                     state = trace[state]
                 raise CycleError(trace, cycle)
         log.info(f'New state: {",".join([str(p) for p in state])}')
-        feature_eval = eval_state(instance, mapping, features, problem, state, config)
-        bool_feature_eval = bool_eval_state(instance, mapping, features, problem, state, config)
+        feature_eval = eval_state(fg, features, wlplan_domain, wlplan_problem, state)
+        bool_feature_eval = bool_eval_state(fg, features, wlplan_domain, wlplan_problem, state)
         enabled_rules = {rule for rule in policy.rules if state_satisfies_rule_conds(bool_feature_eval, rule.conds)}
         log.debug("Enabled rules: {}".format(",  ".join([str(r) for r in enabled_rules])))
         enabled_constraints = {
@@ -206,7 +192,7 @@ def execute_rule_policy(domain: Domain, problem: Problem, policy: Policy, config
                     "; ".join([state_string(s) for s in succs]),
                 )
             )
-            succs_evals = [eval_state(instance, mapping, features, problem, succ, config) for succ in succs]
+            succs_evals = [eval_state(fg, features, wlplan_domain, wlplan_problem, succ) for succ in succs]
             log.debug(f"succs_evals: {succs_evals}")
             succs_diffs = {eval_state_diff(feature_eval, succ_eval) for succ_eval in succs_evals}
             log.debug(f'succs_diffs:\n{"\n".join([", ".join([str(d) for d in ds]) for ds in succs_diffs])}')
@@ -216,12 +202,12 @@ def execute_rule_policy(domain: Domain, problem: Problem, policy: Policy, config
                     log.info(f"Constraint {constraint} violated!")
                     ok = False
                     break
-            bool_succs_evals = [bool_eval_state(instance, mapping, features, problem, succ, config) for succ in succs]
+            bool_succs_evals = [bool_eval_state(fg, features, wlplan_domain, wlplan_problem, succ) for succ in succs]
             for bool_succs_eval in bool_succs_evals:
                 for state_constraint in policy.state_constraints:
                     violated = True
-                    for feature, cond in state_constraint.conds.items():
-                        if cond != bool_succs_eval[feature]:
+                    for feature_str, cond in state_constraint.conds.items():
+                        if cond != bool_succs_eval[feature_str]:
                             violated = False
                             break
                     if violated:

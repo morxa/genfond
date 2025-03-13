@@ -3,15 +3,21 @@ import logging
 import random
 from typing import Collection, Optional
 
-import dlplan.core
-from dlplan.core import Concept, ConceptDenotation, InstanceInfo, Role, RoleDenotation, SyntacticElementFactory
+from dlplan.core import (
+    Concept,
+    ConceptDenotation,
+    InstanceInfo,
+    Role,
+    RoleDenotation,
+    SyntacticElementFactory,
+)
 from pddl.action import Action
 from pddl.core import Domain, Problem
 
 from genfond.config_handler import ConfigHandler
 from genfond.datalog_policy import DatalogPolicy
 
-from .execute_rule_policy import (
+from .execute_rule_policy_dlplan import (
     CycleError,
     NoActionError,
     PolicyExecutionError,

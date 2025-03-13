@@ -90,7 +90,9 @@ def selected_action_to_rule(
     return None
 
 
-def generate_rule_policy(solution: dict[str, Any], policy_type: PolicyType = PolicyType.EXACT) -> Policy:
+def generate_rule_policy(
+    solution: dict[str, Any], policy_type: PolicyType = PolicyType.EXACT, save_file: Optional[str] = None
+) -> Policy:
     rules = set()
     constraints = set()
     state_constraints = set()
@@ -116,6 +118,7 @@ def generate_rule_policy(solution: dict[str, Any], policy_type: PolicyType = Pol
         cost=solution["cost"],
         constraints=constraints,
         state_constraints=state_constraints,
+        save_file=save_file,
     )
     before_pruning_rules = len(policy.rules)
     before_pruning_state_constraints = len(policy.state_constraints)

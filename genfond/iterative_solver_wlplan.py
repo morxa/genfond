@@ -3,6 +3,7 @@ import pickle
 import statistics
 import sys
 import time
+import traceback
 from typing import Any, Collection, Mapping, Optional
 
 import tqdm
@@ -11,7 +12,7 @@ from tqdm.contrib.logging import logging_redirect_tqdm
 
 from .datalog_policy import DatalogPolicy
 from .execute_datalog_policy import CycleError, NoActionError
-from .execute_policy import execute_policy
+from .execute_policy import execute_policy_wl
 from .feature_generator_wlplan import WlPlanFeaturePool
 from .generate_policy import generate_policy
 from .policy import PolicyType
@@ -74,7 +75,7 @@ def solve_wl(
     log.debug(f'f_selected: {solution.get("f_selected", [])}')
     log.debug(f'f_distinguished: {solution.get("f_distinguished", [])}')
     try:
-        policy = generate_policy(solution, policy_type=PolicyType[config["policy_type"]])
+        policy = generate_policy(solution, policy_type=PolicyType[config["policy_type"]], save_file=feature_pool.get_save_file())
     except KeyError as e:
         log.error(f"Error during policy generation: {e}")
         raise
@@ -157,7 +158,7 @@ def solve_iteratively_wl(
                     solved = True
                     for _ in range(config["policy_iterations"]):
                         try:
-                            plan = execute_policy(domain, problem, policy, config)
+                            plan = execute_policy_wl(domain, problem, policy, config)
                             plans.append(plan)
                         except NoActionError as e:
                             log.info(f"Policy does not solve {problem.name}, no action in reachable state")
@@ -172,6 +173,9 @@ def solve_iteratively_wl(
                             problem_iterator.set_solved(problem, False)
                             for state in e.trace.keys():
                                 problem_iterator.set_new_state(problem.name, state)
+                        except NotImplementedError as e:
+                            traceback.print_exc()
+                            raise e
                         except RuntimeError:
                             log.info("Policy does not solve {}".format(problem.name))
                             solved = False

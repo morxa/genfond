@@ -14,7 +14,7 @@ from filelock import FileLock
 from tqdm.contrib.logging import logging_redirect_tqdm
 
 from genfond.config_handler import DEFAULT_TYPE_CONFIGS, ConfigHandler
-from genfond.execute_policy import execute_policy
+from genfond.execute_policy import execute_policy_dl, execute_policy_wl
 
 from .iterative_solver_dlplan import pnames, solve_dl, solve_iteratively_dl
 from .iterative_solver_wlplan import solve_iteratively_wl, solve_wl
@@ -119,6 +119,7 @@ def main():
         "domain": name,
         "constraintType": args.type,
     }
+
     if args.one_shot:
         solve_cpu_time_start = time.process_time()
         if args.features == "dl":
@@ -168,7 +169,8 @@ def main():
         for problem in tqdm.tqdm([p for p in problems if p not in succs], disable=None):
             try:
                 for _ in tqdm.trange(config["policy_iterations"], leave=False, disable=None):
-                    execute_policy(domain, problem, policy, config)
+                    exec_policy = execute_policy_dl if args.features == "dl" else execute_policy_wl
+                    exec_policy(domain, problem, policy, config)
                 succs.append(problem)
             except RuntimeError:
                 log.error("Policy does not solve {}".format(problem.name))

@@ -11,7 +11,7 @@ from tqdm.contrib.logging import logging_redirect_tqdm
 
 from .datalog_policy import DatalogPolicy
 from .execute_datalog_policy import CycleError, NoActionError
-from .execute_policy import execute_policy
+from .execute_policy import execute_policy_dl
 from .feature_generator_dlplan import DlPlanFeaturePool
 from .generate_policy import generate_policy
 from .policy import PolicyType
@@ -213,7 +213,7 @@ def solve_iteratively_dl(
                     solved = True
                     for _ in range(config["policy_iterations"]):
                         try:
-                            plan = execute_policy(domain, problem, policy, config)
+                            plan = execute_policy_dl(domain, problem, policy, config)
                             plans.append(plan)
                         except NoActionError as e:
                             log.info(f"Policy does not solve {problem.name}, no action in reachable state")
