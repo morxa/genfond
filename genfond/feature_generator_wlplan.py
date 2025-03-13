@@ -23,6 +23,18 @@ from .state_space_generator import State, state_to_string
 log = logging.getLogger("genfond.feature_generation_wlplan")
 
 
+def get_sub_index_map(n_cat_features: int, n_con_features: int) -> dict[tuple[int, int], int]:
+    i = n_cat_features + n_con_features
+    ret = {}
+    for c1 in range(n_con_features):
+        for c2 in range(n_con_features):
+            if c1 == c2:
+                continue
+            ret[(c1, c2)] = i
+            i += 1
+    return ret
+
+
 def to_wlplan_state(state: State, wlplan_domain: WlDomain, wlplan_problem: WlProblem) -> WlState:
     predicate_to_id = {p.name: p for p in wlplan_domain.predicates}
     fluent_to_id = wlplan_problem.fluent_name_to_id
@@ -75,7 +87,7 @@ class WlPlanFeaturePool(FeaturePool):
         fg = get_feature_generator(
             domain=wlplan_domain,
             graph_representation="nilg",
-            feature_algorithm="ccwl",
+            feature_algorithm="ccwl-a",
             iterations=max_complexity,
         )
 
@@ -102,19 +114,34 @@ class WlPlanFeaturePool(FeaturePool):
         self.X = np.array(self.X).astype(int)
         layer_to_colours = fg.get_layer_to_colours()
         colour_to_layer = {colour: i for i in range(len(layer_to_colours)) for colour in layer_to_colours[i]}
+
+        # partition features
         n_cat_features = len(colour_to_layer)
         n_con_features = len(colour_to_layer)
-        for c in range(len(colour_to_layer)):
-            feature = WlFeature(id=c, name=f"n_{c}_cat", complexity=colour_to_layer[c])
-            self.features[feature.name] = feature
+        n_sub_features = n_con_features * (n_con_features - 1)
+
+        # for c in range(n_cat_features):
+        #     feature = WlFeature(id=c, name=f"n_{c}_cat", complexity=colour_to_layer[c])
+        #     self.features[feature.name] = feature
+
+        for c in range(n_con_features):
             feature = WlFeature(id=n_cat_features + c, name=f"n_{c}_con", complexity=colour_to_layer[c])
             self.features[feature.name] = feature
+
+        sub_index_map = get_sub_index_map(n_cat_features, n_con_features)
+        for c1 in range(n_con_features):
+            for c2 in range(n_con_features):
+                if c1 == c2:
+                    continue
+                colour = max(colour_to_layer[c1], colour_to_layer[c2])
+                feature = WlFeature(id=sub_index_map[(c1, c2)], name=f"n_{c1}-{c2}_sub", complexity=colour)
+                self.features[feature.name] = feature
 
         fg.save(self.get_save_file())
 
         log.debug(f'generated features: {", ".join(self.features.keys())}')
 
-        self._debug_feature_generator(fg, dataset)
+        # self._debug_feature_generator(fg, dataset)
 
     def _debug_feature_generator(self, fg: Features, dataset: Dataset) -> None:
         graphs = fg.convert_to_graphs(dataset)

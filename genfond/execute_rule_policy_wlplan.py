@@ -11,7 +11,7 @@ from wlplan.planning import Domain as WlDomain
 from wlplan.planning import Problem as WlProblem
 from wlplan.planning import to_wlplan_domain, to_wlplan_problem
 
-from .feature_generator_wlplan import WlFeature, to_wlplan_state
+from .feature_generator_wlplan import WlFeature, get_sub_index_map, to_wlplan_state
 from .generate_rule_policy import feature_eval_to_cond
 from .ground import ground
 from .policy import PolicyType
@@ -127,6 +127,7 @@ def execute_rule_policy_wl(domain: Domain, problem: Problem, policy: Policy, con
     wlplan_domain = to_wlplan_domain(pddl_domain=domain)
     wlplan_problem = to_wlplan_problem(pddl_domain=domain, pddl_problem=problem)
 
+    # reverse partition features
     features = dict()
     n_cat_features = fg.get_n_features()
     n_con_features = fg.get_n_features()
@@ -134,13 +135,17 @@ def execute_rule_policy_wl(domain: Domain, problem: Problem, policy: Policy, con
         toks = feature_str.split("_")
         assert len(toks) == 3
         assert toks[0] == "n"
-        assert toks[-1] in {"con", "cat"}
-        i = int(toks[1])
-        if toks[-1] == "con":
-            id = n_cat_features + i
+        assert toks[-1] in {"con", "cat", "sub"}
+        if toks[-1] == "sub":
+            i, j = toks[1].split("-")
+            i, j = int(i), int(j)
+            colour = max(colour_to_layer[i], colour_to_layer[j])
+            id = get_sub_index_map(n_cat_features, n_con_features)[(i, j)]
         else:
-            id = i
-        features[feature_str] = WlFeature(id=id, name=feature_str, complexity=colour_to_layer[i])
+            i = int(toks[1])
+            colour = colour_to_layer[i]
+            id = n_cat_features + i if toks[-1] else i
+        features[feature_str] = WlFeature(id=id, name=feature_str, complexity=colour)
 
     log.debug("Grounding actions...")
     grounded_actions = ground(domain, problem)
