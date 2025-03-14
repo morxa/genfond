@@ -10,6 +10,7 @@ readme = "README.md"
 python = "^3.12"
 pddl = { git = "https://github.com/morxa/pddl", rev = '39d4898ddb67ca2c775a3d9715fab68ced89cfcd' }
 dlplan = { git = "https://github.com/morxa/dlplan", rev = '961400e4cd493e0dfeb023b419d2b41f0c0600b5' }
+wlplan = { path = "./wlplan" }
 clingo = "*"
 pygraphviz = "*"
 tqdm = "*"
