@@ -33,6 +33,6 @@ jobs:
       - name: Check imports
         run: poetry run isort --check genfond tests
       - name: Check formatting
-        run: poetry run black genfond tests
+        run: poetry run black --check genfond tests
       - name: Check types
         run: poetry run mypy genfond tests
