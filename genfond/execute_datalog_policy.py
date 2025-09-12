@@ -204,6 +204,8 @@ def execute_datalog_policy(
                         )
                         action = None
                         break
+                if not action:
+                    continue
                 for cond, pval in rule.param_aug_conds.items():
                     param_index, val = pval
                     param = action.parameters[param_index]
