@@ -99,7 +99,7 @@ def apply_action_effects(state: State, action: Action) -> set[State]:
     return apply_effects(frozenset({state}), action.effect)
 
 
-def apply_effects(states: Collection[State], effects: Collection[Optional[Formula]]) -> set[State]:
+def apply_effects(states: Collection[State], effects: Formula | Collection[Formula]) -> set[State]:
     new_states: set[State] = set()
     for state in states:
         new_states |= apply_effects_to_state(state, effects)
@@ -108,7 +108,7 @@ def apply_effects(states: Collection[State], effects: Collection[Optional[Formul
     return new_states
 
 
-def apply_effects_to_state(state: State, effects: Collection[Optional[Formula]]) -> set[State]:
+def apply_effects_to_state(state: State, effects: Formula | Collection[Formula]) -> set[State]:
     assert all(isinstance(f, (Predicate, FunctionEqualTo)) for f in state)
     if isinstance(effects, Collection):
         states = {state}
