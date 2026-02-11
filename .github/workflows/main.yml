@@ -23,7 +23,7 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - name: Install system packages
-        run: sudo apt-get install libgraphviz-dev libboost-dev pybind11-dev
+        run: sudo apt-get update && sudo apt-get install libgraphviz-dev libboost-dev pybind11-dev
       - name: Install poetry
         run: pip install poetry
       - name: Install packages with poetry
