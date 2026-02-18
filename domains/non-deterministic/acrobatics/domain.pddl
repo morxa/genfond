@@ -17,10 +17,8 @@
 	(:action walk-on-beam
 		:parameters ( ?from - location ?to - location )
 		:precondition (and (not (broken-leg)) (up) (position ?from) (next-fwd ?from ?to))
-		:effect (oneof
-				(and (position ?to) (not (position ?from)))
-				(and (not (up)) (position ?to) (not (position ?from)))
-			)
+		:effect (and (position ?to) (not (position ?from)))
+				;(and (not (up)) (position ?to) (not (position ?from)))
 	)
 
 	(:action walk-left
