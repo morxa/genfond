@@ -7,7 +7,7 @@ license = "MIT"
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "^3.12"
+python = "^3.14"
 pddl = "^0.4.4"
 dlplan = { git = "https://github.com/morxa/dlplan", rev = 'cfd45615a8f87a4d92b4ba4a61a8dc9d873cf1c9' }
 clingo = "*"
