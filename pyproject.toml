@@ -11,13 +11,15 @@ python = "^3.14"
 pddl = "^0.4.4"
 dlplan = { git = "https://github.com/morxa/dlplan", rev = 'cfd45615a8f87a4d92b4ba4a61a8dc9d873cf1c9' }
 clingo = "*"
-pygraphviz = { git = "https://github.com/pygraphviz/pygraphviz", rev = "2fa8af802aeecfe92e53425c2503587de9593d9e"}
+pygraphviz = { git = "https://github.com/pygraphviz/pygraphviz", rev = "2fa8af802aeecfe92e53425c2503587de9593d9e" }
 tqdm = "*"
 setuptools = "*"
 filelock = "*"
 frozendict = "*"
 pyyaml = "*"
 mergedeep = "^1.3.4"
+up-symk = "^1.3.1"
+unified-planning = "^1.3.0"
 
 
 [tool.poetry.group.dev.dependencies]
@@ -33,7 +35,13 @@ black = "^25.1.0"
 [tool.mypy]
 
 [[tool.mypy.overrides]]
-module = ["pddl.*", "dlplan.*", "mergedeep.*"]
+module = [
+    "pddl.*",
+    "dlplan.*",
+    "mergedeep.*",
+    "unified_planning",
+    "unified_planning.*",
+]
 ignore_missing_imports = true
 
 [tool.isort]
@@ -46,3 +54,6 @@ line-length = 119
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.pytest]
+filterwarnings = ['ignore:pkg_resources is deprecated as an API']
