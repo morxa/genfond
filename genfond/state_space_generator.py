@@ -5,7 +5,7 @@ from enum import Enum
 from typing import Optional
 
 from pddl.action import Action
-from pddl.core import Domain, Problem
+from pddl.core import Domain, Plan, Problem
 from pddl.logic import Predicate
 from pddl.logic.base import And, Formula, Not, OneOf
 from pddl.logic.effects import When
@@ -40,7 +40,6 @@ from .ground import ground
 log = logging.getLogger("genfond.state_space_generator")
 
 type State = frozenset[Formula]
-
 
 
 def eval_function_term(term: FunctionExpression, state: State) -> float | int:
@@ -171,9 +170,10 @@ class Alive(Enum):
 
 class StateSpaceNode:
 
-    def __init__(self, state: State, id: int):
+    def __init__(self, state: State, id: int, plan_suffixes: list[Plan] = []):
         self.state = state
         self.id = id
+        self.plan_suffixes = plan_suffixes
         self.children: dict[Action, set[StateSpaceNode]] = dict()
         self.alive = Alive.UNKNOWN
         self.goal = False
@@ -193,6 +193,10 @@ def get_num_vals(state: State) -> set[int]:
     return {f.operands[1].value for f in state if isinstance(f, FunctionEqualTo)}
 
 
+def plan_string(plan):
+    return " ".join([action_string(action) for action in plan])
+
+
 class StateSpaceGraph:
 
     def __init__(
@@ -202,10 +206,13 @@ class StateSpaceGraph:
         prune: bool = True,
         selected_states: Optional[set[State]] = None,
         max_num_val: Optional[int] = None,
+        plans: list[Plan] = [],
     ):
         self.domain = domain
         self.problem = problem
         self.next_id = 0
+        # Instantiate the actions in the plan, as they are not Action objects yet.
+        plans = [plan.instantiate(domain) for plan in plans]
         queue = []
         self.nodes: dict[State, StateSpaceNode] = dict()
         if selected_states:
@@ -216,7 +223,7 @@ class StateSpaceGraph:
                 queue.append(node)
         else:
             root_state = problem.init
-            self.root = StateSpaceNode(root_state, 0)
+            self.root = StateSpaceNode(root_state, 0, plans)
             self.next_id = 1
             self.nodes = {root_state: self.root}
             queue = [self.root]
@@ -231,11 +238,22 @@ class StateSpaceGraph:
                 if not check_formula(state, action.precondition):
                     continue
                 for succ in apply_action_effects(node.state, action):
-                    new_node = self.add_node(succ, state, action)
+                    plan_suffixes = [plan[1:] for plan in node.plan_suffixes if plan and plan[0] == action]
+                    matches_plan = bool(plan_suffixes)
+                    log.debug(
+                        "%s -- %s -> %s has %d matching plans, plan_suffixes: %s",
+                        state_string(state),
+                        action_string(action),
+                        state_string(succ),
+                        len(plan_suffixes),
+                        [plan_string(plan) for plan in plan_suffixes],
+                    )
+                    new_node = self.add_node(succ, state, action, plan_suffixes)
                     if new_node:
                         if max_num_val and any(v > max_num_val for v in get_num_vals(succ)):
                             new_node.alive = Alive.NUM_PRUNED
-                        elif selected_states and succ not in selected_states:
+                        elif selected_states and succ not in selected_states or plans and not matches_plan:
+                            log.debug(f"Pruning {state_string(succ)}")
                             new_node.alive = Alive.PRUNED
                         else:
                             queue.append(new_node)
@@ -245,13 +263,16 @@ class StateSpaceGraph:
         assert all(node.alive != Alive.UNKNOWN for node in self.nodes.values())
         # assert self.root.alive == Alive.ALIVE, 'Problem {} is unsolvable'.format(problem.name)
 
-    def add_node(self, state: State, parent_state: State, action: Action) -> Optional[StateSpaceNode]:
+    def add_node(
+        self, state: State, parent_state: State, action: Action, plan_suffixes: list[list[Action]]
+    ) -> Optional[StateSpaceNode]:
         parent = self.nodes[parent_state]
         try:
             node = self.nodes[state]
+            node.plan_suffixes.extend(plan_suffixes)
             new = False
         except KeyError:
-            node = StateSpaceNode(state, self.next_id)
+            node = StateSpaceNode(state, self.next_id, plan_suffixes)
             self.next_id += 1
             self.nodes[state] = node
             new = True
@@ -278,8 +299,8 @@ class StateSpaceGraph:
         log.info(f"Pruned {len(pruned_dead)} dead " f"out of {before} states in {self.problem.name}")
 
 
-def generate_state_space(domain: Domain, problem: Problem, selected_states: Optional[set[State]] = None):
-    return StateSpaceGraph(domain, problem, selected_states=selected_states)
+def generate_state_space(domain: Domain, problem: Problem, *args, **kwargs):
+    return StateSpaceGraph(domain, problem, *args, **kwargs)
 
 
 def can_reach(node: StateSpaceNode, goal_nodes: Collection[StateSpaceNode]) -> bool:
@@ -355,4 +376,5 @@ def random_walk(domain: Domain, problem: Problem, initial_states: set[State], ma
             action = random.choice(applicable_actions)
             succ = random.choice(list(apply_action_effects(state, action)))
             states.append(succ)
+            state = succ
             state = succ

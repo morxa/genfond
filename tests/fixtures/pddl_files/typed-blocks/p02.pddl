@@ -1,0 +1,7 @@
+(define (problem p1)
+    (:domain typed-blocks)
+    (:requirements :strips :typing)
+    (:objects a b c d - block table - obj)
+    (:init (on a table) (on b table) (on c table) (on d table) (handempty))
+    (:goal (and (on b a) (on c b) (on d c)))
+)
