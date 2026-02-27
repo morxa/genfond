@@ -46,6 +46,11 @@ def typed_blocks():
 
 
 @pytest.fixture
+def typed_blocks_medsize():
+    return load("typed-blocks", "p02.pddl")
+
+
+@pytest.fixture
 def blocks_clear():
     return load("blocks4ops-clear", "p002-1.pddl")
 

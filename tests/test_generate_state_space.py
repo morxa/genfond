@@ -1,7 +1,8 @@
-from pddl.logic import Predicate, constants
+from pddl.logic import Constant, Predicate, constants
+from pddl.parser.plan import PlanParser
 
 from genfond.ground import ground
-from genfond.state_space_generator import apply_action_effects, generate_state_space
+from genfond.state_space_generator import Alive, apply_action_effects, generate_state_space
 
 from .helpers import get_action
 
@@ -63,3 +64,47 @@ def test_generate_state_space_fond_blocks(fond_blocks):
     cbt_puton = get_action(ground_actions, "puton", (c, b, table))
     assert set(cta_puton_node.children.keys()) == {abt_puton, act_puton, bat_puton, bct_puton, cat_puton, cbt_puton}
     assert cta_puton_node.children[cat_puton] == {state_space.root, cta_puton_node}
+
+
+def test_plan_input_simple_blocks(typed_blocks_medsize):
+    domain, problem = typed_blocks_medsize
+    ground_actions = ground(domain, problem)
+    a, b, c, d = constants("a b c d", "block")
+    table = Constant("table", "obj")
+    plan = PlanParser()("(pick a table) (put a b)")
+    state_space = generate_state_space(domain, problem, plans=[plan])
+    assert state_space.root.state == problem.init
+    assert len(state_space.root.children) == 4
+    pickatable = get_action(ground_actions, "pick", (a, table))
+    pickbtable = get_action(ground_actions, "pick", (b, table))
+    pickctable = get_action(ground_actions, "pick", (c, table))
+    pickdtable = get_action(ground_actions, "pick", (d, table))
+    assert set(state_space.root.children.keys()) == {pickatable, pickbtable, pickctable, pickdtable}
+    s_picka = next(iter(state_space.root.children[pickatable]))
+    s_pickb = next(iter(state_space.root.children[pickbtable]))
+    s_pickc = next(iter(state_space.root.children[pickctable]))
+    s_pickd = next(iter(state_space.root.children[pickdtable]))
+    assert s_picka.alive == Alive.ALIVE
+    assert s_pickb.alive == Alive.PRUNED
+    assert s_pickc.alive == Alive.PRUNED
+    assert s_pickd.alive == Alive.PRUNED
+    assert len(s_pickb.children) == 0
+    assert len(s_pickc.children) == 0
+    assert len(s_pickd.children) == 0
+    assert len(s_picka.children) == 5
+    putatable = get_action(ground_actions, "put", (a, table))
+    putaa = get_action(ground_actions, "put", (a, a))
+    putab = get_action(ground_actions, "put", (a, b))
+    putac = get_action(ground_actions, "put", (a, c))
+    putad = get_action(ground_actions, "put", (a, d))
+    assert set(s_picka.children.keys()) == {putatable, putaa, putab, putac, putad}
+    s_putatable = next(iter(s_picka.children[putatable]))
+    s_putaa = next(iter(s_picka.children[putaa]))
+    s_putab = next(iter(s_picka.children[putab]))
+    s_putac = next(iter(s_picka.children[putac]))
+    s_putad = next(iter(s_picka.children[putad]))
+    assert s_putatable.alive == Alive.ALIVE  # initial state
+    assert s_putaa.alive == Alive.PRUNED
+    assert s_putab.alive == Alive.ALIVE
+    assert s_putac.alive == Alive.PRUNED
+    assert s_putad.alive == Alive.PRUNED
