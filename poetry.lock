@@ -1020,7 +1020,7 @@ name = "pddl"
 version = "0.4.5"
 description = "PDDL parser"
 optional = false
-python-versions = ">=3.9"
+python-versions = ">=3.10"
 groups = ["main"]
 files = []
 develop = false
@@ -1031,9 +1031,9 @@ lark = ">=1.1.5,<1.2.0"
 
 [package.source]
 type = "git"
-url = "https://github.com/AI-planning/pddl"
-reference = "main"
-resolved_reference = "b1fc7a809d19350c46ba469fe88597f748dd258b"
+url = "https://github.com/morxa/pddl"
+reference = "db2afd781431aa72b6ba78534b72ac7e132168ef"
+resolved_reference = "db2afd781431aa72b6ba78534b72ac7e132168ef"
 
 [[package]]
 name = "pexpect"
@@ -1660,4 +1660,4 @@ files = [
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.14"
-content-hash = "c6acf6472f0ea8397b38467aea5d29679ea73d002435b68134756032c0b49dce"
+content-hash = "4c14e785507cb5bb34c60ce16b2fd280854977644ee50dcae9c127e80b265109"
