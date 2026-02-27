@@ -114,4 +114,5 @@ def test_ground_typed_predicates(typed_blocks):
         Predicate("on", b, table),
         Predicate("holding", a),
         Predicate("holding", b),
+        Predicate("handempty"),
     }
