@@ -33,23 +33,14 @@ from pddl.logic.functions import (
 )
 from pddl.logic.predicates import EqualTo
 
+from genfond.ground import action_string, state_string
+
 from .ground import ground
 
 log = logging.getLogger("genfond.state_space_generator")
 
 type State = frozenset[Formula]
 
-
-def state_to_string(state: State) -> str:
-    state_str = []
-    for p in state:
-        if isinstance(p, Predicate):
-            state_str.append(f'{p.name}({",".join([str(p) for p in p.terms])})')
-        elif isinstance(p, FunctionEqualTo):
-            state_str.append(f"{p.operands[0]}={p.operands[1]}")
-        else:
-            raise ValueError("Unknown state type: {}".format(type(p)))
-    return ",".join(sorted(state_str))
 
 
 def eval_function_term(term: FunctionExpression, state: State) -> float | int:
@@ -65,7 +56,7 @@ def eval_function_term(term: FunctionExpression, state: State) -> float | int:
         # DZC: This is probably be fine. If a numeric fluent does not appear in the initial
         # state of the PDDL, its value is assumed to be 0.
         return 0
-        # raise ValueError(f'Function {term} not found in state {state_to_string(state)}')
+        # raise ValueError(f'Function {term} not found in state {state_string(state)}')
     elif isinstance(term, Plus):
         return eval_function_term(term.operands[0], state) + eval_function_term(term.operands[1], state)
     else:
@@ -189,7 +180,7 @@ class StateSpaceNode:
         self.parents: set[StateSpaceNode] = set()
 
     def __str__(self) -> str:
-        return state_to_string(self.state)
+        return state_string(self.state)
 
     def __repr__(self) -> str:
         return repr(self.state)

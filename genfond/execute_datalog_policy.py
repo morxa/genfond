@@ -10,6 +10,7 @@ from pddl.core import Domain, Problem
 
 from genfond.config_handler import ConfigHandler
 from genfond.datalog_policy import DatalogPolicy
+from genfond.ground import action_string, state_string
 
 from .execute_rule_policy import (
     CycleError,
@@ -35,14 +36,6 @@ log = logging.getLogger("genfond.execution.datalog")
 
 def get_next_state(states: Collection[State]) -> State:
     return random.choice([state for state in states])
-
-
-def action_string(action: Action) -> str:
-    return f'{action.name}({",".join([str(p) for p in action.parameters])})'
-
-
-def state_string(state) -> str:
-    return ",".join([str(p) for p in state])
 
 
 def eval_concepts(

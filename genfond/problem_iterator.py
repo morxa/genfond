@@ -5,7 +5,8 @@ from typing import Collection, Mapping, Optional
 
 from pddl.core import Problem
 
-from .state_space_generator import State, state_to_string
+from .ground import state_string
+from .state_space_generator import State
 
 log = logging.getLogger("genfond.problem_iterator")
 
@@ -63,7 +64,7 @@ class ProblemIterator:
     def set_new_state(self, problem_name: str, state: State) -> None:
         if not self.config["use_selected_states"]:
             return
-        log.debug(f"Adding new state for {problem_name}: {state_to_string(state)}")
+        log.debug(f"Adding new state for {problem_name}: {state_string(state)}")
         self.solved[problem_name] = False
         self.new_states.setdefault(problem_name, set()).add(state)
 
@@ -74,7 +75,7 @@ class ProblemIterator:
         for problem, states in self.new_states.items():
             if not (any(problem == p.name for p in self.active_problems)):
                 continue
-            log.debug(f'Adding new states for {problem}: {", ".join([state_to_string(state) for state in states])}')
+            log.debug(f'Adding new states for {problem}: {", ".join([state_string(state) for state in states])}')
             self.selected_states.setdefault(problem, set()).update(states)
         after = sum(len(states) for states in self.selected_states.values())
         log.debug(f"Updated selected states: {after - before} new states")

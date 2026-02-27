@@ -7,6 +7,8 @@ from dlplan.core import InstanceInfo, SyntacticElementFactory
 from pddl.action import Action
 from pddl.core import Domain, Problem
 
+from genfond.ground import action_string, state_string
+
 from .feature_generator import (
     Feature,
     _get_state_from_goal,
@@ -133,14 +135,6 @@ def get_next_state(states: Collection[State], _) -> State:
     return random.choice([state for state in states])
 
 
-def action_string(action: Action) -> str:
-    return f'{action.name}({",".join([str(p) for p in action.parameters])})'
-
-
-def state_string(state: State) -> str:
-    return ",".join([str(p) for p in state])
-
-
 def execute_rule_policy(domain: Domain, problem: Problem, policy: Policy, config: dict) -> list[str]:
     log.info(
         f"Executing policy:\n{policy}\nin {domain.name} for problem {problem.name} with features {policy.features}"
@@ -254,4 +248,5 @@ def execute_rule_policy(domain: Domain, problem: Problem, policy: Policy, config
         log.error("Goal not reached!")
         raise RuntimeError("Goal not reached!")
     log.info("Goal reached!")
+    return actions_taken
     return actions_taken

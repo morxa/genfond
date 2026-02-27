@@ -7,7 +7,9 @@ from pddl.custom_types import name as name_type
 from pddl.logic import Predicate, Variable
 from pddl.logic.base import And, BinaryOp, Formula, UnaryOp
 from pddl.logic.effects import When
-from pddl.logic.functions import BinaryFunction, NumericFunction, NumericValue
+from pddl.logic.functions import BinaryFunction
+from pddl.logic.functions import EqualTo as FunctionEqualTo
+from pddl.logic.functions import NumericFunction, NumericValue
 from pddl.logic.predicates import EqualTo
 from pddl.logic.terms import Constant, Term
 
@@ -106,3 +108,19 @@ def ground_domain_predicates(domain: Domain, problem: Problem) -> set[Predicate]
             ground_predicate = _ground_formula(predicate, mapping)
             ground_predicates.add(ground_predicate)
     return ground_predicates
+
+
+def action_string(action: Action) -> str:
+    return f'{action.name}({",".join([str(p) for p in action.parameters])})'
+
+
+def state_string(state) -> str:
+    state_str = []
+    for p in state:
+        if isinstance(p, Predicate):
+            state_str.append(f'{p.name}({",".join([str(p) for p in p.terms])})')
+        elif isinstance(p, FunctionEqualTo):
+            state_str.append(f"{p.operands[0]}={p.operands[1]}")
+        else:
+            raise ValueError("Unknown state type: {}".format(type(p)))
+    return ",".join(sorted(state_str))
