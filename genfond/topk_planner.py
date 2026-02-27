@@ -8,10 +8,10 @@ def action_to_lisp_str(action):
     return f"({action.action.name} {' '.join([str(p) for p in action.actual_parameters])})"
 
 
-def compute_plans(domain_file, problem_file, number_of_plans=3):
+def compute_plans(domain_str: str, problem_str: str, number_of_plans: int = 3):
     reader = PDDLReader()
     plan_parser = PlanParser()
-    problem = reader.parse_problem(domain_file, problem_file)
+    problem = reader.parse_problem_string(domain_str, problem_str)
     plans = []
     with AnytimePlanner(name="symk", params={"number_of_plans": number_of_plans}) as planner:
         for i, result in enumerate(planner.get_solutions(problem)):
