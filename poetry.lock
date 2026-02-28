@@ -1017,23 +1017,19 @@ tests = ["pytest (>=9)", "typing-extensions (>=4.15)"]
 
 [[package]]
 name = "pddl"
-version = "0.4.5"
+version = "0.4.6"
 description = "PDDL parser"
 optional = false
 python-versions = ">=3.10"
 groups = ["main"]
-files = []
-develop = false
+files = [
+    {file = "pddl-0.4.6-py2.py3-none-any.whl", hash = "sha256:bf5c57c988cbbeb58ddff8d22cb8ea056f5c8b3af736f8d60e77798c838af5c5"},
+    {file = "pddl-0.4.6.tar.gz", hash = "sha256:61503e008614533f43b829e99e6f9c2a0100f4f0adcf9e0bd2973688830c0912"},
+]
 
 [package.dependencies]
 click = ">=8.1.3,<9.0.0"
 lark = ">=1.1.5,<1.2.0"
-
-[package.source]
-type = "git"
-url = "https://github.com/morxa/pddl"
-reference = "db2afd781431aa72b6ba78534b72ac7e132168ef"
-resolved_reference = "db2afd781431aa72b6ba78534b72ac7e132168ef"
 
 [[package]]
 name = "pexpect"
@@ -1660,4 +1656,4 @@ files = [
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.14"
-content-hash = "4c14e785507cb5bb34c60ce16b2fd280854977644ee50dcae9c127e80b265109"
+content-hash = "da984f576b2a7b451c319e9faacba0f16d21d722ab6036dbbd811086fa5768ba"
