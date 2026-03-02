@@ -85,9 +85,9 @@ def test_plan_input_simple_blocks(typed_blocks_medsize):
     s_pickc = next(iter(state_space.root.children[pickctable]))
     s_pickd = next(iter(state_space.root.children[pickdtable]))
     assert s_picka.alive == Alive.ALIVE
-    assert s_pickb.alive == Alive.PRUNED
-    assert s_pickc.alive == Alive.PRUNED
-    assert s_pickd.alive == Alive.PRUNED
+    assert s_pickb.alive == Alive.DEAD
+    assert s_pickc.alive == Alive.DEAD
+    assert s_pickd.alive == Alive.DEAD
     assert len(s_pickb.children) == 0
     assert len(s_pickc.children) == 0
     assert len(s_pickd.children) == 0
@@ -104,7 +104,7 @@ def test_plan_input_simple_blocks(typed_blocks_medsize):
     s_putac = next(iter(s_picka.children[putac]))
     s_putad = next(iter(s_picka.children[putad]))
     assert s_putatable.alive == Alive.ALIVE  # initial state
-    assert s_putaa.alive == Alive.PRUNED
+    assert s_putaa.alive == Alive.DEAD
     assert s_putab.alive == Alive.ALIVE
-    assert s_putac.alive == Alive.PRUNED
-    assert s_putad.alive == Alive.PRUNED
+    assert s_putac.alive == Alive.DEAD
+    assert s_putad.alive == Alive.DEAD

@@ -251,15 +251,21 @@ class StateSpaceGraph:
                         len(plan_suffixes),
                         [plan_string(plan) for plan in plan_suffixes],
                     )
-                    new_node = self.add_node(succ, state, action, plan_suffixes)
-                    if new_node:
+                    new, new_node = self.add_node(succ, state, action, plan_suffixes)
+                    if new:
                         if max_num_val and any(v > max_num_val for v in get_num_vals(succ)):
                             new_node.alive = Alive.NUM_PRUNED
-                        elif selected_states and succ not in selected_states or plans and not matches_plan:
+                        elif selected_states and succ not in selected_states:
                             log.debug(f"Pruning {state_string(succ)}")
                             new_node.alive = Alive.PRUNED
+                        elif plans and not matches_plan:
+                            new_node.alive = Alive.DEAD
                         else:
                             queue.append(new_node)
+                    if plans and matches_plan and new_node.alive == Alive.DEAD:
+                        log.debug(f"Reviving {state_string(succ)} because it matches a plan")
+                        queue.append(new_node)
+                        new_node.alive = Alive.UNKNOWN
         compute_alive(self.nodes.values())
         if prune:
             self.prune_nodes()
@@ -268,7 +274,7 @@ class StateSpaceGraph:
 
     def add_node(
         self, state: State, parent_state: State, action: Action, plan_suffixes: list[list[Action]]
-    ) -> Optional[StateSpaceNode]:
+    ) -> tuple[bool, StateSpaceNode]:
         parent = self.nodes[parent_state]
         try:
             node = self.nodes[state]
@@ -282,10 +288,7 @@ class StateSpaceGraph:
 
         parent.add_child(action, node)
         node.parents.add(parent)
-        if new:
-            return node
-        else:
-            return None
+        return new, node
 
     def prune_nodes(self) -> None:
         pruned_dead = []
