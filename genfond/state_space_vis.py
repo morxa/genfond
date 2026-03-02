@@ -1,6 +1,6 @@
 import pygraphviz
 
-from .state_space_generator import Alive, StateSpaceNode
+from .state_space_generator import Alive, StateSpaceGraph, StateSpaceNode
 
 
 def _state_to_str(node):
@@ -23,7 +23,7 @@ def _node_color(node: StateSpaceNode) -> str:
         return "gray"
 
 
-def draw_state_graph(state_graph, filename):
+def draw_state_graph(state_graph: StateSpaceGraph, filename):
     graph = pygraphviz.AGraph(directed=True)
     graph.node_attr["shape"] = "box"
     for node in state_graph.nodes.values():
