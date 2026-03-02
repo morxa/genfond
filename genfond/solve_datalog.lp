@@ -7,6 +7,7 @@
 #defined amap/4.
 #defined amap/5.
 #defined amap/6.
+#defined pruned/2.
 
 { c_selected(C) } :- concept(C).
 c_selected(name).
