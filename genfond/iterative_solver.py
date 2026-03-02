@@ -149,15 +149,17 @@ def solve_iteratively(
                 continue
         for problem in solver_problems:
             if config["use_example_plans"] and problem.name not in example_plans:
-                log.info("Computing %d example plans for %s ...", len(problem.objects), problem.name)
-                example_plans[problem.name] = compute_plans(
-                    str(domain), str(problem), number_of_plans=len(problem.objects)
-                )
+                num_plans = len(problem.objects)
+                # num_plans = config["number_of_plans"]
+                log.info("Computing %d example plans for %s ...", num_plans, problem.name)
+                example_plans[problem.name] = compute_plans(str(domain), str(problem), number_of_plans=num_plans)
+
                 log.info(
                     "Plan lengths for %s: %s",
                     problem.name,
                     [len(plan.actions) for plan in example_plans[problem.name]],
                 )
+                log.debug("Plans:\n%s", "\n\n".join([str(plan) for plan in example_plans[problem.name]]))
         try:
             log.info(f"Starting solver for {pnames(solver_problems)} with max complexity {i}")
             solve_wall_time_start = time.perf_counter()
@@ -252,7 +254,7 @@ def solve_iteratively(
                         plan_lengths = [len(plan) for plan in plans]
                         log.info(
                             f"Policy already solves {problem.name}"
-                            f" (plan length {statistics.mean(plan_lengths)} ± {statistics.stdev(plan_lengths)})"
+                            f" (plan length {statistics.mean(plan_lengths)} ± {statistics.stdev(plan_lengths):.2f})"
                         )
                         problem_iterator.set_solved(problem)
                     else:
