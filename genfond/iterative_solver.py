@@ -6,7 +6,7 @@ import time
 from typing import Any, Collection, Mapping, Optional
 
 import tqdm
-from pddl.core import Domain, Problem
+from pddl.core import Domain, Plan, Problem
 from tqdm.contrib.logging import logging_redirect_tqdm
 
 from .datalog_policy import DatalogPolicy
@@ -19,6 +19,7 @@ from .problem_iterator import MAX_COST, ProblemIterator, Result
 from .rule_policy import Policy
 from .solver import Solver
 from .state_space_generator import State, check_formula, random_walk
+from .topk_planner import compute_plans
 
 log = logging.getLogger("genfond.iterative_solver")
 
@@ -33,6 +34,7 @@ def solve(
     all_generators: bool = True,
     enforce_highest_complexity: bool = False,
     selected_states: Optional[dict[str, set[State]]] = None,
+    plans: Optional[dict[str, Collection[Plan]]] = None,
 ) -> Optional[tuple[DatalogPolicy | Policy, dict[str, Any]]]:
     stats: dict[str, Any] = dict()
     log.debug("Generating feature pool ...")
@@ -43,6 +45,7 @@ def solve(
         max_complexity=complexity,
         all_generators=all_generators,
         selected_states=selected_states,
+        plans=plans,
     )
     stats["featurePoolSize"] = len(feature_pool.features)
     log.debug("Generating ASP instance ...")
@@ -118,6 +121,7 @@ def solve_iteratively(
     best_solve_wall_time = 0.0
     stats: dict[str, str | int | float] = dict()
     problem_iterator = ProblemIterator(problems, config)
+    example_plans: dict[str, Collection[Plan]] = dict()
     for (
         solver_problems,
         i,
@@ -143,6 +147,17 @@ def solve_iteratively(
                     continue
             if unsolvable_instance:
                 continue
+        for problem in solver_problems:
+            if config["use_example_plans"] and problem.name not in example_plans:
+                log.info("Computing %d example plans for %s ...", len(problem.objects), problem.name)
+                example_plans[problem.name] = compute_plans(
+                    str(domain), str(problem), number_of_plans=len(problem.objects)
+                )
+                log.info(
+                    "Plan lengths for %s: %s",
+                    problem.name,
+                    [len(plan.actions) for plan in example_plans[problem.name]],
+                )
         try:
             log.info(f"Starting solver for {pnames(solver_problems)} with max complexity {i}")
             solve_wall_time_start = time.perf_counter()
@@ -157,6 +172,7 @@ def solve_iteratively(
                 max_prune_cost=max_prune_cost,
                 enforce_highest_complexity=True,
                 selected_states=selected_states,
+                plans=example_plans,
             )
         except (RuntimeError, MemoryError) as e:
             if "Id out of range" in str(e):

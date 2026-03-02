@@ -10,6 +10,8 @@ DEFAULT_CONFIG = {
     "abort_on_cycle": False,
     "stop_after_first_solution": True,
     "policy_steps": 10000,
+    "use_example_plans": True,
+    "number_of_plans": 3,
     "num_threads": None,
     "max_memory": None,
     "dump_failed_policies": False,

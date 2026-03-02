@@ -6,7 +6,7 @@ import dlplan.core
 import dlplan.generator as dlplan_gen
 from dlplan.core import Atom, Boolean, InstanceInfo, Numerical, SyntacticElementFactory, VocabularyInfo
 from pddl.action import Action
-from pddl.core import Domain, Formula, Problem
+from pddl.core import Domain, Formula, Plan, Problem
 from pddl.logic import Predicate
 
 from .ground import ground, ground_domain_predicates
@@ -118,6 +118,7 @@ class FeaturePool:
         max_complexity: Optional[int] = None,
         all_generators: bool = False,
         selected_states: Optional[dict[str, set[State]]] = None,
+        plans: Optional[dict[str, Collection[Plan]]] = None,
     ):
         assert len({problem.name for problem in problems}) == len(problems), "Problem names must be unique."
         self.domain = domain
@@ -149,6 +150,7 @@ class FeaturePool:
                 domain,
                 problem,
                 selected_states=(selected_states.get(problem.name, None) if selected_states else None),
+                plans=(plans.get(problem.name, None) if plans else None),
             )
             self.instances[problem.name] = instance
             self.mappings[problem.name] = mapping
