@@ -1,8 +1,12 @@
 from typing import Collection
+
+import unified_planning
 from pddl.parser.plan import Plan, PlanParser
 from unified_planning.engines import PlanGenerationResultStatus
 from unified_planning.io import PDDLReader
 from unified_planning.shortcuts import AnytimePlanner
+
+unified_planning.shortcuts.get_environment().credits_stream = None
 
 
 def action_to_lisp_str(action):
