@@ -36,6 +36,7 @@ DEFAULT_CONFIG = {
     "use_random_walks": False,
     "use_unrestricted_features": True,
     "unselect_problems": False,
+    "visualize_state_graphs": True,
     "feature_generator": {
         "generate_til_c_role": False,
     },

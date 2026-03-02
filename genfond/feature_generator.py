@@ -9,6 +9,8 @@ from pddl.action import Action
 from pddl.core import Domain, Formula, Plan, Problem
 from pddl.logic import Predicate
 
+from genfond.state_space_vis import draw_state_graph
+
 from .ground import ground, ground_domain_predicates
 from .state_space_generator import (
     Alive,
@@ -152,6 +154,8 @@ class FeaturePool:
                 selected_states=(selected_states.get(problem.name, None) if selected_states else None),
                 plans=(plans.get(problem.name, None) if plans else None),
             )
+            if config["visualize_state_graphs"]:
+                draw_state_graph(self.state_graphs[problem.name], f"{problem.name}_state_graph.png")
             self.instances[problem.name] = instance
             self.mappings[problem.name] = mapping
             for node in self.state_graphs[problem.name].nodes.values():

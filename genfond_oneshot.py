@@ -11,7 +11,7 @@ from genfond.config_handler import ConfigHandler
 from genfond.feature_generator import FeaturePool
 from genfond.generate_policy import PolicyType, generate_policy
 from genfond.solver import Solver
-from genfond.state_space_generator import Alive
+from genfond.state_space_vis import _state_to_str, draw_state_graph
 
 log = logging.getLogger(__name__)
 
@@ -21,29 +21,6 @@ def _get_repr(reprs, equiv, i, s):
         if i1 == i and s1 == s and (i2, s2) in reprs:
             return i2, s2
     raise ValueError(f"No repr found for {i}, {s}")
-
-
-def _state_to_str(node):
-    state = node.state
-    s = f"{node.id}: "
-    return s + ",".join([f'{p.name}({",".join([str(p) for p in p.terms])})' for p in sorted(state)])
-
-
-def draw_state_graph(state_graph, filename):
-    graph = pygraphviz.AGraph(directed=True)
-    graph.node_attr["shape"] = "box"
-    for node in state_graph.nodes.values():
-        graph.add_node(
-            node.id,
-            label=_state_to_str(node),
-            color="green" if node.alive == Alive.ALIVE else "red",
-        )
-        for action, children in node.children.items():
-            action_str = f'{action.name}({",".join([str(p) for p in action.parameters])})'
-            for child in children:
-                graph.add_edge(node.id, child.id, label=action_str)
-    graph.layout(prog="dot")
-    graph.draw(filename)
 
 
 def draw_graph(feature_gen, solution, filename):
@@ -194,4 +171,5 @@ def main():
 
 
 if __name__ == "__main__":
+    main()
     main()
