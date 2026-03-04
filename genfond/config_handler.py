@@ -10,7 +10,7 @@ DEFAULT_CONFIG = {
     "abort_on_cycle": False,
     "stop_after_first_solution": True,
     "policy_steps": 10000,
-    "use_example_plans": True,
+    "use_example_plans": False,
     "number_of_plans": 3,
     "num_threads": None,
     "max_memory": None,
@@ -82,6 +82,7 @@ DEFAULT_TYPE_CONFIGS = {
     "datalog": {
         "policy_type": "DATALOG",
         "policy_iterations": 10,
+        "use_example_plans": True,
         "abort_on_cycle": True,
         "solve_prog": "solve_datalog.lp",
         "include_numerical_features": False,
