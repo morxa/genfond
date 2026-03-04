@@ -3,7 +3,7 @@ import pickle
 import statistics
 import sys
 import time
-from typing import Any, Collection, Mapping, Optional
+from typing import Any, Collection, Mapping, MutableMapping, Optional
 
 import tqdm
 from pddl.core import Domain, Plan, Problem
@@ -33,8 +33,8 @@ def solve(
     max_prune_cost: int,
     all_generators: bool = True,
     enforce_highest_complexity: bool = False,
-    selected_states: Optional[dict[str, set[State]]] = None,
-    plans: Optional[dict[str, Collection[Plan]]] = None,
+    selected_states: Optional[dict[str, Collection[State]]] = None,
+    plans: Optional[MutableMapping[str, Collection[Plan]]] = None,
 ) -> Optional[tuple[DatalogPolicy | Policy, dict[str, Any]]]:
     stats: dict[str, Any] = dict()
     log.debug("Generating feature pool ...")
@@ -116,155 +116,75 @@ def solve_iteratively(
 ) -> tuple[Optional[Policy | DatalogPolicy], list[Problem], dict[str, str | int | float]]:
     policy = None
     problems.sort(key=lambda p: len(p.objects))
-    total_solve_cpu_time = 0.0
-    best_solve_cpu_time = 0.0
-    best_solve_wall_time = 0.0
     stats: dict[str, str | int | float] = dict()
     problem_iterator = ProblemIterator(problems, config)
     example_plans: dict[str, Collection[Plan]] = dict()
-    for (
-        solver_problems,
-        i,
-        all_generators,
-        max_cost,
-        max_prune_cost,
-        selected_states,
-    ) in problem_iterator:
-        if config["use_random_walks"]:
-            unsolvable_instance = False
-            for problem in solver_problems:
-                if not any(check_formula(state, problem.goal) for state in selected_states.get(problem.name, [])):
-                    unsolvable_instance = True
-                    log.info(f"No goal state in selected states for {problem.name}, starting random walk")
-                    walk_states = random_walk(
-                        domain,
-                        problem,
-                        selected_states.get(problem.name, {problem.init}),
-                    )
-                    log.info(f"Random walk found {len(walk_states)} states")
-                    for state in walk_states:
-                        problem_iterator.set_new_state(problem.name, state)
-                    continue
-            if unsolvable_instance:
-                continue
-        for problem in solver_problems:
-            if config["use_example_plans"] and problem.name not in example_plans:
-                num_plans = len(problem.objects)
-                # num_plans = config["number_of_plans"]
-                log.info("Computing %d example plans for %s ...", num_plans, problem.name)
-                example_plans[problem.name] = compute_plans(str(domain), str(problem), number_of_plans=num_plans)
-
-                log.info(
-                    "Plan lengths for %s: %s",
-                    problem.name,
-                    [len(plan.actions) for plan in example_plans[problem.name]],
+    if config["use_random_walks"]:
+        for problem in problems:
+            if not any(
+                check_formula(state, problem.goal) for state in problem_iterator.selected_states.get(problem.name, [])
+            ):
+                log.info(f"No goal state in selected states for {problem.name}, starting random walk")
+                walk_states = random_walk(
+                    domain,
+                    problem,
+                    problem_iterator.selected_states.get(problem.name, {problem.init}),
                 )
-                log.debug("Plans:\n%s", "\n\n".join([str(plan) for plan in example_plans[problem.name]]))
-        try:
-            log.info(f"Starting solver for {pnames(solver_problems)} with max complexity {i}")
-            solve_wall_time_start = time.perf_counter()
-            solve_cpu_time_start = time.process_time()
-            solution = solve(
-                domain,
-                solver_problems,
-                config=config,
-                complexity=i,
-                all_generators=all_generators,
-                max_cost=max_cost,
-                max_prune_cost=max_prune_cost,
-                enforce_highest_complexity=True,
-                selected_states=selected_states,
-                plans=example_plans,
-            )
-        except (RuntimeError, MemoryError) as e:
-            if "Id out of range" in str(e):
-                stats["failureReason"] = "id"
-                problem_iterator.set_last_result(Result.OUT_OF_RESOURCES)
-
-            elif isinstance(e, MemoryError):
-                stats["failureReason"] = "memory"
-                problem_iterator.set_last_result(Result.OUT_OF_RESOURCES)
-
-            else:
-                problem_iterator.set_last_result(Result.UNKNOWN)
-                stats["failureReason"] = str(e)
-            log.warning(f"Error during policy generation for {pnames(solver_problems)} with max complexity {i}: {e}")
+                log.info(f"Random walk found {len(walk_states)} states")
+                for state in walk_states:
+                    problem_iterator.set_new_state(problem.name, state)
+                continue
+    for iter_kwargs in problem_iterator:
+        result, policy = solve_step(
+            **iter_kwargs, domain=domain, stats=stats, config=config, example_plans=example_plans
+        )
+        problem_iterator.set_last_result(result, cost=policy.cost if policy else None)
+        if result != Result.SUCCESS:
             continue
-        finally:
-            solve_wall_time = time.perf_counter() - solve_wall_time_start
-            solve_cpu_time = time.process_time() - solve_cpu_time_start
-            log.info("Solver wall time: {:.2f}s".format(solve_wall_time))
-            log.info("Solver CPU time: {:.2f}s".format(solve_cpu_time))
-            total_solve_cpu_time += solve_cpu_time
-        if solution:
-            new_policy, solve_stats = solution
-            log.info(
-                f"Found policy with cost {new_policy.cost} for" f" {pnames(solver_problems)} with max complexity {i}"
-            )
-            log.info(f"New policy: {new_policy}")
-            # log.info('Verifying new policy on solved problems')
-            # try:
-            #     for problem in tqdm.tqdm(solver_problems, disable=None):
-            #         execute_policy(domain, problem, new_policy, config)
-            # except RuntimeError:
-            #     log.info('New policy does not solve {}'.format(problem.name))
-            #     if config['dump_failed_policies']:
-            #         h = hash(new_policy)
-            #         with open(f'failed_policy-{h}.pickle', 'wb') as f:
-            #             pickle.dump(new_policy, f)
-            #         log.critical(f'Dumped failed policy to failed_policy-{h}.pickle')
-            #     if not config['continue_after_error']:
-            #         sys.exit(1)
-            #     continue
-            policy = new_policy
-            stats = solve_stats
-            stats["maxFeatureComplexity"] = i
-            best_solve_wall_time = solve_wall_time
-            best_solve_cpu_time = solve_cpu_time
-            problem_iterator.set_last_result(Result.SUCCESS, cost=new_policy.cost)
-            policy = new_policy
-            log.info(f'Testing policy on unsolved problems {config["policy_iterations"]} times ...')
-            with logging_redirect_tqdm():
-                for problem in tqdm.tqdm(problems, disable=None):
-                    log.info(f'Testing policy on {problem.name} {config["policy_iterations"]} times ...')
-                    plans = []
-                    solved = True
-                    for _ in range(config["policy_iterations"]):
-                        try:
-                            plan = execute_policy(domain, problem, policy, config)
-                            plans.append(plan)
-                        except NoActionError as e:
-                            log.info(f"Policy does not solve {problem.name}, no action in reachable state")
-                            solved = False
-                            problem_iterator.set_solved(problem, False)
-                            for state in e.trace.keys():
-                                problem_iterator.set_new_state(problem.name, state)
-                            problem_iterator.set_new_state(problem.name, e.state)
-                        except CycleError as e:
-                            log.info(f"Policy does not solve {problem.name}, found cycle of length {len(e.cycle)}")
-                            solved = False
-                            problem_iterator.set_solved(problem, False)
-                            for state in e.trace.keys():
-                                problem_iterator.set_new_state(problem.name, state)
-                        except RuntimeError:
-                            log.info("Policy does not solve {}".format(problem.name))
-                            solved = False
-                            problem_iterator.set_solved(problem, False)
-                    if solved:
-                        plan_lengths = [len(plan) for plan in plans]
-                        log.info(
-                            f"Policy already solves {problem.name}"
-                            f" (plan length {statistics.mean(plan_lengths)} ± {statistics.stdev(plan_lengths):.2f})"
-                        )
-                        problem_iterator.set_solved(problem)
-                    else:
-                        break
-            if solved and config["stop_after_first_solution"]:
-                log.info(f"Policy solves all problems")
-                break
+        log.info(f'Testing policy on unsolved problems {config["policy_iterations"]} times ...')
+        with logging_redirect_tqdm():
+            for problem in tqdm.tqdm(problems, disable=None):
+                log.info(f'Testing policy on {problem.name} {config["policy_iterations"]} times ...')
+                plans = []
+                solved = True
+                for _ in range(config["policy_iterations"]):
+                    try:
+                        plan = execute_policy(domain, problem, policy, config)
+                        plans.append(plan)
+                    except NoActionError as e:
+                        log.info(f"Policy does not solve {problem.name}, no action in reachable state")
+                        solved = False
+                        problem_iterator.set_solved(problem, False)
+                        for state in e.trace.keys():
+                            problem_iterator.set_new_state(problem.name, state)
+                        problem_iterator.set_new_state(problem.name, e.state)
+                    except CycleError as e:
+                        log.info(f"Policy does not solve {problem.name}, found cycle of length {len(e.cycle)}")
+                        solved = False
+                        problem_iterator.set_solved(problem, False)
+                        for state in e.trace.keys():
+                            problem_iterator.set_new_state(problem.name, state)
+                    except RuntimeError:
+                        log.info("Policy does not solve {}".format(problem.name))
+                        solved = False
+                        problem_iterator.set_solved(problem, False)
+                if solved:
+                    plan_lengths = [len(plan) for plan in plans]
+                    log.info(
+                        f"Policy already solves {problem.name}"
+                        f" (plan length {statistics.mean(plan_lengths)} ± {statistics.stdev(plan_lengths):.2f})"
+                    )
+                    problem_iterator.set_solved(problem)
+                else:
+                    break
+        if solved and config["stop_after_first_solution"]:
+            log.info(f"Policy solves all problems")
+            break
         else:
             log.error(
-                "No policy found for {} with max complexity {}".format(", ".join([p.name for p in solver_problems]), i)
+                "No policy found for {} with max complexity {}".format(
+                    ", ".join([p.name for p in iter_kwargs["active_problems"]]), iter_kwargs["complexity"]
+                )
             )
             problem_iterator.set_last_result(Result.NO_SOLUTION)
             stats["failureReason"] = "maxcomplexity"
@@ -272,9 +192,94 @@ def solve_iteratively(
         {
             "trainProblems": len(problem_iterator.active_problems),
             "maxTrainProblemSize": (max(len(p.objects) for p in problem_iterator.active_problems) if policy else 0),
-            "bestSolveCpuTime": best_solve_cpu_time,
-            "bestSolveWallTime": best_solve_wall_time,
-            "totalSolveCpuTime": total_solve_cpu_time,
         }
     )
     return policy, [p for p in problems if problem_iterator.solved[p.name]], stats
+
+
+def solve_step(
+    domain: Domain,
+    config: Mapping,
+    stats: MutableMapping[str, Any],
+    example_plans: MutableMapping[str, Collection[Plan]],
+    active_problems: Collection[Problem],
+    complexity: int,
+    all_features: bool,
+    max_cost: int,
+    max_prune_cost: int,
+    selected_states: Optional[dict[str, Collection[Any]]],
+) -> tuple[Result, Optional[Policy | DatalogPolicy]]:
+    for problem in active_problems:
+        if config["use_example_plans"] and problem.name not in example_plans:
+            num_plans = len(problem.objects)
+            # num_plans = config["number_of_plans"]
+            log.info("Computing %d example plans for %s ...", num_plans, problem.name)
+            example_plans[problem.name] = compute_plans(str(domain), str(problem), number_of_plans=num_plans)
+
+            log.info(
+                "Plan lengths for %s: %s",
+                problem.name,
+                [len(plan.actions) for plan in example_plans[problem.name]],
+            )
+            log.debug("Plans:\n%s", "\n\n".join([str(plan) for plan in example_plans[problem.name]]))
+    try:
+        log.info(f"Starting solver for {pnames(active_problems)} with max complexity {complexity}")
+        solve_wall_time_start = time.perf_counter()
+        solve_cpu_time_start = time.process_time()
+        solution = solve(
+            domain,
+            active_problems,
+            config=config,
+            complexity=complexity,
+            all_generators=all_features,
+            max_cost=max_cost,
+            max_prune_cost=max_prune_cost,
+            enforce_highest_complexity=True,
+            selected_states=selected_states,
+            plans=example_plans,
+        )
+    except (RuntimeError, MemoryError) as e:
+        log.warning(
+            f"Error during policy generation for {pnames(active_problems)} with max complexity {complexity}: {e}"
+        )
+        if "Id out of range" in str(e):
+            stats["failureReason"] = "id"
+            return Result.OUT_OF_RESOURCES, None
+        elif isinstance(e, MemoryError):
+            stats["failureReason"] = "memory"
+            return Result.OUT_OF_RESOURCES, None
+        else:
+            stats["failureReason"] = str(e)
+            return Result.UNKNOWN, None
+    finally:
+        stats["lastSolveWallTime"] = time.perf_counter() - solve_wall_time_start
+        stats["lastSolveCpuTime"] = time.process_time() - solve_cpu_time_start
+        log.info("Solver wall time: {:.2f}s".format(stats["lastSolveWallTime"]))
+        log.info("Solver CPU time: {:.2f}s".format(stats["lastSolveCpuTime"]))
+        stats["totalSolveCpuTime"] = stats.get("totalSolveCpuTime", 0) + stats["lastSolveCpuTime"]
+    if solution:
+        policy, solve_stats = solution
+        stats.update(solve_stats)
+        log.info(
+            f"Found policy with cost {policy.cost} for" f" {pnames(active_problems)} with max complexity {complexity}"
+        )
+        log.info(f"New policy: {policy}")
+        # log.info('Verifying new policy on solved problems')
+        # try:
+        #     for problem in tqdm.tqdm(solver_problems, disable=None):
+        #         execute_policy(domain, problem, new_policy, config)
+        # except RuntimeError:
+        #     log.info('New policy does not solve {}'.format(problem.name))
+        #     if config['dump_failed_policies']:
+        #         h = hash(new_policy)
+        #         with open(f'failed_policy-{h}.pickle', 'wb') as f:
+        #             pickle.dump(new_policy, f)
+        #         log.critical(f'Dumped failed policy to failed_policy-{h}.pickle')
+        #     if not config['continue_after_error']:
+        #         sys.exit(1)
+        #     continue
+        stats["maxFeatureComplexity"] = complexity
+        stats["bestSolveWallTime"] = stats["lastSolveWallTime"]
+        stats["bestSolveCpuTime"] = stats["lastSolveCpuTime"]
+        return Result.SUCCESS, policy
+    return Result.NO_SOLUTION, None

@@ -1,7 +1,7 @@
 import enum
 import logging
 import sys
-from typing import Collection, Mapping, Optional
+from typing import Any, Collection, Mapping, Optional
 
 from pddl.core import Problem
 
@@ -87,7 +87,7 @@ class ProblemIterator:
     def get_unsolved_problems(self) -> list[Problem]:
         return [problem for problem in self.problems if not self.solved[problem.name]]
 
-    def __next__(self) -> tuple[list[Problem], int, bool, int, int, dict[str, set[State]]]:
+    def __next__(self) -> Mapping[str, Any]:
         assert self.last_result != Result.UNKNOWN, "You must set the result of the last problem before calling next"
         log.debug(
             f"last result: {self.last_result.name}, all features: {self.all_features}, complexity: {self.complexity}"
@@ -145,11 +145,11 @@ class ProblemIterator:
             f' max_cost={self.max_cost if self.max_cost < MAX_COST else "MAX_COST"},'
             f" |selected_states|={len(self.selected_states)} states"
         )
-        return (
-            self.active_problems,
-            self.complexity,
-            self.all_features,
-            self.max_cost,
-            self.max_prune_cost,
-            self.selected_states,
-        )
+        return {
+            "active_problems": self.active_problems,
+            "complexity": self.complexity,
+            "all_features": self.all_features,
+            "max_cost": self.max_cost,
+            "max_prune_cost": self.max_prune_cost,
+            "selected_states": self.selected_states,
+        }

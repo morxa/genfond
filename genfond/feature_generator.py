@@ -119,8 +119,8 @@ class FeaturePool:
         config: Mapping,
         max_complexity: Optional[int] = None,
         all_generators: bool = False,
-        selected_states: Optional[dict[str, set[State]]] = None,
-        plans: Optional[dict[str, Collection[Plan]]] = None,
+        selected_states: Optional[Mapping[str, Collection[State]]] = None,
+        plans: Optional[Mapping[str, Collection[Plan]]] = None,
     ):
         assert len({problem.name for problem in problems}) == len(problems), "Problem names must be unique."
         self.domain = domain
