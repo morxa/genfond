@@ -16,43 +16,6 @@ from genfond.state_space_vis import _state_to_str, draw_state_graph
 log = logging.getLogger(__name__)
 
 
-def _get_repr(reprs, equiv, i, s):
-    for i1, s1, i2, s2 in equiv:
-        if i1 == i and s1 == s and (i2, s2) in reprs:
-            return i2, s2
-    raise ValueError(f"No repr found for {i}, {s}")
-
-
-def draw_graph(feature_gen, solution, filename):
-    graph = pygraphviz.AGraph(directed=True)
-    graph.node_attr["shape"] = "record"
-    equivnodes = dict()
-    for problem, state_graph in feature_gen.state_graphs.items():
-        instance = feature_gen.problem_name_to_id[problem]
-        for node in state_graph.nodes.values():
-            for i1, s1, i2, s2 in solution["equiv"]:
-                if (i1, s1) in solution["repr"]:
-                    if instance == i2 and node.id == s2:
-                        equivnodes.setdefault((i1, s1), []).append(
-                            (
-                                instance,
-                                _state_to_str(node.state | feature_gen.goal_states[problem]),
-                            )
-                        )
-                        break
-    for equiv, nodes in equivnodes.items():
-        graph.add_node(equiv, label=f'{{{"|".join([str(node) for _, node in nodes])}}}')
-    for i, s1, s2 in solution["good_trans"]:
-        if (i, s1) in solution["repr"] or (i, s2) in solution["repr"]:
-            graph.add_edge(
-                _get_repr(solution["repr"], solution["equiv"], i, s1),
-                _get_repr(solution["repr"], solution["equiv"], i, s2),
-            )
-
-    graph.layout(prog="dot")
-    graph.draw(filename)
-
-
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("domain_file")
@@ -167,9 +130,8 @@ def main():
     if args.output:
         pickle.dump(policy, open(args.output, "wb"))
     if args.draw:
-        draw_graph(feature_pool, solution, args.draw)
+        raise NotImplementedError("Functionality was removed, use --draw-input instead")
 
 
 if __name__ == "__main__":
-    main()
     main()
