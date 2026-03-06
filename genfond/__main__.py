@@ -17,7 +17,6 @@ from genfond.config_handler import DEFAULT_TYPE_CONFIGS, ConfigHandler
 from genfond.execute_policy import execute_policy
 
 from .iterative_solver import pnames, solve_iteratively
-from .problem_iterator import MAX_COST, OneShotProblemIterator
 
 log = logging.getLogger("genfond")
 
@@ -117,11 +116,7 @@ def main():
         "domain": name,
         "constraintType": args.type,
     }
-    if args.one_shot:
-        problem_iterator = OneShotProblemIterator(problems, config)
-    else:
-        problem_iterator = None
-    policy, succs, solve_stats = solve_iteratively(domain, problems, config, problem_iterator)
+    policy, succs, solve_stats = solve_iteratively(domain, problems, config, one_shot=args.one_shot)
     stats.update(solve_stats)
     if args.output:
         with open(args.output, "wb") as f:

@@ -15,7 +15,7 @@ from .execute_policy import execute_policy
 from .feature_generator import FeaturePool
 from .generate_policy import generate_policy
 from .policy import PolicyType
-from .problem_iterator import MAX_COST, ProblemIterator, Result
+from .problem_iterator import MAX_COST, OneShotProblemIterator, ProblemIterator, Result
 from .rule_policy import Policy
 from .solver import Solver
 from .state_space_generator import State, check_formula, random_walk
@@ -112,12 +112,15 @@ def pnames(problems: Collection[Problem]) -> str:
 
 
 def solve_iteratively(
-    domain: Domain, problems: list[Problem], config: Mapping, problem_iterator: Optional[ProblemIterator] = None
+    domain: Domain, problems: list[Problem], config: Mapping, one_shot: bool = False
 ) -> tuple[Optional[Policy | DatalogPolicy], list[Problem], dict[str, str | int | float]]:
     policy = None
     problems.sort(key=lambda p: len(p.objects))
     stats: dict[str, str | int | float] = dict()
-    if problem_iterator is None:
+    problem_iterator: ProblemIterator | OneShotProblemIterator
+    if one_shot:
+        problem_iterator = OneShotProblemIterator(problems, config)
+    else:
         problem_iterator = ProblemIterator(problems, config)
     example_plans: dict[str, Collection[Plan]] = dict()
     if config["use_random_walks"]:
@@ -137,7 +140,12 @@ def solve_iteratively(
                 continue
     for iter_kwargs in problem_iterator:
         result, policy = solve_step(
-            **iter_kwargs, domain=domain, stats=stats, config=config, example_plans=example_plans
+            **iter_kwargs,
+            domain=domain,
+            stats=stats,
+            config=config,
+            example_plans=example_plans,
+            enforce_highest_complexity=not one_shot,
         )
         problem_iterator.set_last_result(result, cost=policy.cost if policy else None)
         if result != Result.SUCCESS:
@@ -205,6 +213,7 @@ def solve_step(
     example_plans: MutableMapping[str, Collection[Plan]],
     active_problems: Collection[Problem],
     complexity: int,
+    enforce_highest_complexity: bool,
     all_features: bool,
     max_cost: int,
     max_prune_cost: int,
@@ -235,7 +244,7 @@ def solve_step(
             all_generators=all_features,
             max_cost=max_cost,
             max_prune_cost=max_prune_cost,
-            enforce_highest_complexity=True,
+            enforce_highest_complexity=enforce_highest_complexity,
             selected_states=selected_states,
             plans=example_plans,
         )
