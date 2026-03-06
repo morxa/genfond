@@ -112,12 +112,13 @@ def pnames(problems: Collection[Problem]) -> str:
 
 
 def solve_iteratively(
-    domain: Domain, problems: list[Problem], config: Mapping
+    domain: Domain, problems: list[Problem], config: Mapping, problem_iterator: Optional[ProblemIterator] = None
 ) -> tuple[Optional[Policy | DatalogPolicy], list[Problem], dict[str, str | int | float]]:
     policy = None
     problems.sort(key=lambda p: len(p.objects))
     stats: dict[str, str | int | float] = dict()
-    problem_iterator = ProblemIterator(problems, config)
+    if problem_iterator is None:
+        problem_iterator = ProblemIterator(problems, config)
     example_plans: dict[str, Collection[Plan]] = dict()
     if config["use_random_walks"]:
         for problem in problems:

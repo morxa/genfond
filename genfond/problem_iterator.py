@@ -153,3 +153,30 @@ class ProblemIterator:
             "max_prune_cost": self.max_prune_cost,
             "selected_states": self.selected_states,
         }
+
+
+class OneShotProblemIterator(ProblemIterator):
+
+    def __iter__(self, *args, **kwargs) -> "OneShotProblemIterator":
+        super().__iter__(*args, **kwargs)
+        self.active_problems = list(self.problems)
+        self.called = False
+        self.all_features = self.config["use_unrestricted_features"]
+        self.complexity = self.config["max_complexity"]
+        if self.config["use_selected_states"]:
+            self.new_states = {problem.name: {problem.init} for problem in self.active_problems}
+            self._update_selected_states()
+        return self
+
+    def __next__(self) -> Mapping[str, Any]:
+        if self.called:
+            raise StopIteration
+        self.called = True
+        return {
+            "active_problems": self.active_problems,
+            "complexity": self.complexity,
+            "all_features": self.all_features,
+            "max_cost": self.max_cost,
+            "max_prune_cost": self.max_prune_cost,
+            "selected_states": self.selected_states,
+        }

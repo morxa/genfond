@@ -16,8 +16,8 @@ from tqdm.contrib.logging import logging_redirect_tqdm
 from genfond.config_handler import DEFAULT_TYPE_CONFIGS, ConfigHandler
 from genfond.execute_policy import execute_policy
 
-from .iterative_solver import pnames, solve, solve_iteratively
-from .problem_iterator import MAX_COST
+from .iterative_solver import pnames, solve_iteratively
+from .problem_iterator import MAX_COST, OneShotProblemIterator
 
 log = logging.getLogger("genfond")
 
@@ -118,32 +118,10 @@ def main():
         "constraintType": args.type,
     }
     if args.one_shot:
-        solve_cpu_time_start = time.process_time()
-        solution = solve(
-            domain,
-            problems,
-            config=config,
-            complexity=config["max_complexity"],
-            all_generators=False,
-            max_cost=MAX_COST,
-            max_prune_cost=MAX_COST,
-        )
-        solve_cpu_time = time.process_time() - solve_cpu_time_start
-        log.info(f"CPU time: {solve_cpu_time:.2f}s")
-        mem_usage = (resource.getrusage(resource.RUSAGE_SELF).ru_maxrss) / 1024
-        log.info("Memory usage: {:.2f}MB".format(mem_usage))
-        if solution:
-            policy, solve_stats = solution
-            stats.update(solve_stats)
-        else:
-            log.error("No policy found")
-            sys.exit(1)
-        log.info(f"Policy:\n{policy}")
-        if args.output:
-            with open(args.output, "wb") as f:
-                pickle.dump(policy, f)
-        sys.exit(0)
-    policy, succs, solve_stats = solve_iteratively(domain, problems, config)
+        problem_iterator = OneShotProblemIterator(problems, config)
+    else:
+        problem_iterator = None
+    policy, succs, solve_stats = solve_iteratively(domain, problems, config, problem_iterator)
     stats.update(solve_stats)
     if args.output:
         with open(args.output, "wb") as f:
