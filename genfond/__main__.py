@@ -157,8 +157,9 @@ def main():
     )
 
     log.info("Total wall time: {:.2f}s".format(total_wall_time))
-    log.info("Best policy solver CPU time: {:.2f}s".format(stats["bestSolveCpuTime"]))
-    log.info("Best policy solver wall time: {:.2f}s".format(stats["bestSolveWallTime"]))
+    if policy:
+        log.info("Best policy solver CPU time: {:.2f}s".format(stats["bestSolveCpuTime"]))
+        log.info("Best policy solver wall time: {:.2f}s".format(stats["bestSolveWallTime"]))
     log.info("Total solver CPU time: {:.2f}s".format(stats["totalSolveCpuTime"]))
     log.info("Total CPU time: {:.2f}s".format(total_cpu_time))
     log.info("Total memory usage: {:.2f}MB".format(mem_usage))

@@ -1,10 +1,12 @@
 from .config_handler import ConfigHandler
 from .datalog_policy import DatalogPolicy
 from .execute_datalog_policy import execute_datalog_policy
-from .execute_rule_policy import execute_rule_policy
+from .execute_rule_policy import PolicyExecutionError, execute_rule_policy
 
 
 def execute_policy(domain, problem, policy, config=None):
+    if not policy:
+        raise PolicyExecutionError("Empty policy")
     if isinstance(policy, DatalogPolicy):
         if not config:
             config = ConfigHandler(type="datalog")
