@@ -124,8 +124,9 @@ def solve_iteratively(
     example_plans: dict[str, Iterator[Plan]] = dict()
     if config["use_example_plans"]:
         for problem in problems:
-            num_plans = 2 * len(problem.objects)
-            example_plans[problem.name] = compute_plans(str(domain), str(problem), number_of_plans=num_plans)
+            example_plans[problem.name] = compute_plans(
+                str(domain), str(problem), number_of_plans=config["max_number_of_plans"]
+            )
     problem_iterator: ProblemIterator | OneShotProblemIterator
     if one_shot:
         problem_iterator = OneShotProblemIterator(problems, config, plans=example_plans)

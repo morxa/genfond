@@ -158,7 +158,12 @@ class ProblemIterator:
             else:
                 self.active_problems.append(next_problem)
             if self.plans:
-                self.active_plans[next_problem.name] = [next(self.plans[next_problem.name])]
+                self.active_plans[next_problem.name] = []
+                while len(self.active_plans[next_problem.name]) < self.config["min_number_of_plans"]:
+                    next_plan = next(self.plans[next_problem.name], None)
+                    if next_plan is None:
+                        break
+                    self.active_plans[next_problem.name].append(next_plan)
             if self.config["use_selected_states"] and not next_problem.name in self.new_states:
                 self.new_states[next_problem.name] = {next_problem.init}
             assert not self.config["use_selected_states"] or self._update_selected_states() > 0
