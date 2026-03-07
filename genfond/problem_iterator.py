@@ -110,7 +110,7 @@ class ProblemIterator:
             self.all_features = True
         elif (
             self.active_problems
-            and self.all_features
+            and (self.all_features or not self.config["use_unrestricted_features"])
             and self.complexity < self.config["max_complexity"]
             and self.max_cost > self.complexity
         ):
