@@ -1,12 +1,13 @@
 import enum
 import logging
 import sys
-from typing import Any, Collection, Mapping, Optional
+from typing import Any, Collection, Iterator, Mapping, MutableMapping, Optional
 
-from pddl.core import Problem
+from pddl.core import Plan, Problem
 
 from .ground import state_string
 from .state_space_generator import State
+from .topk_planner import compute_plans
 
 log = logging.getLogger("genfond.problem_iterator")
 
@@ -22,12 +23,14 @@ class Result(enum.Enum):
 
 class ProblemIterator:
 
-    def __init__(self, problems: list[Problem], config: Mapping):
+    def __init__(self, problems: list[Problem], config: Mapping, plans: Optional[Mapping[str, Iterator[Plan]]] = None):
         self.problems = problems
         self.config = config
+        self.plans = plans
 
     def __iter__(self) -> "ProblemIterator":
         self.active_problems: list[Problem] = []
+        self.active_plans: MutableMapping[str, Plan] = dict()
         self.selected_states: dict[str, set[State]] = dict()
         self.new_states: dict[str, set[State]] = dict()
         self.all_features = False
@@ -113,6 +116,27 @@ class ProblemIterator:
         ):
             self.all_features = False
             self.complexity += 1
+        elif (
+            not self.active_problems_solved
+            and self.plans
+            and (
+                # Find the next plan for an active problem that is not yet solved
+                found := next(
+                    (
+                        (k.name, v)
+                        for k in self.active_problems
+                        if not self.solved[k.name] and (v := next(self.plans[k.name], None)) is not None
+                    ),
+                    None,
+                )
+            )
+        ):
+            problem, plan = found
+            self.active_plans.get(problem, []).append(plan)
+            self.all_features = False
+            self.max_cost = MAX_COST
+            self.max_prune_cost = MAX_COST
+            self.complexity = self.succ_complexity
         elif self.active_problems_solved and any(not solved for solved in self.solved.values()):
             self.all_features = False
             self.max_cost = MAX_COST
@@ -133,6 +157,8 @@ class ProblemIterator:
                 self.active_problems = [next_problem]
             else:
                 self.active_problems.append(next_problem)
+            if self.plans:
+                self.active_plans[next_problem.name] = [next(self.plans[next_problem.name])]
             if self.config["use_selected_states"] and not next_problem.name in self.new_states:
                 self.new_states[next_problem.name] = {next_problem.init}
             assert not self.config["use_selected_states"] or self._update_selected_states() > 0
@@ -152,6 +178,7 @@ class ProblemIterator:
             "max_cost": self.max_cost,
             "max_prune_cost": self.max_prune_cost,
             "selected_states": self.selected_states,
+            "example_plans": self.active_plans,
         }
 
 

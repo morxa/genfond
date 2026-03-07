@@ -3,6 +3,7 @@ import pickle
 import statistics
 import sys
 import time
+from collections.abc import Iterator
 from typing import Any, Collection, Mapping, MutableMapping, Optional
 
 import tqdm
@@ -65,8 +66,9 @@ def solve(
         )
         return None
     log.info(
-        "Solving {} with {} features, {} concepts, {} roles ({}); up to {}complexity {},{}{} and {} = {} states".format(
+        "Solving {}{} with {} features, {} concepts, {} roles ({}); up to {}complexity {},{}{} and {} = {} states".format(
             ", ".join([p.name for p in problems]),
+            ((" (" + ", ".join([str(len(plans[problem.name])) for problem in problems]) + ")") if plans else ""),
             len(feature_pool.features),
             len(feature_pool.concepts),
             len(feature_pool.roles),
@@ -91,6 +93,8 @@ def solve(
         log.info("No solution found")
         return None
     solution = solver.solution
+    if "viol" in solution:
+        log.warning(f"Found violations: {solution['viol']}")
     stats |= {
         "clingoAtoms": solver.statistics["problem"]["lp"]["atoms"],
         "clingoRules": solver.statistics["problem"]["lp"]["rules"],
@@ -117,12 +121,16 @@ def solve_iteratively(
     policy = None
     problems.sort(key=lambda p: len(p.objects))
     stats: dict[str, str | int | float] = dict()
+    example_plans: dict[str, Iterator[Plan]] = dict()
+    if config["use_example_plans"]:
+        for problem in problems:
+            num_plans = 2 * len(problem.objects)
+            example_plans[problem.name] = compute_plans(str(domain), str(problem), number_of_plans=num_plans)
     problem_iterator: ProblemIterator | OneShotProblemIterator
     if one_shot:
-        problem_iterator = OneShotProblemIterator(problems, config)
+        problem_iterator = OneShotProblemIterator(problems, config, plans=example_plans)
     else:
-        problem_iterator = ProblemIterator(problems, config)
-    example_plans: dict[str, Collection[Plan]] = dict()
+        problem_iterator = ProblemIterator(problems, config, plans=example_plans)
     if config["use_random_walks"]:
         for problem in problems:
             if not any(
@@ -144,7 +152,6 @@ def solve_iteratively(
             domain=domain,
             stats=stats,
             config=config,
-            example_plans=example_plans,
             enforce_highest_complexity=not one_shot,
         )
         problem_iterator.set_last_result(result, cost=policy.cost if policy else None)
@@ -180,8 +187,10 @@ def solve_iteratively(
                 if solved:
                     plan_lengths = [len(plan) for plan in plans]
                     log.info(
-                        f"Policy already solves {problem.name}"
-                        f" (plan length {statistics.mean(plan_lengths)} ± {statistics.stdev(plan_lengths):.2f})"
+                        f"Policy already solves {problem.name} (plan length "
+                        f"{statistics.mean(plan_lengths)} ± {statistics.stdev(plan_lengths):.2f})"
+                        if len(plan_lengths) > 1
+                        else f"{plan_lengths[0]}"
                     )
                     problem_iterator.set_solved(problem)
                 else:
@@ -219,19 +228,6 @@ def solve_step(
     max_prune_cost: int,
     selected_states: Optional[dict[str, Collection[Any]]],
 ) -> tuple[Result, Optional[Policy | DatalogPolicy]]:
-    for problem in active_problems:
-        if config["use_example_plans"] and problem.name not in example_plans:
-            num_plans = len(problem.objects)
-            # num_plans = config["number_of_plans"]
-            log.info("Computing %d example plans for %s ...", num_plans, problem.name)
-            example_plans[problem.name] = compute_plans(str(domain), str(problem), number_of_plans=num_plans)
-
-            log.info(
-                "Plan lengths for %s: %s",
-                problem.name,
-                [len(plan.actions) for plan in example_plans[problem.name]],
-            )
-            log.debug("Plans:\n%s", "\n\n".join([str(plan) for plan in example_plans[problem.name]]))
     try:
         log.info(f"Starting solver for {pnames(active_problems)} with max complexity {complexity}")
         solve_wall_time_start = time.perf_counter()
