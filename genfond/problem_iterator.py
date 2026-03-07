@@ -26,7 +26,7 @@ class ProblemIterator:
     def __init__(self, problems: list[Problem], config: Mapping, plans: Optional[Mapping[str, Iterator[Plan]]] = None):
         self.problems = problems
         self.config = config
-        self.plans = plans
+        self.plan_iterators = plans
 
     def __iter__(self) -> "ProblemIterator":
         self.active_problems: list[Problem] = []
@@ -103,29 +103,16 @@ class ProblemIterator:
             self.complexity = self.succ_complexity
         elif (
             self.active_problems
+            and not self.active_problems_solved
             and self.last_result != Result.OUT_OF_RESOURCES
-            and not self.all_features
-            and self.config["use_unrestricted_features"]
-        ):
-            self.all_features = True
-        elif (
-            self.active_problems
-            and (self.all_features or not self.config["use_unrestricted_features"])
-            and self.complexity < self.config["max_complexity"]
-            and self.max_cost > self.complexity
-        ):
-            self.all_features = False
-            self.complexity += 1
-        elif (
-            not self.active_problems_solved
-            and self.plans
+            and self.plan_iterators
             and (
                 # Find the next plan for an active problem that is not yet solved
                 found := next(
                     (
                         (k.name, v)
                         for k in self.active_problems
-                        if not self.solved[k.name] and (v := next(self.plans[k.name], None)) is not None
+                        if not self.solved[k.name] and (v := next(self.plan_iterators[k.name], None)) is not None
                     ),
                     None,
                 )
@@ -137,6 +124,22 @@ class ProblemIterator:
             self.max_cost = MAX_COST
             self.max_prune_cost = MAX_COST
             self.complexity = self.succ_complexity
+        elif (
+            self.active_problems
+            and self.last_result != Result.OUT_OF_RESOURCES
+            and not self.all_features
+            and self.config["use_unrestricted_features"]
+        ):
+            self.all_features = True
+        elif (
+            self.active_problems
+            and self.last_result != Result.OUT_OF_RESOURCES
+            and (self.all_features or not self.config["use_unrestricted_features"])
+            and self.complexity < self.config["max_complexity"]
+            and self.max_cost > self.complexity
+        ):
+            self.all_features = False
+            self.complexity += 1
         elif self.active_problems_solved and any(not solved for solved in self.solved.values()):
             self.all_features = False
             self.max_cost = MAX_COST
@@ -157,10 +160,10 @@ class ProblemIterator:
                 self.active_problems = [next_problem]
             else:
                 self.active_problems.append(next_problem)
-            if self.plans:
+            if self.plan_iterators:
                 self.active_plans[next_problem.name] = []
                 while len(self.active_plans[next_problem.name]) < self.config["min_number_of_plans"]:
-                    next_plan = next(self.plans[next_problem.name], None)
+                    next_plan = next(self.plan_iterators[next_problem.name], None)
                     if next_plan is None:
                         break
                     self.active_plans[next_problem.name].append(next_plan)
