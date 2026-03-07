@@ -34,7 +34,6 @@ DEFAULT_CONFIG = {
     "prune_concepts": True,
     "prune_features": True,
     "use_selected_states": False,
-    "use_random_walks": False,
     "use_unrestricted_features": True,
     "unselect_problems": False,
     "visualize_state_graphs": True,

@@ -39,7 +39,6 @@ class ProblemIterator:
         self.succ_complexity = self.complexity
         self.active_problems_solved = True
         self.max_cost = MAX_COST
-        self.max_prune_cost = MAX_COST
         self.solved = {problem.name: False for problem in self.problems}
         return self
 
@@ -48,12 +47,7 @@ class ProblemIterator:
         if result == Result.SUCCESS:
             assert cost
             self.active_problems_solved = True
-            if len(cost) > 1:
-                self.max_cost = cost[-1] - 1
-                self.max_prune_cost = cost[0]
-            else:
-                self.max_cost = cost[-1] - 1
-                self.max_prune_cost = 0
+            self.max_cost = cost[-1] - 1
             self.succ_complexity = self.complexity
             # self.solved = {
             #     problem.name: True if problem in self.active_problems else False
@@ -63,26 +57,6 @@ class ProblemIterator:
             for problem in self.problems:
                 if problem.name in self.selected_states and problem not in self.active_problems:
                     del self.selected_states[problem.name]
-
-    def set_new_state(self, problem_name: str, state: State) -> None:
-        if not self.config["use_selected_states"]:
-            return
-        log.debug(f"Adding new state for {problem_name}: {state_string(state)}")
-        self.solved[problem_name] = False
-        self.new_states.setdefault(problem_name, set()).add(state)
-
-    def _update_selected_states(self) -> int:
-        log.debug(f'active problems: {", ".join([p.name for p in self.active_problems])}')
-        log.debug(f'new states: {", ".join([f"{k}: {len(v)}" for k, v in self.new_states.items()])}')
-        before = sum(len(states) for states in self.selected_states.values())
-        for problem, states in self.new_states.items():
-            if not (any(problem == p.name for p in self.active_problems)):
-                continue
-            log.debug(f'Adding new states for {problem}: {", ".join([state_string(state) for state in states])}')
-            self.selected_states.setdefault(problem, set()).update(states)
-        after = sum(len(states) for states in self.selected_states.values())
-        log.debug(f"Updated selected states: {after - before} new states")
-        return after - before
 
     def set_solved(self, problem: Problem, solved: bool = True):
         self.solved[problem.name] = solved
@@ -95,13 +69,7 @@ class ProblemIterator:
         log.debug(
             f"last result: {self.last_result.name}, all features: {self.all_features}, complexity: {self.complexity}"
         )
-        if self._update_selected_states() > 0:
-            self.all_features = False
-            self.max_cost = MAX_COST
-            self.max_prune_cost = MAX_COST
-            self.active_problems_solved = False
-            self.complexity = self.succ_complexity
-        elif (
+        if (
             self.active_problems
             and not self.active_problems_solved
             and self.last_result != Result.OUT_OF_RESOURCES
@@ -122,7 +90,6 @@ class ProblemIterator:
             self.active_plans.get(problem, []).append(plan)
             self.all_features = False
             self.max_cost = MAX_COST
-            self.max_prune_cost = MAX_COST
             self.complexity = self.succ_complexity
         elif (
             self.active_problems
@@ -143,7 +110,6 @@ class ProblemIterator:
         elif self.active_problems_solved and any(not solved for solved in self.solved.values()):
             self.all_features = False
             self.max_cost = MAX_COST
-            self.max_prune_cost = MAX_COST
             self.active_problems_solved = False
             self.complexity = self.succ_complexity
             next_problem = next(
@@ -167,9 +133,6 @@ class ProblemIterator:
                     if next_plan is None:
                         break
                     self.active_plans[next_problem.name].append(next_plan)
-            if self.config["use_selected_states"] and not next_problem.name in self.new_states:
-                self.new_states[next_problem.name] = {next_problem.init}
-            assert not self.config["use_selected_states"] or self._update_selected_states() > 0
         else:
             raise StopIteration
         log.debug(
@@ -184,8 +147,6 @@ class ProblemIterator:
             "complexity": self.complexity,
             "all_features": self.all_features,
             "max_cost": self.max_cost,
-            "max_prune_cost": self.max_prune_cost,
-            "selected_states": self.selected_states,
             "example_plans": self.active_plans,
         }
 
@@ -200,7 +161,6 @@ class OneShotProblemIterator(ProblemIterator):
         self.complexity = self.config["max_complexity"]
         if self.config["use_selected_states"]:
             self.new_states = {problem.name: {problem.init} for problem in self.active_problems}
-            self._update_selected_states()
         return self
 
     def __next__(self) -> Mapping[str, Any]:
@@ -212,6 +172,5 @@ class OneShotProblemIterator(ProblemIterator):
             "complexity": self.complexity,
             "all_features": self.all_features,
             "max_cost": self.max_cost,
-            "max_prune_cost": self.max_prune_cost,
             "selected_states": self.selected_states,
         }

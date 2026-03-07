@@ -19,7 +19,7 @@ from .policy import PolicyType
 from .problem_iterator import MAX_COST, OneShotProblemIterator, ProblemIterator, Result
 from .rule_policy import Policy
 from .solver import Solver
-from .state_space_generator import State, check_formula, random_walk
+from .state_space_generator import State, check_formula
 from .topk_planner import compute_plans
 
 log = logging.getLogger("genfond.iterative_solver")
@@ -31,10 +31,8 @@ def solve(
     config: Mapping,
     complexity: int,
     max_cost: int,
-    max_prune_cost: int,
     all_generators: bool = True,
     enforce_highest_complexity: bool = False,
-    selected_states: Optional[dict[str, Collection[State]]] = None,
     plans: Optional[MutableMapping[str, Collection[Plan]]] = None,
 ) -> Optional[tuple[DatalogPolicy | Policy, dict[str, Any]]]:
     stats: dict[str, Any] = dict()
@@ -45,7 +43,6 @@ def solve(
         config=config,
         max_complexity=complexity,
         all_generators=all_generators,
-        selected_states=selected_states,
         plans=plans,
     )
     stats["featurePoolSize"] = len(feature_pool.features)
@@ -66,7 +63,7 @@ def solve(
         )
         return None
     log.info(
-        "Solving {}{} with {} features, {} concepts, {} roles ({}); up to {}complexity {},{}{} and {} = {} states".format(
+        "Solving {}{} with {} features, {} concepts, {} roles ({}); up to {}complexity {},{} and {} = {} states".format(
             ", ".join([p.name for p in problems]),
             ((" (" + ", ".join([str(len(plans[problem.name])) for problem in problems]) + ")") if plans else ""),
             len(feature_pool.features),
@@ -76,7 +73,6 @@ def solve(
             "enforced " if enforce_highest_complexity else "",
             complexity,
             f" max cost {max_cost}," if max_cost < MAX_COST else "",
-            f" max prune cost {max_prune_cost}," if max_prune_cost < MAX_COST else "",
             " + ".join([str(s) for s in state_counts]),
             sum(state_counts),
         )
@@ -85,7 +81,6 @@ def solve(
         asp_instance,
         config["num_threads"],
         max_cost=max_cost,
-        max_prune_cost=max_prune_cost,
         min_feature_complexity=complexity if enforce_highest_complexity else None,
         solve_prog=config["solve_prog"],
     )
@@ -132,21 +127,6 @@ def solve_iteratively(
         problem_iterator = OneShotProblemIterator(problems, config, plans=example_plans)
     else:
         problem_iterator = ProblemIterator(problems, config, plans=example_plans)
-    if config["use_random_walks"]:
-        for problem in problems:
-            if not any(
-                check_formula(state, problem.goal) for state in problem_iterator.selected_states.get(problem.name, [])
-            ):
-                log.info(f"No goal state in selected states for {problem.name}, starting random walk")
-                walk_states = random_walk(
-                    domain,
-                    problem,
-                    problem_iterator.selected_states.get(problem.name, {problem.init}),
-                )
-                log.info(f"Random walk found {len(walk_states)} states")
-                for state in walk_states:
-                    problem_iterator.set_new_state(problem.name, state)
-                continue
     for iter_kwargs in problem_iterator:
         result, policy = solve_step(
             **iter_kwargs,
@@ -172,15 +152,10 @@ def solve_iteratively(
                         log.info(f"Policy does not solve {problem.name}, no action in reachable state")
                         solved = False
                         problem_iterator.set_solved(problem, False)
-                        for state in e.trace.keys():
-                            problem_iterator.set_new_state(problem.name, state)
-                        problem_iterator.set_new_state(problem.name, e.state)
                     except CycleError as e:
                         log.info(f"Policy does not solve {problem.name}, found cycle of length {len(e.cycle)}")
                         solved = False
                         problem_iterator.set_solved(problem, False)
-                        for state in e.trace.keys():
-                            problem_iterator.set_new_state(problem.name, state)
                     except RuntimeError:
                         log.info("Policy does not solve {}".format(problem.name))
                         solved = False
@@ -226,8 +201,6 @@ def solve_step(
     enforce_highest_complexity: bool,
     all_features: bool,
     max_cost: int,
-    max_prune_cost: int,
-    selected_states: Optional[dict[str, Collection[Any]]],
 ) -> tuple[Result, Optional[Policy | DatalogPolicy]]:
     try:
         log.info(f"Starting solver for {pnames(active_problems)} with max complexity {complexity}")
@@ -240,9 +213,7 @@ def solve_step(
             complexity=complexity,
             all_generators=all_features,
             max_cost=max_cost,
-            max_prune_cost=max_prune_cost,
             enforce_highest_complexity=enforce_highest_complexity,
-            selected_states=selected_states,
             plans=example_plans,
         )
     except (RuntimeError, MemoryError) as e:
