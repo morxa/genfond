@@ -390,6 +390,54 @@ class FeaturePool:
         log.debug(", ".join(uninformative_features))
         return uninformative_features
 
+    def is_concept_static(self, concept_str: str) -> bool:
+        extensions = set()
+        for problem, state_graph in self.state_graphs.items():
+            for node in state_graph.nodes.values():
+                if node.goal and not self.config["include_goal_states"]:
+                    continue
+                if node.alive != Alive.ALIVE and not self.config["include_dead_states"]:
+                    continue
+                extensions.add(
+                    frozenset(self.evaluate_concept_from_problem(concept_str, self.problems[problem], node.state))
+                )
+                if len(extensions) > 1:
+                    return True
+        return False
+
+    def compute_static_concepts(self) -> set[str]:
+        static_concepts = set()
+        for concept_str in self.concepts.keys():
+            if self.is_concept_static(concept_str):
+                static_concepts.add(concept_str)
+        log.info(f"Found {len(static_concepts)} static concept(s)")
+        log.debug(", ".join(static_concepts))
+        return static_concepts
+
+    def is_role_static(self, role_str: str) -> bool:
+        extensions = set()
+        for problem, state_graph in self.state_graphs.items():
+            for node in state_graph.nodes.values():
+                if node.goal and not self.config["include_goal_states"]:
+                    continue
+                if node.alive != Alive.ALIVE and not self.config["include_dead_states"]:
+                    continue
+                extensions.add(
+                    frozenset(self.evaluate_role_from_problem(role_str, self.problems[problem], node.state))
+                )
+                if len(extensions) > 1:
+                    return True
+        return False
+
+    def compute_static_roles(self) -> set[str]:
+        static_roles = set()
+        for role_str in self.roles.keys():
+            if self.is_role_static(role_str):
+                static_roles.add(role_str)
+        log.info(f"Found {len(static_roles)} static role(s)")
+        log.debug(", ".join(static_roles))
+        return static_roles
+
     def node_to_clingo(self, problem: Problem, node: StateSpaceNode, stats: dict) -> str:
         problem_id = self.problem_name_to_id[problem.name]
         clingo_program = ""
@@ -460,6 +508,12 @@ class FeaturePool:
                     self.evaluate_concept_from_problem(f'"{concept_str}"', problem, node.state)
                 )
                 continue
+            if concept_str in stats["static_concepts"]:
+                # log.debug(f'Concept {concept_str} is static, skipping')
+                stats["num_skipped_concept_evals"] += len(
+                    self.evaluate_concept_from_problem(f'"{concept_str}"', problem, node.state)
+                )
+                continue
             concept_str = f'"{concept_str}"'
             extension = self.evaluate_concept_from_problem(concept_str, problem, node.state)
             for obj in extension:
@@ -471,6 +525,12 @@ class FeaturePool:
         for role_str, role in self.roles.items():
             if role_str in stats["uninformative_roles"]:
                 # log.debug(f'Role {role_str} does not distinguish any action argument pairs, skipping')
+                stats["num_skipped_role_evals"] += len(
+                    self.evaluate_role_from_problem(f'"{role_str}"', problem, node.state)
+                )
+                continue
+            if role_str in stats["static_roles"]:
+                # log.debug(f'Role {role_str} is static, skipping')
                 stats["num_skipped_role_evals"] += len(
                     self.evaluate_role_from_problem(f'"{role_str}"', problem, node.state)
                 )
@@ -508,6 +568,8 @@ class FeaturePool:
                 self.compute_uninformative_concepts() if self.config["prune_concepts"] else set()
             ),
             "uninformative_roles": (self.compute_uninformative_roles() if self.config["prune_roles"] else set()),
+            "static_concepts": (self.compute_static_concepts() if self.config["prune_static_concepts"] else set()),
+            "static_roles": (self.compute_static_roles() if self.config["prune_static_roles"] else set()),
         }
         clingo_program = ""
         for feature_str, feature in self.features.items():

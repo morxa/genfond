@@ -33,6 +33,8 @@ DEFAULT_CONFIG = {
     "prune_roles": True,
     "prune_concepts": True,
     "prune_features": True,
+    "prune_static_concepts": True,
+    "prune_static_roles": True,
     "use_selected_states": False,
     "use_unrestricted_features": True,
     "unselect_problems": False,

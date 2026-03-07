@@ -146,6 +146,8 @@ def test_concepts_to_clingo(simple_blocks):
     config["max_complexity"] = 2
     config["prune_concepts"] = False
     config["prune_roles"] = False
+    config["prune_static_concepts"] = False
+    config["prune_static_roles"] = False
     feature_pool = FeaturePool(domain, [problem], config=config)
     clingo_program = feature_pool.to_clingo()
     print(f"full program:\n{clingo_program}")
