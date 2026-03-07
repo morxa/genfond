@@ -21,6 +21,12 @@ class Result(enum.Enum):
     OUT_OF_RESOURCES = 3
 
 
+class LastStep(enum.Enum):
+    START = 0
+    INC_PLANS = 1
+    INC_COMPLEXITY = 2
+
+
 class ProblemIterator:
 
     def __init__(self, problems: list[Problem], config: Mapping, plans: Optional[Mapping[str, Iterator[Plan]]] = None):
@@ -34,6 +40,7 @@ class ProblemIterator:
         self.selected_states: dict[str, set[State]] = dict()
         self.new_states: dict[str, set[State]] = dict()
         self.all_features = False
+        self.last_step = LastStep.START
         self.complexity = self.config["min_complexity"]
         self.last_result = Result.SUCCESS
         self.succ_complexity = self.complexity
@@ -70,7 +77,8 @@ class ProblemIterator:
             f"last result: {self.last_result.name}, all features: {self.all_features}, complexity: {self.complexity}"
         )
         if (
-            self.active_problems
+            (self.last_step == LastStep.INC_COMPLEXITY or self.complexity == self.config["max_complexity"])
+            and self.active_problems
             and not self.active_problems_solved
             and self.last_result != Result.OUT_OF_RESOURCES
             and self.plan_iterators
@@ -91,6 +99,7 @@ class ProblemIterator:
             self.all_features = False
             self.max_cost = MAX_COST
             self.complexity = self.succ_complexity
+            self.last_step = LastStep.INC_PLANS
         elif (
             self.active_problems
             and self.last_result != Result.OUT_OF_RESOURCES
@@ -107,11 +116,13 @@ class ProblemIterator:
         ):
             self.all_features = False
             self.complexity += 1
+            self.last_step = LastStep.INC_COMPLEXITY
         elif self.active_problems_solved and any(not solved for solved in self.solved.values()):
             self.all_features = False
             self.max_cost = MAX_COST
             self.active_problems_solved = False
             self.complexity = self.succ_complexity
+            self.last_step = LastStep.START
             next_problem = next(
                 problem
                 for problem in self.problems
