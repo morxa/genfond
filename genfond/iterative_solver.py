@@ -128,16 +128,17 @@ def solve_iteratively(
     else:
         problem_iterator = ProblemIterator(problems, config, plans=example_plans)
     for iter_kwargs in problem_iterator:
-        result, policy = solve_step(
+        result, new_policy = solve_step(
             **iter_kwargs,
             domain=domain,
             stats=stats,
             config=config,
             enforce_highest_complexity=not one_shot,
         )
-        problem_iterator.set_last_result(result, cost=policy.cost if policy else None)
+        problem_iterator.set_last_result(result, cost=new_policy.cost if new_policy else None)
         if result != Result.SUCCESS:
             continue
+        policy = new_policy
         log.info(f'Testing policy on unsolved problems {config["policy_iterations"]} times ...')
         with logging_redirect_tqdm():
             for problem in tqdm.tqdm(problems, disable=None):
