@@ -1,6 +1,8 @@
 #defined c_eval/4.
 #defined role/1.
 #defined role_complexity/2.
+#defined concept/1.
+#defined concept_complexity/2.
 #defined r_eval/5.
 #defined amap/2.
 #defined amap/3.
