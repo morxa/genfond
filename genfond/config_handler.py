@@ -41,7 +41,7 @@ DEFAULT_CONFIG = {
     "use_selected_states": False,
     "use_unrestricted_features": True,
     "unselect_problems": False,
-    "visualize_state_graphs": True,
+    "visualize_state_graphs": False,
     "feature_generator": {
         "generate_til_c_role": False,
     },
