@@ -1,0 +1,11 @@
+policy_type: DATALOG
+policy_iterations: 1
+abort_on_cycle: true
+solve_prog: solve_datalog_actions.lp
+include_pristine_states: false
+include_actions: true
+include_roles: false
+include_concepts: false
+include_action_params: false
+include_dead_states: false
+include_goal_states: false

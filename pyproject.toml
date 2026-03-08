@@ -5,6 +5,10 @@ description = ""
 authors = ["Till Hofmann <till.hofmann@ml.rwth-aachen.de>"]
 license = "MIT"
 readme = "README.md"
+include = [
+    { path = "genfond/config/*.yaml", format = "sdist" },
+    { path = "genfond/config/*.yaml", format = "wheel" },
+]
 
 [tool.poetry.dependencies]
 python = "^3.14"

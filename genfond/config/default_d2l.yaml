@@ -1,0 +1,4 @@
+policy_type: EXACT
+policy_iterations: 1
+abort_on_cycle: true
+solve_prog: solve_d2l.lp

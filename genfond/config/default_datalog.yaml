@@ -1,0 +1,15 @@
+policy_type: DATALOG
+policy_iterations: 10
+use_example_plans: true
+abort_on_cycle: true
+solve_prog: solve_datalog.lp
+include_numerical_features: false
+include_concepts: true
+include_roles: true
+include_actions: false
+include_dead_states: false
+include_goal_states: false
+feature_generator:
+  generate_concept_distance_numerical: false
+  generate_count_numerical: false
+  generate_til_c_role: true

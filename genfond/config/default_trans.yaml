@@ -1,0 +1,2 @@
+policy_type: CONSTRAINED
+solve_prog: solve_trans_constraints.lp

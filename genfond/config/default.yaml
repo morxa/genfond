@@ -1,0 +1,73 @@
+min_complexity: 2
+max_complexity: 15
+policy_iterations: 100
+abort_on_cycle: false
+stop_after_first_solution: true
+policy_steps: 10000
+use_example_plans: false
+min_number_of_plans: 5
+max_number_of_plans: 10
+num_threads: null
+max_memory: null
+dump_failed_policies: false
+dump_clingo_program: null
+keep_going: false
+continue_after_error: false
+include_boolean_features: true
+include_numerical_features: true
+include_concepts: false
+include_roles: false
+include_actions: false
+include_action_params: false
+include_pristine_states: true
+include_dead_states: true
+include_goal_states: true
+preset_features: null
+feature_generator:
+  generate_til_c_role: false
+prune_roles: true
+prune_concepts: true
+prune_features: true
+prune_static_concepts: false
+prune_static_roles: false
+prune_redundant_features: true
+prune_redundant_concepts: true
+prune_redundant_roles: true
+use_selected_states: false
+use_unrestricted_features: false
+unselect_problems: false
+visualize_state_graphs: false
+unrestricted_feature_generator:
+  generate_empty_boolean: true
+  generate_inclusion_boolean: true
+  generate_nullary_boolean: true
+  generate_all_concept: true
+  generate_and_concept: true
+  generate_bot_concept: true
+  generate_diff_concept: true
+  generate_equal_concept: true
+  generate_not_concept: true
+  generate_one_of_concept: true
+  generate_or_concept: true
+  generate_primitive_concept: true
+  generate_projection_concept: true
+  generate_some_concept: true
+  generate_subset_concept: true
+  generate_top_concept: true
+  generate_concept_distance_numerical: true
+  generate_count_numerical: true
+  generate_and_role: true
+  generate_compose_role: true
+  generate_diff_role: true
+  generate_identity_role: true
+  generate_inverse_role: true
+  generate_not_role: true
+  generate_or_role: true
+  generate_primitive_role: true
+  generate_restrict_role: true
+  generate_til_c_role: true
+  generate_top_role: true
+  generate_transitive_closure_role: true
+  generate_transitive_reflexive_closure_role: true
+log:
+  execution: CRITICAL

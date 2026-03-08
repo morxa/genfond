@@ -1,150 +1,30 @@
-from typing import Optional, TextIO
+from pathlib import Path
+from typing import Any, Optional, TextIO
 
 import mergedeep
 import yaml
 
-DEFAULT_CONFIG = {
-    "min_complexity": 2,
-    "max_complexity": 15,
-    "policy_iterations": 100,
-    "abort_on_cycle": False,
-    "stop_after_first_solution": True,
-    "policy_steps": 10000,
-    "use_example_plans": False,
-    "min_number_of_plans": 5,
-    "max_number_of_plans": 10,
-    "num_threads": None,
-    "max_memory": None,
-    "dump_failed_policies": False,
-    "dump_clingo_program": None,
-    "keep_going": False,
-    "continue_after_error": False,
-    "include_boolean_features": True,
-    "include_numerical_features": True,
-    "include_concepts": False,
-    "include_roles": False,
-    "include_actions": False,
-    "include_action_params": False,
-    "include_pristine_states": True,
-    "include_dead_states": True,
-    "include_goal_states": True,
-    "preset_features": None,
-    "feature_generator": {},
-    "prune_roles": True,
-    "prune_concepts": True,
-    "prune_features": True,
-    "prune_static_concepts": False,
-    "prune_static_roles": False,
-    "prune_redundant_features": True,
-    "prune_redundant_concepts": True,
-    "prune_redundant_roles": True,
-    "use_selected_states": False,
-    "use_unrestricted_features": False,
-    "unselect_problems": False,
-    "visualize_state_graphs": False,
-    "feature_generator": {
-        "generate_til_c_role": False,
-    },
-    "unrestricted_feature_generator": {
-        "generate_empty_boolean": True,
-        "generate_inclusion_boolean": True,
-        "generate_nullary_boolean": True,
-        "generate_all_concept": True,
-        "generate_and_concept": True,
-        "generate_bot_concept": True,
-        "generate_diff_concept": True,
-        "generate_equal_concept": True,
-        "generate_not_concept": True,
-        "generate_one_of_concept": True,
-        "generate_or_concept": True,
-        "generate_primitive_concept": True,
-        "generate_projection_concept": True,
-        "generate_some_concept": True,
-        "generate_subset_concept": True,
-        "generate_top_concept": True,
-        "generate_concept_distance_numerical": True,
-        "generate_count_numerical": True,
-        "generate_and_role": True,
-        "generate_compose_role": True,
-        "generate_diff_role": True,
-        "generate_identity_role": True,
-        "generate_inverse_role": True,
-        "generate_not_role": True,
-        "generate_or_role": True,
-        "generate_primitive_role": True,
-        "generate_restrict_role": True,
-        "generate_til_c_role": True,
-        "generate_top_role": True,
-        "generate_transitive_closure_role": True,
-        "generate_transitive_reflexive_closure_role": True,
-    },
-    "log": {
-        "execution": "CRITICAL",
-    },
-}
+CONFIG_DIR = Path(__file__).resolve().parent / "config"
+DEFAULT_CONFIG_PATH = CONFIG_DIR / "default.yaml"
 
-DEFAULT_TYPE_CONFIGS = {
-    "datalog": {
-        "policy_type": "DATALOG",
-        "policy_iterations": 10,
-        "use_example_plans": True,
-        "abort_on_cycle": True,
-        "solve_prog": "solve_datalog.lp",
-        "include_numerical_features": False,
-        "include_concepts": True,
-        "include_roles": True,
-        "include_actions": False,
-        "include_dead_states": False,
-        "include_goal_states": False,
-        "feature_generator": {
-            "generate_concept_distance_numerical": False,
-            "generate_count_numerical": False,
-            "generate_til_c_role": True,
-        },
-    },
-    "datalog-action-params": {
-        "policy_type": "DATALOG",
-        "policy_iterations": 1,
-        "abort_on_cycle": True,
-        "solve_prog": "solve_datalog_action_params.lp",
-        "include_action_params": True,
-        "include_roles": False,
-        "include_concepts": False,
-        "include_dead_states": False,
-        "include_goal_states": False,
-    },
-    "datalog-actions": {
-        "policy_type": "DATALOG",
-        "policy_iterations": 1,
-        "abort_on_cycle": True,
-        "solve_prog": "solve_datalog_actions.lp",
-        "include_pristine_states": False,
-        "include_actions": True,
-        "include_roles": False,
-        "include_concepts": False,
-        "include_action_params": False,
-        "include_dead_states": False,
-        "include_goal_states": False,
-    },
-    "exact": {
-        "policy_type": "EXACT",
-        "solve_prog": "solve.lp",
-    },
-    "state": {
-        "policy_type": "CONSTRAINED",
-        "solve_prog": "solve_state_constraints.lp",
-    },
-    "trans": {
-        "policy_type": "CONSTRAINED",
-        "solve_prog": "solve_trans_constraints.lp",
-    },
-    "d2l": {
-        "policy_type": "EXACT",
-        "policy_iterations": 1,
-        "abort_on_cycle": True,
-        "solve_prog": "solve_d2l.lp",
-    },
-}
+
+def _load_yaml_config(path: Path) -> dict[str, Any]:
+    with path.open("r", encoding="utf-8") as config_file:
+        config = yaml.safe_load(config_file) or {}
+    if not isinstance(config, dict):
+        raise TypeError(f"Expected a mapping in config file '{path}'")
+    return config
+
+
+def _discover_type_configs() -> dict[str, Path]:
+    type_configs: dict[str, Path] = {}
+    for config_path in sorted(CONFIG_DIR.glob("default_*.yaml")):
+        type_name = config_path.stem.removeprefix("default_")
+        type_configs[type_name] = config_path
+    return type_configs
+
+
+DEFAULT_TYPE_CONFIGS = _discover_type_configs()
 
 
 class ConfigHandler(dict):
@@ -152,11 +32,14 @@ class ConfigHandler(dict):
     def __init__(
         self, config_file_object: Optional[TextIO] = None, type: Optional[str] = None, override: Optional[dict] = None
     ):
-        mergedeep.merge(self, DEFAULT_CONFIG)
+        mergedeep.merge(self, _load_yaml_config(DEFAULT_CONFIG_PATH))
         if type and type in DEFAULT_TYPE_CONFIGS:
-            mergedeep.merge(self, DEFAULT_TYPE_CONFIGS[type])
+            mergedeep.merge(self, _load_yaml_config(DEFAULT_TYPE_CONFIGS[type]))
         if config_file_object:
-            mergedeep.merge(self, yaml.safe_load(config_file_object))
+            config = yaml.safe_load(config_file_object) or {}
+            if not isinstance(config, dict):
+                raise TypeError("Expected a mapping in config file object")
+            mergedeep.merge(self, config)
         if override:
             # Only override values that are already in the config that have been set to a non-None value
             mergedeep.merge(self, {k: v for k, v in override.items() if k in self and v is not None})
