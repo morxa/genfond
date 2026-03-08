@@ -39,7 +39,7 @@ DEFAULT_CONFIG = {
     "prune_redundant_concepts": True,
     "prune_redundant_roles": True,
     "use_selected_states": False,
-    "use_unrestricted_features": True,
+    "use_unrestricted_features": False,
     "unselect_problems": False,
     "visualize_state_graphs": False,
     "feature_generator": {
