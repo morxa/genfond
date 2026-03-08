@@ -1,9 +1,9 @@
 #!/bin/bash
 #
-#SBATCH --partition=rleap_gpu_24gb
+#SBATCH --partition=rleap_cpu
 #SBATCH --cpus-per-task=32
-#SBATCH --mem=248000
-#SBATCH --time=2-00
+#SBATCH --mem=128000
+#SBATCH --time=12:00:00
 #SBATCH --output=%x-%j.out
 
 echo "Running: $@"
