@@ -106,6 +106,9 @@ def test_features_to_clingo(simple_blocks):
     config = ConfigHandler()
     config["max_complexity"] = 2
     config["prune_features"] = False
+    config["prune_redundant_features"] = False
+    config["prune_redundant_concepts"] = False
+    config["prune_redundant_roles"] = False
     feature_pool = FeaturePool(domain, [problem], config=config)
     clingo_program = feature_pool.to_clingo()
     print(f"full program:\n{clingo_program}")

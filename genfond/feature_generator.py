@@ -1,6 +1,6 @@
 import itertools
 import logging
-from typing import Collection, Mapping, Optional
+from typing import Collection, Mapping, MutableMapping, Optional, Tuple
 
 import dlplan.core
 import dlplan.generator as dlplan_gen
@@ -134,7 +134,7 @@ class FeaturePool:
         self.node_id_to_action_aug_state_ids: dict[tuple[int, int], dict[Action, State]] = dict()
         self.node_id_to_param_aug_state_ids: dict[tuple[int, int], dict[Action, list[State]]] = dict()
         self.state_id_to_node: dict[State, list[StateSpaceNode]] = dict()
-        self.state_graphs = dict()
+        self.state_graphs: MutableMapping[str, StateSpaceGraph] = dict()
         self.instances: dict[str, InstanceInfo] = dict()
         self.mappings = dict()
         self.next_state_id = 0
@@ -381,6 +381,56 @@ class FeaturePool:
                 return True
         return has_true and has_false
 
+    def compute_redundant_features(self) -> set[str]:
+        redundant_features = set()
+        feature_evals = set()
+        for feature_str, feature in self.features.items():
+            true_states = frozenset([state for state in self.states.values() if feature.evaluate(state)])
+            if true_states in feature_evals:
+                redundant_features.add(feature_str)
+            else:
+                feature_evals.add(true_states)
+        log.info(f"Found {len(redundant_features)} redundant feature(s)")
+        log.debug(", ".join(redundant_features))
+        return redundant_features
+
+    def compute_redundant_concepts(self) -> set[str]:
+        evals: MutableMapping[str, Mapping[Tuple[str, State], Collection]] = dict()
+        redundant_concepts = set()
+        for concept_str in self.concepts.keys():
+            eval: MutableMapping[Tuple[str, State], Collection[str]] = dict()
+            for problem, state_graph in self.state_graphs.items():
+                for node in state_graph.nodes.values():
+                    # eval[(problem, node.state)] = frozenset()
+                    eval[(problem, node.state)] = frozenset(
+                        self.evaluate_concept_from_problem(concept_str, self.problems[problem], node.state)
+                    )
+            if eval in evals.values():
+                redundant_concepts.add(concept_str)
+            else:
+                evals[concept_str] = eval
+        log.info(f"Found {len(redundant_concepts)} redundant concept(s)")
+        log.debug(", ".join(redundant_concepts))
+        return redundant_concepts
+
+    def compute_redundant_roles(self) -> set[str]:
+        evals: MutableMapping[str, Mapping[Tuple[str, State], Collection]] = dict()
+        redundant_roles = set()
+        for role_str in self.roles.keys():
+            eval: MutableMapping[Tuple[str, State], Collection[tuple[str, str]]] = dict()
+            for problem, state_graph in self.state_graphs.items():
+                for node in state_graph.nodes.values():
+                    eval[(problem, node.state)] = frozenset(
+                        self.evaluate_role_from_problem(role_str, self.problems[problem], node.state)
+                    )
+            if eval in evals.values():
+                redundant_roles.add(role_str)
+            else:
+                evals[role_str] = eval
+        log.info(f"Found {len(redundant_roles)} redundant role(s)")
+        log.debug(", ".join(redundant_roles))
+        return redundant_roles
+
     def compute_uninformative_features(self) -> set[str]:
         uninformative_features = set()
         for feature_str, feature in self.features.items():
@@ -462,7 +512,7 @@ class FeaturePool:
                 action_str = f'"{action.name}({",".join([str(p) for p in action.parameters])})"'
                 clingo_program += f"aug_state({problem_id}, {node.id}, {action_str}, {aug_state_id}).\n"
                 for feature_str, feature in self.features.items():
-                    if feature_str in stats["uninformative_features"]:
+                    if feature_str in stats["uninformative_features"] or feature_str in stats["redundant_features"]:
                         stats["num_skipped_feature_evals"] += 1
                         continue
                     feature_str = f'"{feature_str}"'
@@ -473,7 +523,7 @@ class FeaturePool:
                     stats["num_feature_evals"] += 1
         if self.config["include_pristine_states"]:
             for feature_str, feature in self.features.items():
-                if feature_str in stats["uninformative_features"]:
+                if feature_str in stats["uninformative_features"] or feature_str in stats["redundant_features"]:
                     stats["num_skipped_feature_evals"] += 1
                     continue
                 feature_str = f'"{feature_str}"'
@@ -489,7 +539,10 @@ class FeaturePool:
                     aug_state_id = self.states[aug_state].get_index()
                     clingo_program += f"aug_state({problem_id}, {node.id}, {action_str}, {i}, {aug_state_id}).\n"
                     for feature_str, feature in self.features.items():
-                        if feature_str in stats["uninformative_features"]:
+                        if (
+                            feature_str in stats["uninformative_features"]
+                            or feature_str in stats["redundant_features"]
+                        ):
                             stats["num_skipped_feature_evals"] += 1
                             continue
                         if not get_aparam_predicate_name(0) in feature_str:
@@ -514,6 +567,12 @@ class FeaturePool:
                     self.evaluate_concept_from_problem(f'"{concept_str}"', problem, node.state)
                 )
                 continue
+            if concept_str in stats["redundant_concepts"]:
+                # log.debug(f'Concept {concept_str} is redundant, skipping')
+                stats["num_skipped_concept_evals"] += len(
+                    self.evaluate_concept_from_problem(f'"{concept_str}"', problem, node.state)
+                )
+                continue
             concept_str = f'"{concept_str}"'
             extension = self.evaluate_concept_from_problem(concept_str, problem, node.state)
             for obj in extension:
@@ -531,6 +590,12 @@ class FeaturePool:
                 continue
             if role_str in stats["static_roles"]:
                 # log.debug(f'Role {role_str} is static, skipping')
+                stats["num_skipped_role_evals"] += len(
+                    self.evaluate_role_from_problem(f'"{role_str}"', problem, node.state)
+                )
+                continue
+            if role_str in stats["redundant_roles"]:
+                # log.debug(f'Role {role_str} is redundant, skipping')
                 stats["num_skipped_role_evals"] += len(
                     self.evaluate_role_from_problem(f'"{role_str}"', problem, node.state)
                 )
@@ -570,6 +635,13 @@ class FeaturePool:
             "uninformative_roles": (self.compute_uninformative_roles() if self.config["prune_roles"] else set()),
             "static_concepts": (self.compute_static_concepts() if self.config["prune_static_concepts"] else set()),
             "static_roles": (self.compute_static_roles() if self.config["prune_static_roles"] else set()),
+            "redundant_features": (
+                self.compute_redundant_features() if self.config["prune_redundant_features"] else set()
+            ),
+            "redundant_concepts": (
+                self.compute_redundant_concepts() if self.config["prune_redundant_concepts"] else set()
+            ),
+            "redundant_roles": (self.compute_redundant_roles() if self.config["prune_redundant_roles"] else set()),
         }
         clingo_program = ""
         for feature_str, feature in self.features.items():
