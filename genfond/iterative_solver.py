@@ -4,7 +4,7 @@ import statistics
 import sys
 import time
 from collections.abc import Iterator
-from typing import Any, Collection, Mapping, MutableMapping, Optional
+from typing import Any, Callable, Collection, Mapping, MutableMapping, Optional
 
 import tqdm
 from pddl.core import Domain, Plan, Problem
@@ -20,9 +20,25 @@ from .problem_iterator import MAX_COST, OneShotProblemIterator, ProblemIterator,
 from .rule_policy import Policy
 from .solver import Solver
 from .state_space_generator import State, check_formula
-from .topk_planner import compute_plans
 
 log = logging.getLogger("genfond.iterative_solver")
+
+PlannerComputePlans = Callable[[str, str, dict[str, Any]], Iterator[Plan]]
+
+
+def _get_example_plan_computer(config: Mapping[str, Any]) -> tuple[PlannerComputePlans, dict[str, Any], str]:
+    planner_name = config["planner"]
+    planner_config = dict(config["planners"][planner_name])
+
+    match planner_name:
+        case "topk_planner":
+            from .topk_planner import compute_plans as planner_compute_plans
+        case "iw":
+            from .iw import compute_plans as planner_compute_plans
+        case _:
+            raise ValueError(f"Unknown planner '{planner_name}'. Expected one of: topk_planner, iw")
+
+    return planner_compute_plans, planner_config, planner_name
 
 
 def solve(
@@ -118,11 +134,13 @@ def solve_iteratively(
     stats: dict[str, str | int | float] = dict()
     example_plans: dict[str, Iterator[Plan]] = dict()
     if config["use_example_plans"]:
+        planner_compute_plans, planner_config, planner_name = _get_example_plan_computer(config)
+        log.info(f"Using planner '{planner_name}' to generate example plans")
         for problem in problems:
-            example_plans[problem.name] = compute_plans(
+            example_plans[problem.name] = planner_compute_plans(
                 str(domain),
                 str(problem),
-                {"number_of_plans": config["max_number_of_plans"]},
+                dict(planner_config),
             )
     problem_iterator: ProblemIterator | OneShotProblemIterator
     if one_shot:

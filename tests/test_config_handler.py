@@ -25,3 +25,11 @@ def test_config_handler_override(simple_config):
     assert config["min_complexity"] == 5
     # Still using the config value
     assert config["num_threads"] == 8
+
+
+def test_default_planner_config():
+    config = ConfigHandler()
+    assert config["planner"] == "topk_planner"
+    assert config["planners"]["topk_planner"]["number_of_plans"] == 10
+    assert config["planners"]["iw"]["number_of_plans"] == 10
+    assert config["planners"]["iw"]["max_width"] == 1

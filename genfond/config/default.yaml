@@ -6,7 +6,13 @@ stop_after_first_solution: true
 policy_steps: 10000
 use_example_plans: false
 min_number_of_plans: 5
-max_number_of_plans: 10
+planner: topk_planner
+planners:
+  topk_planner:
+    number_of_plans: 10
+  iw:
+    number_of_plans: 10
+    max_width: 1
 num_threads: null
 max_memory: null
 dump_failed_policies: false
