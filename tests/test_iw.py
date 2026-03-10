@@ -6,7 +6,6 @@ from genfond.iw import (
     IWPlanner,
     compute_plans,
     load_problem,
-    set_compute_plans_max_width,
     solve_iw,
 )
 
@@ -65,18 +64,16 @@ def test_iw_planner_rejects_non_positive_width():
 
 
 def test_compute_plans_uses_topk_plan_syntax(tmp_path):
-    set_compute_plans_max_width(1)
     domain_path, _ = write_task_files(tmp_path)
     domain = pddl.parse_domain(str(domain_path))
 
-    plans = list(compute_plans(DOMAIN_TEXT, PROBLEM_TEXT, number_of_plans=3))
+    plans = list(compute_plans(DOMAIN_TEXT, PROBLEM_TEXT, {"number_of_plans": 3, "max_width": 1}))
 
     assert plans
     assert [action_string(action) for action in plans[0].instantiate(domain)] == ["finish()"]
 
 
 def test_compute_plans_returns_multiple_solutions_for_same_width(tmp_path):
-    set_compute_plans_max_width(1)
     domain_text = """(define (domain two-solutions)
   (:requirements :strips)
   (:predicates (g))
@@ -102,7 +99,7 @@ def test_compute_plans_returns_multiple_solutions_for_same_width(tmp_path):
     domain_path.write_text(domain_text)
     domain = pddl.parse_domain(str(domain_path))
 
-    plans = list(compute_plans(domain_text, problem_text, number_of_plans=10))
+    plans = list(compute_plans(domain_text, problem_text, {"number_of_plans": 10, "max_width": 1}))
     str_plans = sorted(" ".join(action_string(action) for action in plan.instantiate(domain)) for plan in plans)
 
     assert str_plans == ["finish-a()", "finish-b()"]
@@ -141,10 +138,5 @@ def test_compute_plans_respects_configured_width_limit():
 )
 """
 
-    set_compute_plans_max_width(1)
-    assert list(compute_plans(domain_text, problem_text, number_of_plans=3)) == []
-
-    set_compute_plans_max_width(2)
-    assert list(compute_plans(domain_text, problem_text, number_of_plans=3))
-
-    set_compute_plans_max_width(1)
+    assert list(compute_plans(domain_text, problem_text, {"number_of_plans": 3, "max_width": 1})) == []
+    assert list(compute_plans(domain_text, problem_text, {"number_of_plans": 3, "max_width": 2}))

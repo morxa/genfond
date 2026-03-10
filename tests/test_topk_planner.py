@@ -17,7 +17,7 @@ def test_topk_planner():
         domain_str = f.read()
     with open(problem_file, "r") as f:
         problem_str = f.read()
-    plans = list(compute_plans(domain_str, problem_str, number_of_plans=3))
+    plans = list(compute_plans(domain_str, problem_str, {"number_of_plans": 3}))
     assert len(plans) == 3
     str_plans = [[action_string(a) for a in plan.instantiate(domain)] for plan in plans]
     assert [

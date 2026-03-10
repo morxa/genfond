@@ -1,4 +1,4 @@
-from typing import Iterator
+from typing import Any, Iterator
 
 import unified_planning
 from pddl.parser.plan import Plan, PlanParser
@@ -13,7 +13,8 @@ def action_to_lisp_str(action):
     return f"({action.action.name} {' '.join([str(p) for p in action.actual_parameters])})"
 
 
-def compute_plans(domain_str: str, problem_str: str, number_of_plans: int = 3) -> Iterator[Plan]:
+def compute_plans(domain_str: str, problem_str: str, planner_config: dict[str, Any]) -> Iterator[Plan]:
+    number_of_plans = planner_config["number_of_plans"]
     reader = PDDLReader()
     plan_parser = PlanParser()
     problem = reader.parse_problem_string(domain_str, problem_str)

@@ -11,7 +11,6 @@ from pddl.parser.plan import Plan, PlanParser
 PathLike = str | Path
 StateCallback = Callable[[pymimir.State], None]
 TransitionCallback = Callable[[pymimir.State, pymimir.GroundAction, float, pymimir.State], None]
-_MAX_COMPUTE_PLANS_WIDTH = 1
 
 
 @dataclass(frozen=True, slots=True)
@@ -33,17 +32,6 @@ def _as_existing_file(path: PathLike, description: str) -> Path:
     if not file_path.is_file():
         raise FileNotFoundError(f"{description} file not found: {file_path}")
     return file_path
-
-
-def set_compute_plans_max_width(width: int = 1) -> None:
-    global _MAX_COMPUTE_PLANS_WIDTH
-    if width <= 0:
-        raise ValueError("width must be positive")
-    _MAX_COMPUTE_PLANS_WIDTH = width
-
-
-def get_compute_plans_max_width() -> int:
-    return _MAX_COMPUTE_PLANS_WIDTH
 
 
 def load_problem(
@@ -174,17 +162,19 @@ def _enumerate_iw_action_sequences(
                 visit_queue.append(_SearchNode(child_state, child_actions, node.depth + 1))
 
 
-def compute_plans(domain_str: str, problem_str: str, number_of_plans: int = 3) -> Iterator[Plan]:
+def compute_plans(domain_str: str, problem_str: str, planner_config: dict[str, int]) -> Iterator[Plan]:
     """
-    Compute plans with IW using the same interface and plan syntax as topk_planner.compute_plans.
+    Compute plans with IW using the same plan syntax as topk_planner.compute_plans.
     """
+    number_of_plans = planner_config["number_of_plans"]
+    max_width = planner_config["max_width"]
+
     if number_of_plans <= 0:
         return
 
     plan_parser = PlanParser()
     yielded_plans = 0
     seen_plan_strings: set[str] = set()
-    max_width = get_compute_plans_max_width()
 
     with TemporaryDirectory() as temp_dir:
         temp_path = Path(temp_dir)
@@ -239,8 +229,6 @@ __all__ = [
     "IWPlanner",
     "ParsedProblem",
     "compute_plans",
-    "get_compute_plans_max_width",
     "load_problem",
-    "set_compute_plans_max_width",
     "solve_iw",
 ]
