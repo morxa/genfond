@@ -11,9 +11,20 @@ planners:
   topk_planner:
     number_of_plans: 10
   siw:
-    algorithm: siw   # or "iw" for plain iterated width on the whole problem
+    # "iw" runs plain iterated width on the whole problem; it also requires branch: false
+    algorithm: siw
     max_width: 2
     prune: true
+    # Diverse plans by branching over SIW's serializations; requires algorithm: siw
+    branch: true
+    # Additional runs with permuted action and candidate goal orders. This is an outer loop:
+    # restart 2 only starts once the branching search of restart 1 is exhausted.
+    restarts: 5
+    seed: 0
+    # Keep this off: it is the mechanism that searches past max_width
+    explore_widths: false
+    # null uses SIW's own default: unbounded, or 10^7 generated states if branch is on
+    max_nodes: null
 num_threads: null
 max_memory: null
 dump_failed_policies: false

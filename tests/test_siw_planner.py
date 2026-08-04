@@ -1,6 +1,8 @@
 import os
+from itertools import islice
 
 import pddl
+import pytest
 
 from genfond.ground import action_string
 from genfond.siw_planner import compute_plans
@@ -63,7 +65,17 @@ WIDTH_TWO_PROBLEM_TEXT = """(define (problem needs-width-two-instance)
 
 
 def siw_config(**overrides):
-    return {"algorithm": "siw", "max_width": 2, "prune": True} | overrides
+    """The defaults of genfond/config/default.yaml, with per-test overrides."""
+    return {
+        "algorithm": "siw",
+        "max_width": 2,
+        "prune": True,
+        "branch": True,
+        "restarts": 5,
+        "seed": 0,
+        "explore_widths": False,
+        "max_nodes": None,
+    } | overrides
 
 
 def read_fixture(*parts):
@@ -86,10 +98,41 @@ def test_compute_plans_uses_topk_plan_syntax(tmp_path):
     assert plan_action_strings(plans[0], domain) == ["finish()"]
 
 
-def test_compute_plans_yields_a_single_plan():
-    plans = list(compute_plans(WIDTH_TWO_DOMAIN_TEXT, WIDTH_TWO_PROBLEM_TEXT, siw_config()))
+def test_compute_plans_yields_several_distinct_plans(tmp_path):
+    """With the diverse-plans mechanisms on, SIW supplies more than one plan per problem."""
+    domain_text = read_fixture("blocks3ops-det", "domain.pddl")
+    problem_text = read_fixture("blocks3ops-det", "p004-2.pddl")
+    domain_path = tmp_path / "domain.pddl"
+    domain_path.write_text(domain_text)
+    domain = pddl.parse_domain(str(domain_path))
 
-    assert len(plans) == 1
+    # The stream is lazy and long, so only pull a bounded prefix of it.
+    plans = list(islice(compute_plans(domain_text, problem_text, siw_config()), 5))
+
+    assert len(plans) == 5
+    action_strings = [tuple(plan_action_strings(plan, domain)) for plan in plans]
+    assert len(set(action_strings)) == 5
+
+
+def test_compute_plans_yields_a_single_plan_without_diverse_mechanisms(tmp_path):
+    """The base planner path is unchanged, and it is what the diverse run starts from."""
+    domain_text = read_fixture("blocks3ops-det", "domain.pddl")
+    problem_text = read_fixture("blocks3ops-det", "p004-2.pddl")
+    domain_path = tmp_path / "domain.pddl"
+    domain_path.write_text(domain_text)
+    domain = pddl.parse_domain(str(domain_path))
+
+    base_plans = list(compute_plans(domain_text, problem_text, siw_config(branch=False, restarts=1)))
+    assert len(base_plans) == 1
+
+    first_diverse_plan = next(compute_plans(domain_text, problem_text, siw_config()))
+    assert plan_action_strings(first_diverse_plan, domain) == plan_action_strings(base_plans[0], domain)
+
+
+def test_compute_plans_rejects_invalid_mechanism_combination():
+    """Plain IW has no serialization to branch over; a bad config must fail loudly."""
+    with pytest.raises(ValueError):
+        list(compute_plans(DOMAIN_TEXT, PROBLEM_TEXT, siw_config(algorithm="iw", branch=True)))
 
 
 def test_compute_plans_respects_configured_width_limit(tmp_path):
@@ -108,7 +151,10 @@ def test_compute_plans_supports_plain_iterated_width(tmp_path):
     domain_path.write_text(WIDTH_TWO_DOMAIN_TEXT)
     domain = pddl.parse_domain(str(domain_path))
 
-    plans = list(compute_plans(WIDTH_TWO_DOMAIN_TEXT, WIDTH_TWO_PROBLEM_TEXT, siw_config(algorithm="iw")))
+    # branch requires algorithm="siw", so plain IW has to turn it off.
+    plans = list(
+        compute_plans(WIDTH_TWO_DOMAIN_TEXT, WIDTH_TWO_PROBLEM_TEXT, siw_config(algorithm="iw", branch=False))
+    )
 
     assert plan_action_strings(plans[0], domain) == ["set-p()", "set-q()", "restore-pq()", "finish()"]
 

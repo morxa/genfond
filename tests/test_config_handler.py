@@ -29,8 +29,13 @@ def test_config_handler_override(simple_config):
 
 def test_default_planner_config():
     config = ConfigHandler()
-    assert config["planner"] == "topk_planner"
+    assert config["planner"] == "siw"
     assert config["planners"]["topk_planner"]["number_of_plans"] == 10
     assert config["planners"]["siw"]["algorithm"] == "siw"
     assert config["planners"]["siw"]["max_width"] == 2
     assert config["planners"]["siw"]["prune"] is True
+    assert config["planners"]["siw"]["branch"] is True
+    assert config["planners"]["siw"]["restarts"] == 5
+    assert config["planners"]["siw"]["seed"] == 0
+    assert config["planners"]["siw"]["explore_widths"] is False
+    assert config["planners"]["siw"]["max_nodes"] is None

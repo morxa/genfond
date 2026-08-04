@@ -24,7 +24,7 @@ pyyaml = "*"
 mergedeep = "^1.3.4"
 up-symk = "^1.3.1"
 unified-planning = "^1.3.0"
-siw = { git = "https://github.com/morxa/siw.git", rev = "5ed4742e41a11a6a9a599d458afb9974c019527b" }
+siw = { git = "https://github.com/morxa/siw.git", rev = "188f669c6eabbd771fe9977063b14e15f98003b0" }
 
 
 [tool.poetry.group.dev.dependencies]

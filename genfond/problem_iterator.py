@@ -94,7 +94,7 @@ class ProblemIterator:
             )
         ):
             problem, plan = found
-            self.active_plans.get(problem, []).append(plan)
+            self.active_plans.setdefault(problem, []).append(plan)
             self.all_features = False
             self.max_cost = MAX_COST
             # self.complexity = self.succ_complexity
