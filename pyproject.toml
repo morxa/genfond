@@ -48,6 +48,8 @@ module = [
     "unified_planning.*",
     "siw",
     "siw.*",
+    "pygraphviz",
+    "pygraphviz.*",
 ]
 ignore_missing_imports = true
 
