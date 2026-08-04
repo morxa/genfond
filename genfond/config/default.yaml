@@ -6,7 +6,7 @@ stop_after_first_solution: true
 policy_steps: 10000
 use_example_plans: false
 min_number_of_plans: 5
-planner: topk_planner
+planner: siw
 planners:
   topk_planner:
     number_of_plans: 10
