@@ -1491,8 +1491,8 @@ pddl = ">=0.4.8,<0.5"
 [package.source]
 type = "git"
 url = "https://github.com/morxa/siw.git"
-reference = "45db0f8b856e981664405bb116b2fa27e3dc4711"
-resolved_reference = "45db0f8b856e981664405bb116b2fa27e3dc4711"
+reference = "5ed4742e41a11a6a9a599d458afb9974c019527b"
+resolved_reference = "5ed4742e41a11a6a9a599d458afb9974c019527b"
 
 [[package]]
 name = "stack-data"
@@ -1684,4 +1684,4 @@ files = [
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.14"
-content-hash = "61f07439aaebff487aa15d0d99c6c8f9ad6728e4d9b6c87cc1f7c283f36c0cad"
+content-hash = "1b880f7316a6ce000ae47948dd218f733fca83089b387309cdde461ca03bea44"
