@@ -33,10 +33,10 @@ def _get_example_plan_computer(config: Mapping[str, Any]) -> tuple[PlannerComput
     match planner_name:
         case "topk_planner":
             from .topk_planner import compute_plans as planner_compute_plans
-        case "iw":
-            from .iw import compute_plans as planner_compute_plans
+        case "siw":
+            from .siw_planner import compute_plans as planner_compute_plans
         case _:
-            raise ValueError(f"Unknown planner '{planner_name}'. Expected one of: topk_planner, iw")
+            raise ValueError(f"Unknown planner '{planner_name}'. Expected one of: topk_planner, siw")
 
     return planner_compute_plans, planner_config, planner_name
 

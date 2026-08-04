@@ -10,9 +10,10 @@ planner: topk_planner
 planners:
   topk_planner:
     number_of_plans: 10
-  iw:
-    number_of_plans: 10
-    max_width: 1
+  siw:
+    algorithm: siw   # or "iw" for plain iterated width on the whole problem
+    max_width: 2
+    prune: true
 num_threads: null
 max_memory: null
 dump_failed_policies: false

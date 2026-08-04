@@ -31,5 +31,6 @@ def test_default_planner_config():
     config = ConfigHandler()
     assert config["planner"] == "topk_planner"
     assert config["planners"]["topk_planner"]["number_of_plans"] == 10
-    assert config["planners"]["iw"]["number_of_plans"] == 10
-    assert config["planners"]["iw"]["max_width"] == 1
+    assert config["planners"]["siw"]["algorithm"] == "siw"
+    assert config["planners"]["siw"]["max_width"] == 2
+    assert config["planners"]["siw"]["prune"] is True

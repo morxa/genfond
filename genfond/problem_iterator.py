@@ -7,7 +7,6 @@ from pddl.core import Plan, Problem
 
 from .ground import state_string
 from .state_space_generator import State
-from .topk_planner import compute_plans
 
 log = logging.getLogger("genfond.problem_iterator")
 
