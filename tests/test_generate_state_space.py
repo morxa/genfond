@@ -2,7 +2,12 @@ from pddl.logic import Constant, Predicate, constants
 from pddl.parser.plan import PlanParser
 
 from genfond.ground import ground
-from genfond.state_space_generator import Alive, apply_action_effects, generate_state_space
+from genfond.state_space_generator import (
+    Alive,
+    apply_action_effects,
+    check_formula,
+    generate_state_space,
+)
 
 from .helpers import get_action
 
@@ -108,3 +113,74 @@ def test_plan_input_simple_blocks(typed_blocks_medsize):
     assert s_putab.alive == Alive.ALIVE
     assert s_putac.alive == Alive.DEAD
     assert s_putad.alive == Alive.DEAD
+
+
+def off_plan_nodes(state_space, problem):
+    """The plan-restricted fringe: successors of on-plan states that no plan prescribes."""
+    return [
+        node
+        for node in state_space.nodes.values()
+        if not node.children and not check_formula(node.state, problem.goal)
+    ]
+
+
+def test_plan_input_frontier_marks_pruned(typed_blocks_medsize):
+    domain, problem = typed_blocks_medsize
+    plan = PlanParser()("(pick a table) (put a b)")
+    without = generate_state_space(domain, problem, plans=[plan])
+    with_frontier = generate_state_space(domain, problem, plans=[plan], frontier=True)
+    # The flag only relabels the fringe; it must not expand anything extra.
+    assert len(with_frontier.nodes) == len(without.nodes)
+    fringe = off_plan_nodes(with_frontier, problem)
+    assert fringe
+    assert all(node.alive == Alive.PRUNED for node in fringe)
+    assert all(node.alive == Alive.DEAD for node in off_plan_nodes(without, problem))
+
+
+def test_off_plan_goal_successor_is_alive(typed_blocks_medsize):
+    domain, problem = typed_blocks_medsize
+    plan = PlanParser()("(pick a table) (put a b)")
+    for frontier in (False, True):
+        state_space = generate_state_space(domain, problem, plans=[plan], frontier=frontier)
+        goal_nodes = [n for n in state_space.nodes.values() if check_formula(n.state, problem.goal)]
+        # There are off-plan successors that already satisfy the goal. They are never queued,
+        # so the goal check in the expansion loop never runs on them; classifying them at
+        # creation time keeps them out of the frontier (and out of the planner).
+        assert len(goal_nodes) > 1, f"fixture no longer exercises the case (frontier={frontier})"
+        assert all(n.alive == Alive.ALIVE and n.goal for n in goal_nodes)
+        unexpanded = [n for n in goal_nodes if not n.children]
+        assert unexpanded, "off-plan goal successors should not be expanded"
+
+
+def test_dead_states_are_not_expanded(typed_blocks_medsize):
+    domain, problem = typed_blocks_medsize
+    plan = PlanParser()("(pick a table) (put a b)")
+    ground_actions = ground(domain, problem)
+    b = Constant("b", "block")
+    table = Constant("table", "obj")
+    pickbtable = get_action(ground_actions, "pick", (b, table))
+    baseline = generate_state_space(domain, problem, plans=[plan], frontier=True)
+    off_plan = next(iter(baseline.root.children[pickbtable]))
+    assert off_plan.alive == Alive.PRUNED
+
+    refuted = generate_state_space(domain, problem, plans=[plan], frontier=True, dead_states={off_plan.state})
+    node = next(iter(refuted.root.children[pickbtable]))
+    # A refuted state emits no pruned/2 fact, so the solver cannot route through it.
+    assert node.alive == Alive.DEAD
+    assert not node.children
+
+
+def test_action_path_from_root(typed_blocks_medsize):
+    domain, problem = typed_blocks_medsize
+    plan = PlanParser()("(pick a table) (put a b)")
+    state_space = generate_state_space(domain, problem, plans=[plan], frontier=True)
+    assert state_space.action_path_from_root(state_space.root) == []
+    for node in state_space.nodes.values():
+        path = state_space.action_path_from_root(node)
+        assert path is not None, f"node {node.id} is unreachable from the root"
+        # Replaying the path from the initial state must land on the node's state.
+        state = problem.init
+        for action in path:
+            assert check_formula(state, action.precondition)
+            state = next(iter(apply_action_effects(state, action)))
+        assert state == node.state

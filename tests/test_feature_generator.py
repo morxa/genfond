@@ -232,3 +232,52 @@ def test_augmented_states_to_clingo(blocks_clear):
     assert 'aug_state(0, 0, "unstack(b1,b0)", 0).' in clingo_program
     assert 'eval(0, "b_empty(c_and(c_primitive(clear_G,0),c_primitive(aparam1,0)))", 0).' in clingo_program
     assert 'trans(0, 0, "unstack(b1,b0)", 1).' in clingo_program
+
+
+def test_frontier_states_are_serialized_as_pruned(typed_blocks_medsize):
+    from pddl.parser.plan import PlanParser
+
+    from genfond.state_space_generator import Alive
+
+    domain, problem = typed_blocks_medsize
+    plan = PlanParser()("(pick a table) (put a b)")
+    config = ConfigHandler(type="datalog")
+    assert config["frontier_expansion"] is True
+    feature_pool = FeaturePool(domain, [problem], config=config, plans={problem.name: [plan]})
+    program = feature_pool.to_clingo()
+
+    state_graph = feature_pool.state_graphs[problem.name]
+    frontier_nodes = [n for n in state_graph.nodes.values() if n.alive == Alive.PRUNED]
+    assert frontier_nodes
+    for node in frontier_nodes:
+        assert f"pruned(0, {node.id}).\n" in program
+        # A frontier state is unexpanded: it carries no obligations for the policy.
+        assert f"alive(0, {node.id}).\n" not in program
+        assert f'eval(0, {node.id}, "' not in program
+        # But the transition into it must be visible, or the solver cannot select it.
+        assert f", {node.id}).\n" in program.replace(f"pruned(0, {node.id}).", "")
+
+    # Refuting a frontier state removes its pruned/2 fact, which is what stops the solver
+    # from routing through it.
+    refuted = frontier_nodes[0].state
+    blocked_pool = FeaturePool(
+        domain,
+        [problem],
+        config=config,
+        plans={problem.name: [plan]},
+        dead_states={problem.name: {refuted}},
+    )
+    blocked_program = blocked_pool.to_clingo()
+    refuted_id = blocked_pool.state_graphs[problem.name].nodes[refuted].id
+    assert f"state(0, {refuted_id}).\n" in blocked_program
+    assert f"pruned(0, {refuted_id}).\n" not in blocked_program
+
+
+def test_lookup_node_resolves_asp_ids(typed_blocks_medsize):
+    domain, problem = typed_blocks_medsize
+    config = ConfigHandler(type="datalog")
+    feature_pool = FeaturePool(domain, [problem], config=config)
+    for node in feature_pool.state_graphs[problem.name].nodes.values():
+        found_problem, found_node = feature_pool.lookup_node(0, node.id)
+        assert found_problem.name == problem.name
+        assert found_node is node

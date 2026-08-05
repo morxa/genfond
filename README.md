@@ -114,7 +114,7 @@ From a high-level perspective, the approach works as follows:
 
 1. Compute (several) example plans for each training problem with an external planner (by default `siw`, where diverse plans are obtained by branching over the serializations and by restarting with permuted action and goal orders)
 2. Create a partial state space that contains the example trajectories and, for each state on a trajectory, every possible successor state resulting from all applicable actions.
-   Successors that are not on any trajectory are marked as dead; they serve as the negative examples.
+   Successors that are not on any trajectory are left unexpanded; they serve as the negative examples.
 3. Select good transitions that describe a policy:
    * for every state on a trajectory, select at least one transition that leads to a state on a trajectory.
      Note that this is a condition on the successor state, not on the action: an action that occurs in no example plan may be selected if its successor lies on a trajectory.
@@ -126,6 +126,23 @@ From a high-level perspective, the approach works as follows:
 
 Step (3) is done in the ASP solver.
 There is an outer loop around the solver that iteratively adds example plans, enables the unrestricted feature generators, increases the maximal feature complexity, and adds unsolved problems to the training set, again requiring each round to strictly improve on the previous policy.
+
+##### Frontier expansion
+
+Restricting the state space to the example trajectories can make a round unsatisfiable even though a small amount of extra state space would suffice.
+With `frontier_expansion` (enabled by default for `--type datalog`), the solver may additionally select a transition into an unexpanded successor, assuming optimistically that it is solvable.
+Such a transition carries a cost at a *higher* optimization priority than the feature complexity, so it is only used when the round is otherwise unsatisfiable.
+
+The states selected this way are then handed back to the planner, which is asked to solve the problem starting from that state.
+If it finds a plan, the plan is appended to the path that reaches the state and added as a new example plan, so the state space grows exactly where the solver needed it, rather than blindly.
+If it finds no plan, the state is marked as a dead end and the solver may no longer select transitions into it.
+Either way the round is retried; a policy is only accepted once the solver no longer relies on any unexpanded state.
+
+Frontier expansion is only available while no policy has been found for the current training set.
+Once a policy exists and the outer loop is merely trying to improve on its cost, the frontier is closed off again, since growing the state space there buys cheaper features rather than solvability.
+
+The relevant options are `frontier_expansion`, `max_frontier_expansions` (a loop guard on the number of expansion rounds), `max_frontier_states_per_round`, and `max_frontier_transitions` (a hard cap on the frontier transitions in a single model).
+Note that the planner is incomplete, so failing to find a plan does not prove that a state is a dead end; this can only prevent a policy from being found, never yield an incorrect one, because the final policy is verified on all problems anyway.
 
 
 ## Learning Policies

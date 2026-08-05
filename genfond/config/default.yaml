@@ -52,6 +52,15 @@ prune_redundant_features: true
 prune_redundant_concepts: true
 prune_redundant_roles: true
 use_selected_states: false
+# Let the solver select transitions into unexpanded ("frontier") states at a cost, then feed
+# those states back to the planner and re-solve. Only meaningful with use_example_plans.
+frontier_expansion: false
+# Loop guard: total number of frontier expansion rounds per run.
+max_frontier_expansions: 20
+# How many frontier states to expand per round; 0 expands all the solver selected.
+max_frontier_states_per_round: 0
+# Hard cap on frontier transitions in a single model (-> limit_prune_cost); null = unbounded.
+max_frontier_transitions: null
 use_unrestricted_features: false
 unselect_problems: false
 visualize_state_graphs: false

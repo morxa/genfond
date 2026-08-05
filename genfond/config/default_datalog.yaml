@@ -1,6 +1,7 @@
 policy_type: DATALOG
 policy_iterations: 10
 use_example_plans: true
+frontier_expansion: true
 abort_on_cycle: true
 solve_prog: solve_datalog.lp
 include_numerical_features: false

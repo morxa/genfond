@@ -121,12 +121,14 @@ class FeaturePool:
         all_generators: bool = False,
         selected_states: Optional[Mapping[str, Collection[State]]] = None,
         plans: Optional[Mapping[str, Collection[Plan]]] = None,
+        dead_states: Optional[Mapping[str, Collection[State]]] = None,
     ):
         assert len({problem.name for problem in problems}) == len(problems), "Problem names must be unique."
         self.domain = domain
         self.problems = {problem.name: problem for problem in problems}
         self.config = config
         self.problem_name_to_id = {problem.name: i for i, problem in enumerate(problems)}
+        self.problem_id_to_name = {i: name for name, i in self.problem_name_to_id.items()}
         vocabulary = construct_vocabulary_info(domain, config)
         log.debug(f"Constructed vocabulary: {vocabulary}")
         self.states: dict[State, dlplan.core.State] = dict()
@@ -135,6 +137,7 @@ class FeaturePool:
         self.node_id_to_param_aug_state_ids: dict[tuple[int, int], dict[Action, list[State]]] = dict()
         self.state_id_to_node: dict[State, list[StateSpaceNode]] = dict()
         self.state_graphs: MutableMapping[str, StateSpaceGraph] = dict()
+        self._node_indices: dict[str, dict[int, StateSpaceNode]] = dict()
         self.instances: dict[str, InstanceInfo] = dict()
         self.mappings = dict()
         self.next_state_id = 0
@@ -153,6 +156,8 @@ class FeaturePool:
                 problem,
                 selected_states=(selected_states.get(problem.name, None) if selected_states else None),
                 plans=(plans.get(problem.name, None) if plans else None),
+                frontier=config["frontier_expansion"],
+                dead_states=(dead_states.get(problem.name, None) if dead_states else None),
             )
             if config["visualize_state_graphs"]:
                 draw_state_graph(self.state_graphs[problem.name], f"{problem.name}_state_graph.png")
@@ -487,6 +492,20 @@ class FeaturePool:
         log.info(f"Found {len(static_roles)} static role(s)")
         log.debug(", ".join(static_roles))
         return static_roles
+
+    def lookup_node(self, problem_id: int, node_id: int) -> tuple[Problem, StateSpaceNode]:
+        """Resolve an ASP (instance, state) pair back to its problem and state-space node.
+
+        `node.id` values have gaps after `StateSpaceGraph.prune_nodes`, so this indexes the
+        nodes rather than assuming a dense numbering.
+        """
+        problem_name = self.problem_id_to_name[problem_id]
+        state_graph = self.state_graphs[problem_name]
+        index = self._node_indices.get(problem_name)
+        if index is None:
+            index = {node.id: node for node in state_graph.nodes.values()}
+            self._node_indices[problem_name] = index
+        return self.problems[problem_name], index[node_id]
 
     def node_to_clingo(self, problem: Problem, node: StateSpaceNode, stats: dict) -> str:
         problem_id = self.problem_name_to_id[problem.name]

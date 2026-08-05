@@ -117,13 +117,34 @@ Important gotcha: CLI overrides are applied **only for keys that already exist i
 
 ### Supervised learning / example plans
 
-For rule-based policies a supervised learning variant is implemented: a planner creates example plans, which are used to build a *partial* state space that feeds the solver. When `use_example_plans` is true (the `datalog` config), `StateSpaceGraph` is restricted to states reachable along those plans — off-plan states are marked `Alive.DEAD`, and a state is "revived" if some plan reaches it. This keeps the state space tractable for larger problems.
+For rule-based policies a supervised learning variant is implemented: a planner creates example plans, which are used to build a *partial* state space that feeds the solver. When `use_example_plans` is true (the `datalog` config), `StateSpaceGraph` is restricted to states reachable along those plans — off-plan states are not expanded, and a state is "revived" if some plan reaches it. This keeps the state space tractable for larger problems.
+
+An off-plan successor that already satisfies the goal is classified as `Alive.ALIVE` at creation time and still not expanded: the goal check in the expansion loop only runs on states that are popped from the queue, so it would otherwise never see them.
 
 Planner selection is `config["planner"]` with per-planner settings under `config["planners"]` (`iterative_solver._get_example_plan_computer`):
 - `siw` (default) — `siw_planner.py`, wraps the external `siw` package. Diversity comes from `branch` (branching over SIW serializations) and `restarts` (permuted action/goal orders). Plans are pulled **lazily** from a generator, so the iterator only pays for the plans it consumes.
 - `topk_planner` — `topk_planner.py`, symk via unified-planning.
 
 Both expose the same `compute_plans(domain_str, problem_str, planner_config) -> Iterator[Plan]` signature; a new planner must match it and be added to the `match` in `_get_example_plan_computer`.
+
+### Frontier expansion
+
+`frontier_expansion` (on by default for `datalog`) relaxes the plan restriction. Off-plan successors become `Alive.PRUNED` instead of `Alive.DEAD`, which `feature_generator` emits as `pruned/2`. `solve_datalog.lp` may then select a transition into such a state — `safe_state(I,S) :- pruned(I,S)` treats reaching it as success — but pays `1@2`, a *higher* priority than the feature-complexity minimize at `@0`, so a frontier transition is only used when the round is otherwise unsatisfiable.
+
+The loop is closed in `frontier.py`:
+
+1. The model reports the states it relied on as `frontier/2`; `collect_frontier_states` resolves those `(instance, state)` ids back to `State`s via `FeaturePool.lookup_node`, plus the action path from the root (`StateSpaceGraph.action_path_from_root`).
+2. `expand_frontier` re-roots the problem at each state (`reroot`, which must pass `domain_name=`, not `domain=`) and asks the planner for a plan.
+3. A plan is spliced onto the root path (`_root_anchored_plan`) and added as a new example plan — `StateSpaceGraph` always replays plans from `problem.init`, so plans must stay root-anchored.
+4. No plan marks the state as a dead end. It then emits neither `alive/2` nor `pruned/2`, and the existing constraint at `solve_datalog.lp:22` stops the solver selecting it.
+
+The frontier is closed off once a policy exists: `iterative_solver.max_prune_cost` returns `0` whenever `max_cost < MAX_COST`, because a tightened budget means the round is only trying to beat an existing policy's cost. Without this gate the solver reaches for the frontier on every post-success round and spends planner calls and state-space growth on shaving feature complexity rather than on gaining solvability — measured on `blocks3ops`, that was the difference between 5/7 and 4/7 problems solved.
+
+`solve_step` returns `Result.FRONTIER` (and **no** policy) whenever the model uses any frontier transition; only a zero-frontier model is an acceptable policy. `Result.FRONTIER` must not tighten `max_cost` or mark problems solved — a frontier model's feature cost is artificially low. `ProblemIterator.__next__` has a top-priority branch that retries the identical configuration with the enlarged plan/dead-end sets, gated by `frontier_progress` (something new was learned) and `max_frontier_expansions` (loop guard).
+
+Caveat: SIW is incomplete, so "no plan" does not prove a dead end. A false dead end can only prevent a policy from being found, never produce an incorrect one, because the final policy is re-validated by `execute_policy` on every problem.
+
+Cost-vector gotcha: the `@2` level is absent from `model.cost` when no `pruned/2` fact grounds, so the vector is length 1 or 2 depending on the instance. Always index `cost[-1]` for the feature complexity; never `cost[0]`.
 
 ## Key Files
 
@@ -135,6 +156,7 @@ Both expose the same `compute_plans(domain_str, problem_str, planner_config) -> 
 | `problem_iterator.py` | iteration state machine | ✅ `Result` / `LastStep` enums |
 | `feature_generator.py` | DLPlan integration | ⚠ complex feature synthesis |
 | `state_space_generator.py` | reachable state graph, plan-restricted expansion | ⚠ state explosion handling |
+| `frontier.py` | frontier states → re-rooted planning → new example plans | ✅ small, self-contained |
 | `state_space_vis.py` | GraphViz rendering of state graphs | debugging aid |
 | `tests/conftest.py` | test fixtures | ✅ both PDDL and raw-ASP fixtures |
 

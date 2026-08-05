@@ -18,12 +18,17 @@ class Result(enum.Enum):
     SUCCESS = 1
     NO_SOLUTION = 2
     OUT_OF_RESOURCES = 3
+    # A model was found, but it relies on transitions into unexpanded frontier states, so it
+    # is not a policy yet. The caller expands those states and the same configuration is
+    # retried with the enlarged plan set.
+    FRONTIER = 4
 
 
 class LastStep(enum.Enum):
     START = 0
     INC_PLANS = 1
     INC_COMPLEXITY = 2
+    EXPAND_FRONTIER = 3
 
 
 class ProblemIterator:
@@ -38,6 +43,9 @@ class ProblemIterator:
         self.active_plans: MutableMapping[str, Plan] = dict()
         self.selected_states: dict[str, set[State]] = dict()
         self.new_states: dict[str, set[State]] = dict()
+        self.dead_states: dict[str, set[State]] = dict()
+        self.frontier_expansions = 0
+        self.frontier_progress = False
         self.all_features = False
         self.last_step = LastStep.START
         self.complexity = self.config["min_complexity"]
@@ -48,8 +56,31 @@ class ProblemIterator:
         self.solved = {problem.name: False for problem in self.problems}
         return self
 
+    def record_frontier_expansion(
+        self, plans: Mapping[str, list[Plan]], dead_states: Mapping[str, set[State]]
+    ) -> None:
+        """Take the result of expanding the frontier states the last model relied on.
+
+        Sets `frontier_progress`, which gates the retry: without new plans and without new
+        dead ends the next round would be identical, so we must fall through to the normal
+        escalation ladder instead of looping forever.
+        """
+        self.frontier_expansions += 1
+        self.frontier_progress = False
+        for problem_name, new_plans in plans.items():
+            self.active_plans.setdefault(problem_name, []).extend(new_plans)
+            self.frontier_progress = True
+        for problem_name, states in dead_states.items():
+            known = self.dead_states.setdefault(problem_name, set())
+            if states - known:
+                self.frontier_progress = True
+            known |= states
+
     def set_last_result(self, result: Result, cost: Optional[tuple[int]] = None) -> None:
         self.last_result = result
+        # A frontier model's feature cost is artificially low because it was allowed to assume
+        # unexpanded states are solvable. Tightening max_cost or marking problems solved from
+        # it would make every later round unsatisfiable, so Result.FRONTIER changes nothing.
         if result == Result.SUCCESS:
             assert cost
             self.active_problems_solved = True
@@ -76,6 +107,13 @@ class ProblemIterator:
             f"last result: {self.last_result.name}, all features: {self.all_features}, complexity: {self.complexity}"
         )
         if (
+            self.last_result == Result.FRONTIER
+            and self.frontier_progress
+            and self.frontier_expansions <= self.config["max_frontier_expansions"]
+        ):
+            # Retry the exact same configuration; only the plan and dead-end sets grew.
+            self.last_step = LastStep.EXPAND_FRONTIER
+        elif (
             (self.last_step == LastStep.INC_COMPLEXITY or self.complexity == self.config["max_complexity"])
             and self.active_problems
             and not self.active_problems_solved
@@ -150,7 +188,8 @@ class ProblemIterator:
             f" complexity={self.complexity},"
             f" all_features={self.all_features},"
             f' max_cost={self.max_cost if self.max_cost < MAX_COST else "MAX_COST"},'
-            f" |selected_states|={len(self.selected_states)} states"
+            f" |selected_states|={len(self.selected_states)} states,"
+            f" last_step={self.last_step.name}"
         )
         return {
             "active_problems": self.active_problems,
@@ -158,6 +197,7 @@ class ProblemIterator:
             "all_features": self.all_features,
             "max_cost": self.max_cost,
             "example_plans": self.active_plans,
+            "dead_states": self.dead_states,
         }
 
 
@@ -177,10 +217,13 @@ class OneShotProblemIterator(ProblemIterator):
         if self.called:
             raise StopIteration
         self.called = True
+        # Must match ProblemIterator.__next__: solve_step takes example_plans, not
+        # selected_states, so returning the latter used to make --one-shot raise TypeError.
         return {
             "active_problems": self.active_problems,
             "complexity": self.complexity,
             "all_features": self.all_features,
             "max_cost": self.max_cost,
-            "selected_states": self.selected_states,
+            "example_plans": self.active_plans,
+            "dead_states": self.dead_states,
         }

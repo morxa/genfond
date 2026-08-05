@@ -14,6 +14,7 @@ from .datalog_policy import DatalogPolicy
 from .execute_datalog_policy import CycleError, NoActionError
 from .execute_policy import execute_policy
 from .feature_generator import FeaturePool
+from .frontier import FrontierState, collect_frontier_states, expand_frontier
 from .generate_policy import generate_policy
 from .policy import PolicyType
 from .problem_iterator import MAX_COST, OneShotProblemIterator, ProblemIterator, Result
@@ -41,6 +42,19 @@ def _get_example_plan_computer(config: Mapping[str, Any]) -> tuple[PlannerComput
     return planner_compute_plans, planner_config, planner_name
 
 
+def max_prune_cost(config: Mapping[str, Any], max_cost: int) -> int:
+    """How many frontier transitions a single model may use.
+
+    The frontier exists for rounds that are otherwise unsolvable. A tightened `max_cost` means
+    a policy already exists and this round is only trying to beat its cost, so the frontier is
+    closed off there: expanding it would spend planner calls and state-space growth on shaving
+    feature complexity rather than on gaining solvability.
+    """
+    if max_cost < MAX_COST:
+        return 0
+    return config["max_frontier_transitions"] or MAX_COST
+
+
 def solve(
     domain: Domain,
     problems: Collection[Problem],
@@ -50,7 +64,8 @@ def solve(
     all_generators: bool = True,
     enforce_highest_complexity: bool = False,
     plans: Optional[MutableMapping[str, Collection[Plan]]] = None,
-) -> Optional[tuple[DatalogPolicy | Policy, dict[str, Any]]]:
+    dead_states: Optional[Mapping[str, set[State]]] = None,
+) -> Optional[tuple[DatalogPolicy | Policy, dict[str, Any], list[FrontierState]]]:
     stats: dict[str, Any] = dict()
     log.debug("Generating feature pool ...")
     feature_pool = FeaturePool(
@@ -60,6 +75,7 @@ def solve(
         max_complexity=complexity,
         all_generators=all_generators,
         plans=plans,
+        dead_states=dead_states,
     )
     stats["featurePoolSize"] = len(feature_pool.features)
     log.debug("Generating ASP instance ...")
@@ -97,6 +113,7 @@ def solve(
         asp_instance,
         config["num_threads"],
         max_cost=max_cost,
+        max_prune_cost=max_prune_cost(config, max_cost),
         min_feature_complexity=complexity if enforce_highest_complexity else None,
         solve_prog=config["solve_prog"],
     )
@@ -114,12 +131,14 @@ def solve(
     log.debug(f"Solution: {solution}")
     log.debug(f'f_selected: {solution.get("f_selected", [])}')
     log.debug(f'f_distinguished: {solution.get("f_distinguished", [])}')
+    frontier_states = collect_frontier_states(feature_pool, solution)
+    stats["numFrontierTransitions"] = len(frontier_states)
     try:
         policy = generate_policy(solution, policy_type=PolicyType[config["policy_type"]])
     except KeyError as e:
         log.error(f"Error during policy generation: {e}")
         raise
-    return policy, stats
+    return policy, stats, frontier_states
 
 
 def pnames(problems: Collection[Problem]) -> str:
@@ -133,6 +152,8 @@ def solve_iteratively(
     problems.sort(key=lambda p: len(p.objects))
     stats: dict[str, str | int | float] = dict()
     example_plans: dict[str, Iterator[Plan]] = dict()
+    planner_compute_plans: Optional[PlannerComputePlans] = None
+    planner_config: dict[str, Any] = dict()
     if config["use_example_plans"]:
         planner_compute_plans, planner_config, planner_name = _get_example_plan_computer(config)
         log.info(f"Using planner '{planner_name}' to generate example plans")
@@ -142,19 +163,39 @@ def solve_iteratively(
                 str(problem),
                 dict(planner_config),
             )
+    if config["frontier_expansion"] and not config["use_example_plans"]:
+        # StateSpaceGraph only leaves states unexpanded when it is restricted by example
+        # plans, so without them the flag is inert: no state is ever marked PRUNED.
+        log.warning("frontier_expansion has no effect without use_example_plans")
     problem_iterator: ProblemIterator | OneShotProblemIterator
     if one_shot:
         problem_iterator = OneShotProblemIterator(problems, config, plans=example_plans)
     else:
         problem_iterator = ProblemIterator(problems, config, plans=example_plans)
+    problems_by_name = {problem.name: problem for problem in problems}
     for iter_kwargs in problem_iterator:
-        result, new_policy = solve_step(
+        result, new_policy, frontier_states = solve_step(
             **iter_kwargs,
             domain=domain,
             stats=stats,
             config=config,
             enforce_highest_complexity=not one_shot,
         )
+        if result == Result.FRONTIER:
+            # Expand the unexpanded states the model relied on, then retry the same
+            # configuration. Must not fall through: the model is not a valid policy.
+            assert planner_compute_plans, "A frontier can only arise from plan-restricted expansion"
+            new_plans, dead_states = expand_frontier(
+                domain,
+                problems_by_name,
+                frontier_states,
+                planner_compute_plans,
+                planner_config,
+                config,
+            )
+            problem_iterator.record_frontier_expansion(new_plans, dead_states)
+            problem_iterator.set_last_result(result)
+            continue
         problem_iterator.set_last_result(result, cost=new_policy.cost if new_policy else None)
         if result != Result.SUCCESS:
             continue
@@ -222,7 +263,8 @@ def solve_step(
     enforce_highest_complexity: bool,
     all_features: bool,
     max_cost: int,
-) -> tuple[Result, Optional[Policy | DatalogPolicy]]:
+    dead_states: Optional[Mapping[str, set[State]]] = None,
+) -> tuple[Result, Optional[Policy | DatalogPolicy], list[FrontierState]]:
     try:
         log.info(f"Starting solver for {pnames(active_problems)} with max complexity {complexity}")
         solve_wall_time_start = time.perf_counter()
@@ -236,6 +278,7 @@ def solve_step(
             max_cost=max_cost,
             enforce_highest_complexity=enforce_highest_complexity,
             plans=example_plans,
+            dead_states=dead_states,
         )
     except (RuntimeError, MemoryError) as e:
         log.warning(
@@ -243,13 +286,13 @@ def solve_step(
         )
         if "Id out of range" in str(e):
             stats["failureReason"] = "id"
-            return Result.OUT_OF_RESOURCES, None
+            return Result.OUT_OF_RESOURCES, None, []
         elif isinstance(e, MemoryError):
             stats["failureReason"] = "memory"
-            return Result.OUT_OF_RESOURCES, None
+            return Result.OUT_OF_RESOURCES, None, []
         else:
             stats["failureReason"] = str(e)
-            return Result.UNKNOWN, None
+            return Result.UNKNOWN, None, []
     finally:
         stats["lastSolveWallTime"] = time.perf_counter() - solve_wall_time_start
         stats["lastSolveCpuTime"] = time.process_time() - solve_cpu_time_start
@@ -257,8 +300,16 @@ def solve_step(
         log.info("Solver CPU time: {:.2f}s".format(stats["lastSolveCpuTime"]))
         stats["totalSolveCpuTime"] = stats.get("totalSolveCpuTime", 0) + stats["lastSolveCpuTime"]
     if solution:
-        policy, solve_stats = solution
+        policy, solve_stats, frontier_states = solution
         stats.update(solve_stats)
+        if frontier_states:
+            # Not a policy: it assumes the frontier states it selects are solvable. The caller
+            # must expand them and re-solve; only a zero-frontier model is acceptable.
+            log.info(
+                f"Model for {pnames(active_problems)} with max complexity {complexity} relies on"
+                f" {len(frontier_states)} transition(s) into unexpanded states, expanding them"
+            )
+            return Result.FRONTIER, None, frontier_states
         log.info(
             f"Found policy with cost {policy.cost} for" f" {pnames(active_problems)} with max complexity {complexity}"
         )
@@ -280,5 +331,5 @@ def solve_step(
         stats["maxFeatureComplexity"] = complexity
         stats["bestSolveWallTime"] = stats["lastSolveWallTime"]
         stats["bestSolveCpuTime"] = stats["lastSolveCpuTime"]
-        return Result.SUCCESS, policy
-    return Result.NO_SOLUTION, None
+        return Result.SUCCESS, policy, []
+    return Result.NO_SOLUTION, None, []
