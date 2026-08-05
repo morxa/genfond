@@ -13,6 +13,11 @@ log = logging.getLogger("genfond.problem_iterator")
 MAX_COST = sys.maxsize
 
 
+def plan_key(plan: Plan) -> tuple:
+    """A hashable identity for a plan. `Plan` defines __eq__ but no __hash__."""
+    return tuple((str(name), tuple(str(arg) for arg in args)) for name, args in plan.actions)
+
+
 class Result(enum.Enum):
     UNKNOWN = 0
     SUCCESS = 1
@@ -68,13 +73,24 @@ class ProblemIterator:
         self.frontier_expansions += 1
         self.frontier_progress = False
         for problem_name, new_plans in plans.items():
-            self.active_plans.setdefault(problem_name, []).extend(new_plans)
-            self.frontier_progress = True
-        for problem_name, states in dead_states.items():
-            known = self.dead_states.setdefault(problem_name, set())
-            if states - known:
+            active = self.active_plans.setdefault(problem_name, [])
+            known = {plan_key(plan) for plan in active}
+            for plan in new_plans:
+                if plan_key(plan) in known:
+                    # The planner is deterministic, so a frontier state that the new plan
+                    # fails to expand yields the same plan every round. Re-adding it is not
+                    # progress; counting it as such spins this loop until the expansion
+                    # budget runs out.
+                    log.debug("Frontier plan for %s is already an example plan, ignoring it", problem_name)
+                    continue
+                known.add(plan_key(plan))
+                active.append(plan)
                 self.frontier_progress = True
-            known |= states
+        for problem_name, states in dead_states.items():
+            known_dead = self.dead_states.setdefault(problem_name, set())
+            if states - known_dead:
+                self.frontier_progress = True
+            known_dead |= states
 
     def set_last_result(self, result: Result, cost: Optional[tuple[int]] = None) -> None:
         self.last_result = result

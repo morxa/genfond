@@ -1,7 +1,8 @@
 from dataclasses import dataclass
 
 import pytest
-from pddl.logic import Predicate, constants
+from pddl.core import Plan
+from pddl.logic import Constant, Predicate, constants
 
 from genfond.problem_iterator import (
     MAX_COST,
@@ -56,6 +57,10 @@ def frontier_config(**overrides):
     return config
 
 
+def a_plan(*names):
+    return Plan([(n, [Constant("x")]) for n in names])
+
+
 def started_iterator(config):
     a, b = constants("a b")
     problems = [
@@ -90,14 +95,14 @@ def test_frontier_result_does_not_tighten_max_cost():
     assert iterator.max_cost == MAX_COST
     assert iterator.active_problems_solved is False
 
-    iterator.record_frontier_expansion({"p1": ["a plan"]}, {})
+    iterator.record_frontier_expansion({"p1": [a_plan("pick")]}, {})
     second = next(iterator)
     assert iterator.last_step == LastStep.EXPAND_FRONTIER
     # The same configuration is retried, only the plan set grew.
     assert second["active_problems"] == first["active_problems"]
     assert second["complexity"] == first["complexity"]
     assert second["max_cost"] == first["max_cost"]
-    assert second["example_plans"]["p1"] == ["a plan"]
+    assert second["example_plans"]["p1"] == [a_plan("pick")]
 
 
 def test_frontier_retry_needs_progress():
@@ -124,12 +129,34 @@ def test_new_dead_states_count_as_progress():
 
 def test_max_frontier_expansions_stops_the_retry_loop():
     iterator, _ = started_iterator(frontier_config(max_frontier_expansions=2))
-    for _ in range(3):
+    for i in range(3):
         iterator.set_last_result(Result.FRONTIER)
-        iterator.record_frontier_expansion({"p1": ["a plan"]}, {})
+        # Distinct each round, so the retry is stopped by the budget and not by deduplication.
+        iterator.record_frontier_expansion({"p1": [a_plan(f"pick{i}")]}, {})
         next(iterator)
     assert iterator.frontier_expansions == 3
     iterator.set_last_result(Result.FRONTIER)
-    iterator.record_frontier_expansion({"p1": ["another plan"]}, {})
+    iterator.record_frontier_expansion({"p1": [a_plan("another")]}, {})
     next(iterator)
     assert iterator.last_step != LastStep.EXPAND_FRONTIER
+
+
+def test_duplicate_frontier_plans_are_not_progress():
+    iterator, _ = started_iterator(frontier_config())
+    iterator.set_last_result(Result.FRONTIER)
+    iterator.record_frontier_expansion({"p1": [a_plan("pick", "put")]}, {})
+    assert iterator.frontier_progress is True
+    assert len(iterator.active_plans["p1"]) == 1
+
+    # The planner is deterministic: a frontier state the plan failed to expand yields the
+    # identical plan next round. Re-adding it would spin the retry loop.
+    iterator.set_last_result(Result.FRONTIER)
+    iterator.record_frontier_expansion({"p1": [a_plan("pick", "put")]}, {})
+    assert iterator.frontier_progress is False
+    assert len(iterator.active_plans["p1"]) == 1
+
+    # A genuinely different plan still counts.
+    iterator.set_last_result(Result.FRONTIER)
+    iterator.record_frontier_expansion({"p1": [a_plan("pick", "drop")]}, {})
+    assert iterator.frontier_progress is True
+    assert len(iterator.active_plans["p1"]) == 2
