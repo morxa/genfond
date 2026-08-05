@@ -1,5 +1,6 @@
 import logging
 import random
+from collections import deque
 from collections.abc import Collection
 from enum import Enum
 from typing import Optional
@@ -207,6 +208,8 @@ class StateSpaceGraph:
         selected_states: Optional[set[State]] = None,
         max_num_val: Optional[int] = None,
         plans: Optional[list[Plan]] = None,
+        frontier: bool = False,
+        dead_states: Optional[Collection[State]] = None,
     ):
         self.domain = domain
         self.problem = problem
@@ -252,17 +255,40 @@ class StateSpaceGraph:
                         [plan_string(plan) for plan in plan_suffixes],
                     )
                     new, new_node = self.add_node(succ, state, action, plan_suffixes)
+                    known_dead = dead_states is not None and succ in dead_states
                     if new:
                         if max_num_val and any(v > max_num_val for v in get_num_vals(succ)):
                             new_node.alive = Alive.NUM_PRUNED
+                        elif known_dead:
+                            # Refuted earlier in this run: never expand it, and emit no
+                            # pruned/2 fact, so the solver cannot select a transition into it.
+                            log.debug(f"Marking known dead end {state_string(succ)}")
+                            new_node.alive = Alive.DEAD
                         elif selected_states and succ not in selected_states:
                             log.debug(f"Pruning {state_string(succ)}")
                             new_node.alive = Alive.PRUNED
                         elif plans and not matches_plan:
-                            new_node.alive = Alive.DEAD
+                            if check_formula(succ, problem.goal):
+                                # An off-plan successor that already satisfies the goal. It is
+                                # never queued, so the goal check in the main loop would never
+                                # run on it and it would look like a dead end (or, with
+                                # frontier expansion on, get handed to the planner).
+                                new_node.alive = Alive.ALIVE
+                                new_node.goal = True
+                            elif frontier:
+                                new_node.alive = Alive.PRUNED
+                            else:
+                                new_node.alive = Alive.DEAD
                         else:
                             queue.append(new_node)
-                    if plans and matches_plan and new_node.alive == Alive.DEAD:
+                    revivable = (Alive.DEAD,) if selected_states else (Alive.DEAD, Alive.PRUNED)
+                    if plans and matches_plan and new_node.alive in revivable:
+                        if known_dead:
+                            log.warning(
+                                "A plan runs through %s, which was refuted as a dead end earlier;"
+                                " trusting the plan. This means the planner contradicted itself.",
+                                state_string(succ),
+                            )
                         log.debug(f"Reviving {state_string(succ)} because it matches a plan")
                         queue.append(new_node)
                         new_node.alive = Alive.UNKNOWN
@@ -289,6 +315,43 @@ class StateSpaceGraph:
         parent.add_child(action, node)
         node.parents.add(parent)
         return new, node
+
+    def action_path_from_root(self, node: "StateSpaceNode") -> Optional[list[Action]]:
+        """Return a shortest action sequence leading from the root to `node`.
+
+        Returns None if this graph has no root (the `selected_states` mode) or `node` is
+        unreachable. The sequence is only a plan for deterministic domains; for an action
+        with several outcomes, replaying it may end up somewhere else.
+        """
+        root = getattr(self, "root", None)
+        if root is None:
+            return None
+        if node is root:
+            return []
+        came_from: dict[StateSpaceNode, tuple[StateSpaceNode, Action]] = dict()
+        seen = {root}
+        queue = deque([root])
+        while queue:
+            current = queue.popleft()
+            for action, children in current.children.items():
+                if len(children) > 1:
+                    log.debug(
+                        "Action %s in %s is nondeterministic; the action path is not a plan",
+                        action_string(action),
+                        self.problem.name,
+                    )
+                for child in children - seen:
+                    seen.add(child)
+                    came_from[child] = (current, action)
+                    if child is node:
+                        path = []
+                        step = node
+                        while step in came_from:
+                            step, edge = came_from[step]
+                            path.append(edge)
+                        return list(reversed(path))
+                    queue.append(child)
+        return None
 
     def prune_nodes(self) -> None:
         pruned_dead = []
