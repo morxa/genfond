@@ -184,3 +184,44 @@ def test_action_path_from_root(typed_blocks_medsize):
             assert check_formula(state, action.precondition)
             state = next(iter(apply_action_effects(state, action)))
         assert state == node.state
+
+
+def test_every_state_on_a_plan_is_expanded(gripper):
+    """A state that lies on an example plan must be expanded.
+
+    States are expanded in a single LIFO pass, so a plan can reach a node that was already
+    expanded. Unless the suffix propagation is iterated, the actions that plan prescribes
+    there are never matched and its successors are wrongly left off-plan. These plans, which
+    reconverge on shared states, trigger that ordering; the last one is the victim.
+    """
+    domain, problem = gripper
+    plans = [
+        PlanParser()(p)
+        for p in [
+            "(pick ball1 rooma left) (move rooma roomb) (drop ball1 roomb left)"
+            " (move roomb rooma) (pick ball2 rooma left) (move rooma roomb) (drop ball2 roomb left)",
+            "(pick ball1 rooma left) (move rooma roomb) (drop ball1 roomb left) (move roomb rooma)"
+            " (pick ball2 rooma left) (move rooma roomb) (drop ball2 roomb left) (move roomb rooma)",
+            "(pick ball2 rooma left) (move rooma roomb) (drop ball2 roomb left)"
+            " (move roomb rooma) (pick ball1 rooma left) (move rooma roomb) (drop ball1 roomb left)",
+            "(pick ball2 rooma left) (move rooma roomb) (drop ball2 roomb left) (move roomb rooma)"
+            " (pick ball1 rooma left) (move rooma roomb) (drop ball1 roomb left) (move roomb rooma)",
+            "(pick ball1 rooma left) (move rooma roomb) (drop ball1 roomb left)"
+            " (move roomb rooma) (pick ball2 rooma right) (move rooma roomb) (drop ball2 roomb right)",
+            "(move rooma roomb) (move roomb rooma) (pick ball1 rooma left) (move rooma roomb)"
+            " (drop ball1 roomb left) (move roomb rooma) (pick ball2 rooma left)"
+            " (move rooma roomb) (drop ball2 roomb left)",
+            "(pick ball1 rooma right) (move rooma roomb) (drop ball1 roomb right)"
+            " (move roomb rooma) (pick ball2 rooma left) (move rooma roomb) (drop ball2 roomb left)",
+        ]
+    ]
+    state_space = generate_state_space(domain, problem, plans=plans, frontier=True)
+    for i, plan in enumerate(plans):
+        state = problem.init
+        for step, action in enumerate(plan.instantiate(domain)):
+            state = next(iter(apply_action_effects(state, action)))
+            node = state_space.nodes.get(state)
+            assert node is not None, f"plan {i} step {step}: state missing from the graph"
+            assert node.alive == Alive.ALIVE, (
+                f"plan {i} step {step} after {action.name}: state lies on an example plan" f" but is {node.alive.name}"
+            )
