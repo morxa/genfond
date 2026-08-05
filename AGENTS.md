@@ -92,6 +92,18 @@ Core loop (`iterative_solver.solve_iteratively`):
 
 **Key insight:** the system solves easier problems first, then adds larger problems and increases feature complexity. `ProblemIterator.__next__` is the state machine that decides *how* to escalate when a round fails, in priority order: add another example plan → enable unrestricted feature generators → increment complexity → add the next unsolved problem to the training set. Read it before changing anything about iteration behaviour; `set_last_result()` **must** be called between iterations (asserted).
 
+### Refuted complexity levels
+
+`min_feature_complexity(c)` rests on exactly one fact: complexity `c-1` was **refuted** — no solution exists that uses only features of complexity ≤ `c-1`. That is a claim about one particular ASP instance, so `ProblemIterator` tracks it explicitly in `refuted_complexity` and returns `enforce_highest_complexity` per round; never hardcode it in the caller.
+
+- Only a round over the **full** feature pool refutes a level. A restricted-generator round proves nothing about the unrestricted pool, which is a superset.
+- A `SUCCESS` refutes its own level too: clingo minimises the feature cost, so `cost[-1]` is optimal for that pool and nothing there beats the new `max_cost`. This is what keeps the `max_cost < complexity` short circuit in `solve()` available — that short circuit is only valid while enforcement is on, and is guarded on it.
+- Every branch that changes the state space calls `_invalidate_refutations()`: `INC_PLANS`, `EXPAND_FRONTIER` (when `frontier_progress`), and the add-a-problem branch. Adding a plan or a dead end can make a *simpler* policy possible, so a stale bound would exclude it. Without this the search enforced a bound that, after the first plan addition, was never re-established under the current state space — only one complexity level is ever tried per plan set.
+- The add-a-problem branch is the exception that keeps its bound: adding an instance is monotone (a selection solving the larger set solves every subset), so it resumes at `succ_complexity` with `refuted_complexity = succ_complexity - 1`. `unselect_problems` *replaces* the training set instead of extending it, and then nothing carries over.
+- Refutations are relative to the current `max_cost`. Both branches that loosen `max_cost` back to `MAX_COST` also reset `refuted_complexity`, so the two never get out of step.
+
+`reset_complexity_on_state_space_change` (default off) additionally restarts the sweep at `min_complexity` whenever the state space changes, so policies that only became expressible in the enlarged state space are still reachable. It costs a full re-sweep per added plan. `sweep_target` guards the interaction: the next plan is only added once the sweep has climbed *past* the level the last one was added at — with `>=` the restart and the addition alternate at one fixed level and the search never reaches the higher complexities at all.
+
 ### Policy types
 
 `--type X` maps to `genfond/config/default_X.yaml`, which sets `policy_type` (the `PolicyType` enum in `policy.py`: `EXACT`, `CONSTRAINED`, `DATALOG`) and `solve_prog` (which `.lp` file is loaded):

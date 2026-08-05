@@ -184,7 +184,6 @@ def solve_iteratively(
             domain=domain,
             stats=stats,
             config=config,
-            enforce_highest_complexity=not one_shot,
         )
         if result == Result.FRONTIER:
             # Expand the unexpanded states the model relied on, then retry the same
@@ -265,9 +264,11 @@ def solve_step(
     example_plans: MutableMapping[str, Collection[Plan]],
     active_problems: Collection[Problem],
     complexity: int,
-    enforce_highest_complexity: bool,
     all_features: bool,
     max_cost: int,
+    # Whether `complexity - 1` has been refuted for this exact state space; the iterator owns
+    # that bookkeeping because only it knows when the state space last changed.
+    enforce_highest_complexity: bool = False,
     dead_states: Optional[Mapping[str, set[State]]] = None,
     allow_frontier: bool = True,
 ) -> tuple[Result, Optional[Policy | DatalogPolicy], list[FrontierState]]:

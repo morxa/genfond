@@ -1,5 +1,13 @@
 min_complexity: 2
 max_complexity: 15
+# Adding an example plan or a dead end changes the state space, which can make a *simpler*
+# policy possible than the one the search has already ruled out. With this on, the complexity
+# sweep restarts at min_complexity whenever that happens, so those simpler policies are still
+# reachable; the next plan is only added once the sweep has climbed back. Off, the search keeps
+# its current complexity and never looks below it again -- much cheaper, but a policy that only
+# exists at a lower complexity in the enlarged state space is never found. Only has an effect
+# with use_example_plans, which is what makes the state space grow during the run.
+reset_complexity_on_state_space_change: false
 policy_iterations: 100
 abort_on_cycle: false
 stop_after_first_solution: true

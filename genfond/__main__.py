@@ -52,6 +52,14 @@ def main():
     )
     config_args.add_argument("--max-complexity", type=int, help="stop policy search with this max complexity")
     config_args.add_argument(
+        "--reset-complexity-on-state-space-change",
+        action=argparse.BooleanOptionalAction,
+        # Must default to None, not False: ConfigHandler skips None overrides, so a False
+        # default would silently overrule the setting from --config on every run.
+        default=None,
+        help="restart the complexity sweep at min-complexity whenever an example plan or dead end is added",
+    )
+    config_args.add_argument(
         "-i",
         "--policy-iterations",
         type=int,

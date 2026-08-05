@@ -58,8 +58,43 @@ class ProblemIterator:
         self.succ_complexity = self.complexity
         self.active_problems_solved = True
         self.max_cost = MAX_COST
+        # Highest complexity level refuted for the *current* state space and the current
+        # `max_cost`: no solution exists that uses only features of at most that complexity.
+        # `min_complexity - 1` encodes the config's own assertion that nothing below
+        # `min_complexity` is worth trying. See `enforce_highest_complexity`.
+        self.refuted_complexity = self.config["min_complexity"] - 1
+        # The complexity the sweep has to climb back to before another example plan is added.
+        # Only ever differs from `complexity` when `reset_complexity_on_state_space_change`
+        # restarts the sweep; without it the guard is vacuous.
+        self.sweep_target = self.complexity
         self.solved = {problem.name: False for problem in self.problems}
         return self
+
+    def enforce_highest_complexity(self) -> bool:
+        """Whether the solver may require a selected feature of at least `complexity`.
+
+        `min_feature_complexity(c)` is justified by exactly one fact: that complexity `c-1`
+        was refuted over the full feature pool. That refutation is a statement about a
+        specific ASP instance, so it does not survive a change of the state space -- adding an
+        example plan or a dead end can make a *simpler* policy possible, and the constraint
+        would exclude it. Every branch that changes the state space therefore calls
+        `_invalidate_refutations`.
+        """
+        return self.refuted_complexity >= self.complexity - 1
+
+    def _invalidate_refutations(self) -> None:
+        """Record that the state space changed, so no complexity level is refuted any more.
+
+        With `reset_complexity_on_state_space_change` the sweep also restarts at
+        `min_complexity`, which re-establishes the refutations on the way back up and lets the
+        solver find a policy that only became expressible in the enlarged state space. Without
+        it the search stays where it is and simply drops the enforcement until the current
+        level has been refuted again, which is cheaper but never looks below.
+        """
+        self.refuted_complexity = self.config["min_complexity"] - 1
+        if self.config["reset_complexity_on_state_space_change"]:
+            self.sweep_target = max(self.sweep_target, self.complexity)
+            self.complexity = self.config["min_complexity"]
 
     def record_frontier_expansion(
         self, plans: Mapping[str, list[Plan]], dead_states: Mapping[str, set[State]]
@@ -91,9 +126,18 @@ class ProblemIterator:
             if states - known_dead:
                 self.frontier_progress = True
             known_dead |= states
+        if self.frontier_progress:
+            # New plans and new dead ends both change the state space the next round is
+            # solved over, so the complexity levels refuted so far no longer apply.
+            self._invalidate_refutations()
 
     def set_last_result(self, result: Result, cost: Optional[tuple[int]] = None) -> None:
         self.last_result = result
+        # Only a round over the full feature pool refutes a complexity level; the restricted
+        # generators are a subset, so their failure says nothing about the unrestricted ones.
+        full_feature_pool = self.all_features or not self.config["use_unrestricted_features"]
+        if result == Result.NO_SOLUTION and full_feature_pool:
+            self.refuted_complexity = max(self.refuted_complexity, self.complexity)
         # A frontier model's feature cost is artificially low because it was allowed to assume
         # unexpanded states are solvable. Tightening max_cost or marking problems solved from
         # it would make every later round unsatisfiable, so Result.FRONTIER changes nothing.
@@ -101,6 +145,12 @@ class ProblemIterator:
             assert cost
             self.active_problems_solved = True
             self.max_cost = cost[-1] - 1
+            if full_feature_pool:
+                # clingo minimizes the feature cost, so `cost[-1]` is optimal for this pool:
+                # nothing at this complexity beats the new `max_cost`. That refutes the level
+                # just as an UNSAT would, and keeps the `max_cost < complexity` short circuit
+                # in `iterative_solver.solve` available for the rounds that follow.
+                self.refuted_complexity = max(self.refuted_complexity, self.complexity)
             self.succ_complexity = self.complexity
             # self.solved = {
             #     problem.name: True if problem in self.active_problems else False
@@ -131,6 +181,15 @@ class ProblemIterator:
             self.last_step = LastStep.EXPAND_FRONTIER
         elif (
             (self.last_step == LastStep.INC_COMPLEXITY or self.complexity == self.config["max_complexity"])
+            # A restarted sweep has to climb *past* the level the last plan was added at
+            # before the next one is added. With ">=" the restart and the addition alternate
+            # at one fixed level and the search never reaches the higher complexities at all;
+            # this way each plan is added one level deeper, as it is without the restart. The
+            # guard is vacuous when the sweep is not restarted, since `sweep_target` then
+            # stays at `min_complexity` and `last_step == INC_COMPLEXITY` implies a higher
+            # complexity. At `max_complexity` there is no deeper level to reach, so plans are
+            # added there on every round, exactly as before.
+            and (self.complexity > self.sweep_target or self.complexity == self.config["max_complexity"])
             and self.active_problems
             and not self.active_problems_solved
             and self.last_result != Result.OUT_OF_RESOURCES
@@ -151,7 +210,7 @@ class ProblemIterator:
             self.active_plans.setdefault(problem, []).append(plan)
             self.all_features = False
             self.max_cost = MAX_COST
-            # self.complexity = self.succ_complexity
+            self._invalidate_refutations()
             self.last_step = LastStep.INC_PLANS
         elif (
             self.active_problems
@@ -175,6 +234,7 @@ class ProblemIterator:
             self.max_cost = MAX_COST
             self.active_problems_solved = False
             self.complexity = self.succ_complexity
+            self.sweep_target = self.complexity
             self.last_step = LastStep.START
             next_problem = next(
                 problem
@@ -188,8 +248,16 @@ class ProblemIterator:
                 > max([self.problems.index(problem) for problem in self.active_problems])
             ):
                 self.active_problems = [next_problem]
+                # The training set is replaced, not extended, so nothing carries over.
+                self.refuted_complexity = self.config["min_complexity"] - 1
             else:
                 self.active_problems.append(next_problem)
+                # Adding an instance is monotone: a selection that solves the larger set also
+                # solves every subset, so "no solution below `succ_complexity`" carries over
+                # and the sweep resumes there instead of at `min_complexity`. That bound is
+                # unconditional -- it was established before the success tightened `max_cost`,
+                # which is reset here anyway.
+                self.refuted_complexity = self.succ_complexity - 1
             if self.plan_iterators:
                 self.active_plans[next_problem.name] = []
                 while len(self.active_plans[next_problem.name]) < self.config["min_number_of_plans"]:
@@ -205,6 +273,7 @@ class ProblemIterator:
             f" all_features={self.all_features},"
             f' max_cost={self.max_cost if self.max_cost < MAX_COST else "MAX_COST"},'
             f" |selected_states|={len(self.selected_states)} states,"
+            f" enforce_highest_complexity={self.enforce_highest_complexity()},"
             f" last_step={self.last_step.name}"
         )
         return {
@@ -215,6 +284,7 @@ class ProblemIterator:
             "example_plans": self.active_plans,
             "dead_states": self.dead_states,
             "allow_frontier": self.frontier_budget_left(),
+            "enforce_highest_complexity": self.enforce_highest_complexity(),
         }
 
 
@@ -244,4 +314,6 @@ class OneShotProblemIterator(ProblemIterator):
             "example_plans": self.active_plans,
             "dead_states": self.dead_states,
             "allow_frontier": self.frontier_budget_left(),
+            # A single round at max complexity refutes nothing beforehand.
+            "enforce_highest_complexity": False,
         }
