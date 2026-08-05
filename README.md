@@ -115,6 +115,7 @@ From a high-level perspective, the approach works as follows:
 1. Compute (several) example plans for each training problem with an external planner (by default `siw`, where diverse plans are obtained by branching over the serializations and by restarting with permuted action and goal orders)
 2. Create a partial state space that contains the example trajectories and, for each state on a trajectory, every possible successor state resulting from all applicable actions.
    Successors that are not on any trajectory are left unexpanded; they serve as the negative examples.
+   A state may be reached again by a trajectory that was not yet known when it was first expanded, so the expansion is iterated until no state gains a new trajectory continuation.
 3. Select good transitions that describe a policy:
    * for every state on a trajectory, select at least one transition that leads to a state on a trajectory.
      Note that this is a condition on the successor state, not on the action: an action that occurs in no example plan may be selected if its successor lies on a trajectory.

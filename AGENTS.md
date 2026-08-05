@@ -121,6 +121,8 @@ For rule-based policies a supervised learning variant is implemented: a planner 
 
 An off-plan successor that already satisfies the goal is classified as `Alive.ALIVE` at creation time and still not expanded: the goal check in the expansion loop only runs on states that are popped from the queue, so it would otherwise never see them.
 
+Plan suffixes are propagated to a **fixpoint**. States are expanded in a single LIFO pass, so a plan can reach a node after that node was already expanded; `StateSpaceNode.add_plan_suffixes` deduplicates and reports whether the node gained anything, and a node that gains a suffix is queued again. Without this, the actions the late-arriving plan prescribes at that node are never matched and its successors are wrongly treated as off-plan — states demonstrably lying on an example plan were left unexpanded. Termination holds because a node only re-enters the queue when its suffix set grows, and that set is finite.
+
 Planner selection is `config["planner"]` with per-planner settings under `config["planners"]` (`iterative_solver._get_example_plan_computer`):
 - `siw` (default) — `siw_planner.py`, wraps the external `siw` package. Diversity comes from `branch` (branching over SIW serializations) and `restarts` (permuted action/goal orders). Plans are pulled **lazily** from a generator, so the iterator only pays for the plans it consumes.
 - `topk_planner` — `topk_planner.py`, symk via unified-planning.
