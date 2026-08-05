@@ -2,14 +2,17 @@
 
 ## Project Overview
 
-**Genfond** is an iterative learning system for generalizable policies. It uses a combinatorial approach that works as follows:
+**Genfond** is an iterative learning system for generalizable policies — one policy that solves a whole family of PDDL problems. It uses a combinatorial approach that works as follows:
 1. Expand the state space of training problems
 2. Use ASP to find a policy:
    * For each alive non-goal state, select at least one transition leading towards the goal.
    * Select features that distinguish the good from the non-good transitions.
 3. Extract the policy from the ASP solution
 4. Iterate by testing the policy on new problems, add new problems to the training set if not already solved.
+
 Features are generated using the DLPlan library.
+
+**Main entry point:** `python -m genfond --type <policy_type> domains/<domain>/{domain.pddl,p*.pddl}`
 
 ### Supported problem types
 The framework supports multiple types of problems:
@@ -19,177 +22,155 @@ The framework supports multiple types of problems:
 
 ### Solution forms
 Multiple types of problems and solution forms are supported:
-* Rule-based policies define the actions to take by the qualitiative change occurring in the features when taking the action. They focus on FOND problems. There are multiple variants: 
+* Rule-based policies define the actions to take by the qualitative change occurring in the features when taking the action. They focus on FOND problems. There are multiple variants:
     * Rule-based policies with state constraints: State constraints characterize dead-end states that the policy must not visit.
     * Rule-based policies with transition constraints: Transition constraints characterize the transitions leading to dead-end states.
     * Exact rule-based policies: The policy rule must characterize all possible outcomes. This is deprecated and not used anymore.
-  The configurations for these can be found in `genfond/config/default_state.yaml`, `genfond/config/default_trans.yaml`, `genfond/config/default_exact.yaml`.
-  The most commonly used configuration is `genfond/config/default_state.yaml`.
-* Rule-based policies for deterministic problems, which are similar to the rule-based policies above, but do not require specifiying bad alternative outcomes, and therefore the three variants collapse to a single configuration. The configuration is in `genfond/config/default_d2l.yaml`.
-* Datalog policies define the actions using state features, DL concepts, and DL roles. They do not require the action model, because the action is only characterized given the current state. They focus on deterministic problems. There are multiple variants configured in `genfond/config/default_datalog-*`. These are different attempts but do not currently work well. The most relevant configuration is `genfond/config/default_datalog.yaml`.
 
-### Supervised learning
-For rule-based policies, a supervised learning variant is implemented. It uses a planner to create example plans, which are then used to create a partial state space. This is then used as input for the datalog solver.
+  The configurations for these are `genfond/config/default_state.yaml`, `default_trans.yaml`, `default_exact.yaml`. The most commonly used configuration is `default_state.yaml`.
+* Rule-based policies for deterministic problems, which are similar to the rule-based policies above, but do not require specifying bad alternative outcomes, and therefore the three variants collapse to a single configuration: `genfond/config/default_d2l.yaml`.
+* Datalog policies define the actions using state features, DL concepts, and DL roles. They do not require the action model, because the action is only characterized given the current state. They focus on deterministic problems. There are multiple variants configured in `genfond/config/default_datalog-*`. These are different attempts but do not currently work well. The most relevant configuration is `default_datalog.yaml`.
 
+## Commands
 
-**Main entry point:** `python -m genfond -t <policy_type> domains/<domain>/{domain.pddl,p*.pddl}`
+Dependencies are managed by Poetry and require **Python 3.14+** (not 3.13 — dependency constraint). Run everything through the venv (`poetry run …` or inside `poetry shell`).
+
+```bash
+poetry install --no-root --with=dev
+python -m genfond -h                     # verify installation
+
+pytest                                   # all tests
+pytest tests/test_solver.py              # one file
+pytest tests/test_solver.py::test_solver_equiv  # one test
+pytest -k siw -v                         # by name pattern
+
+mypy genfond tests                       # CI checks both dirs (tox.ini only checks genfond)
+isort --check genfond tests
+black --check genfond tests
+tox                                      # runs the whole CI check set locally
+```
+
+Formatting is Black/isort with **line length 119** (`pyproject.toml`, `setup.cfg`). Run `black genfond tests` and `isort genfond tests` before committing.
+
+Running the solver:
+
+```bash
+# Iterative solver (main entry point); --type selects the policy formulation
+python -m genfond --type state domains/non-deterministic/acrobatics/{domain.pddl,p*.pddl}
+
+# One-shot: solve all given problems once at max_complexity, no iteration
+python -m genfond --one-shot --max-complexity 6 domains/non-deterministic/acrobatics/{domain.pddl,p0002*}
+
+# Execute a pickled policy
+python execute_policy.py domains/.../{domain.pddl,p0005.pddl} out.policy
+python print_policy.py out.policy
+python check_solvable.py domains/.../{domain.pddl,p*.pddl}
+```
+
+`Makefile` + `Dockerfile` + `genfond.bash` + `run_benchmarks.bash` exist only for building an Apptainer image and submitting SLURM benchmark jobs for large-scale experiments; they are not part of the local dev loop.
 
 ## Architecture
 
 ```
 iterative_solver.py (orchestrator)
-├─ feature_generator.py    → DLPlan feature synthesis
-├─ state_space_generator.py → Reachable state computation
-├─ problem_iterator.py      → Iteration over problem instances, feature complexities, other configuration options
-├─ solver.py               → Clingo ASP solver wrapper
-├─ topk_planner.py         → Top-k plan extraction, used for supervised learning
-└─ generate_policy.py      → Outputs one of 3 policy types
-   ├─ policy.py (execute)
-   ├─ rule_policy.py
-   └─ datalog_policy.py
+├─ problem_iterator.py      → iteration over problems, feature complexities, plans
+├─ feature_generator.py     → DLPlan feature synthesis → ASP instance
+│  └─ state_space_generator.py → reachable state computation
+├─ solver.py                → clingo ASP solver wrapper (+ genfond/solve*.lp)
+├─ siw_planner.py / topk_planner.py → example plans for supervised learning
+└─ generate_policy.py       → rule_policy.py | datalog_policy.py
+   └─ execute_policy.py     → execute_rule_policy.py | execute_datalog_policy.py
 ```
 
-**Key insight:** The system works iteratively — solving easier problems first, then adding larger prolems and increasing feature complexity. Use `problem_iterator.py` to understand the iteration pattern.
+Core loop (`iterative_solver.solve_iteratively`):
 
-## Development Setup
+1. `ProblemIterator` (`problem_iterator.py`) yields a configuration to try: a growing set of `active_problems` (sorted by object count), a max feature `complexity`, `max_cost`, whether to use the unrestricted feature generators, and the currently active example plans.
+2. `solve()` builds a `FeaturePool` (`feature_generator.py`), which expands each problem's state space (`state_space_generator.StateSpaceGraph`) and runs DLPlan feature synthesis over the collected states, then serializes everything to an ASP instance (`to_clingo()`).
+3. `Solver` (`solver.py`) grounds `genfond/<solve_prog>.lp` plus that instance and solves it. `max_cost` and `enforce_highest_complexity` are passed as extra `#program` parts (`limit_feature_cost`, `min_feature_complexity`) so each round must beat the previous policy's cost.
+4. `generate_policy.py` turns the clingo model into a `Policy` (`rule_policy.py`) or `DatalogPolicy` (`datalog_policy.py`).
+5. The policy is executed on all problems (`execute_policy.py` → `execute_rule_policy.py` / `execute_datalog_policy.py`). Solved problems are recorded; unsolved ones drive the next iteration.
 
-### Prerequisites
-- **Python 3.14+** (required — not 3.13)  
-- **Poetry** (not pip): `pip install --user poetry`  
-- **Git** (for repo-based dependencies: dlplan, pygraphviz)
+**Key insight:** the system solves easier problems first, then adds larger problems and increases feature complexity. `ProblemIterator.__next__` is the state machine that decides *how* to escalate when a round fails, in priority order: add another example plan → enable unrestricted feature generators → increment complexity → add the next unsolved problem to the training set. Read it before changing anything about iteration behaviour; `set_last_result()` **must** be called between iterations (asserted).
 
-### Local Setup
-```bash
-poetry install --no-root
-poetry shell
-python -m genfond -h          # Verify installation
-```
+### Policy types
 
-### Container Setup
-The container setup is only useful for benchmarking. It is used to create an Apptainer image with all dependencies pre-installed.
-This Apptainer image is used in a SLURM cluster environment to run large-scale experiments. For local development, use the Poetry setup above.
+`--type X` maps to `genfond/config/default_X.yaml`, which sets `policy_type` (the `PolicyType` enum in `policy.py`: `EXACT`, `CONSTRAINED`, `DATALOG`) and `solve_prog` (which `.lp` file is loaded):
 
-## Testing & Quality Assurance
+| `--type` | policy_type | solve_prog | notes |
+|---|---|---|---|
+| `state` (default) | CONSTRAINED | `solve_state_constraints.lp` | FOND, dead-end *states* constrained. Most used. |
+| `trans` | CONSTRAINED | `solve_trans_constraints.lp` | FOND, dead-end *transitions* constrained |
+| `d2l` | EXACT | `solve_d2l.lp` | deterministic problems |
+| `datalog` | DATALOG | `solve_datalog.lp` | Datalog policies over DL concepts/roles; enables `use_example_plans` |
+| `exact` | EXACT | `solve.lp` | deprecated |
+| `datalog-actions`, `datalog-action-params` | DATALOG | resp. `.lp` | experimental variants |
 
-### Test Commands
-```bash
-pytest                        # Run all tests
-mypy genfond                  # Type checking (external libs skipped via config)
-isort --check genfond tests   # Import order
-black --check genfond tests   # Code style
-```
+The `--type` choices are **discovered at import time** by globbing `genfond/config/default_*.yaml` (`config_handler._discover_type_configs`). Adding a config file adds a policy type; there is no registry to update.
 
-### Code Style Enforced
-- **Line length:** 119 characters (Black, isort)  
-- **Type hints:** Required (mypy config ignores external libs: pddl, dlplan, unified_planning)
-- **Import order:** Managed by isort (profile: "black")
+The ASP programs share `solve_constraints.lp` (via `#include`), which defines `trans_delta/6`, `good_action`, `bool_dist`, feature selection and the `#minimize` over feature complexity. Predicate vocabulary: `state/2`, `alive/2`, `goal/2`, `trans/4`, `eval/4`, `feature/1`, `feature_complexity/2`, `selected/1`.
 
-Use `black` and `isort` to auto-format code before committing. This ensures consistency across the codebase.
+### Config layering
 
-## Coding Conventions
+`ConfigHandler` (a `dict` subclass) merges, in order: `config/default.yaml` → `config/default_<type>.yaml` → user `--config` file → CLI `vars(args)`. Merging is deep (`mergedeep`).
 
-### Naming Patterns
-- `*_policy.py` → Policy generation/execution  
-- `*_generator.py` → Feature/state generators  
-- `execute_*.py` → Policy runners  
-- Clingo predicates: `feature(X)`, `feature_complexity(X, C)`, `action(...)`, `state(...)`
+Important gotcha: CLI overrides are applied **only for keys that already exist in the merged config and whose value is not None**. A new `--foo` CLI flag has no effect unless `foo` also has a default in `default.yaml`.
 
-### Config System
-- **Layered YAML:** `default.yaml` → type-specific files (`default_datalog.yaml`, etc.) → user file → CLI
-- **Merging:** Uses ConfigHandler + mergedeep library  
-- **Policy-specific configs:** Each of 3 policy types has separate config file
+### Supervised learning / example plans
 
-### ASP/Clingo Patterns
-- Constraint programs stored in `genfond/*.lp`  
-- Main solver wrapper: `solver.py` (minimal, exemplary pattern)  
-- Clingo auto-parallelizes with `os.cpu_count()` (override via Solver if needed)
+For rule-based policies a supervised learning variant is implemented: a planner creates example plans, which are used to build a *partial* state space that feeds the solver. When `use_example_plans` is true (the `datalog` config), `StateSpaceGraph` is restricted to states reachable along those plans — off-plan states are marked `Alive.DEAD`, and a state is "revived" if some plan reaches it. This keeps the state space tractable for larger problems.
 
-## Key Files & Patterns
+Planner selection is `config["planner"]` with per-planner settings under `config["planners"]` (`iterative_solver._get_example_plan_computer`):
+- `siw` (default) — `siw_planner.py`, wraps the external `siw` package. Diversity comes from `branch` (branching over SIW serializations) and `restarts` (permuted action/goal orders). Plans are pulled **lazily** from a generator, so the iterator only pays for the plans it consumes.
+- `topk_planner` — `topk_planner.py`, symk via unified-planning.
 
-| File | Purpose | Start Here? |
+Both expose the same `compute_plans(domain_str, problem_str, planner_config) -> Iterator[Plan]` signature; a new planner must match it and be added to the `match` in `_get_example_plan_computer`.
+
+## Key Files
+
+| File | Purpose | Start here? |
 |------|---------|---|
-| `solver.py` | Clingo ASP wrapper | ✅ Minimal, clean pattern |
-| `config_handler.py` | YAML config merging | ✅ Override patterns |
-| `iterative_solver.py` | Main orchestrator | ✅ Full flow + error handling |
-| `feature_generator.py` | DLPlan integration | ⚠ Complex feature synthesis |
-| `state_space_generator.py` | Reachable state graph in training problems | ⚠ State explosion handling |
-| `problem_iterator.py` | Iteration state machine | ⚠ Result/LastStep enums |
-| `tests/conftest.py` | Test fixtures | ✅ Both PDDL + programmatic fixtures |
-| `tests/helpers.py` | Test utilities | ✅ shared test code |
+| `solver.py` | clingo ASP wrapper | ✅ minimal, clean pattern |
+| `config_handler.py` | YAML config merging | ✅ override patterns |
+| `iterative_solver.py` | main orchestrator | ✅ full flow + error handling |
+| `problem_iterator.py` | iteration state machine | ✅ `Result` / `LastStep` enums |
+| `feature_generator.py` | DLPlan integration | ⚠ complex feature synthesis |
+| `state_space_generator.py` | reachable state graph, plan-restricted expansion | ⚠ state explosion handling |
+| `state_space_vis.py` | GraphViz rendering of state graphs | debugging aid |
+| `tests/conftest.py` | test fixtures | ✅ both PDDL and raw-ASP fixtures |
 
-**For feature work:** Start with `solver.py` → `config_handler.py` → `iterative_solver.py`.
+For feature work, start with `solver.py` → `config_handler.py` → `iterative_solver.py`.
 
-## Common Pitfalls & Solutions
+## Conventions
 
-### Issue: Tests fail with import errors
-**Solution:** Use `pytest --import-mode importlib` (configured in tox.ini)
+- Module naming: `generate_*_policy.py` (model → policy object), `execute_*_policy.py` (policy → actions), `*_generator.py` (features / state spaces), `solve*.lp` (ASP programs).
+- Logging uses named loggers (`genfond.<module>`); per-component levels are configurable via the `log:` map in the config (e.g. execution is silenced to `CRITICAL` by default).
+- `State` is `frozenset[Formula]` — ground `pddl` atoms. `pddl` objects are hashable and used as dict keys throughout.
+- Policies are persisted as **pickles** — changing the shape of `Policy`/`DatalogPolicy` invalidates saved `.policy` files.
+- Type hints are expected; mypy ignores missing stubs only for the external libs listed in `pyproject.toml` (`pddl`, `dlplan`, `unified_planning`, `pygraphviz`, `mergedeep`).
 
-### Issue: ASP grounding takes forever or OOMs
-**Solution:** 
-- Check state space size with `state_space_generator.py`  
-- Reduce problem iteration (in `problem_iterator.py`)  
+### Adding a feature
+1. Extend the appropriate `*_generator.py` module.
+2. Add the corresponding clingo predicate in the relevant `.lp` file.
+3. Add tests in `tests/test_*.py`.
+4. Add a default to `genfond/config/default.yaml` if it is configurable (see the CLI-override gotcha above).
+5. Run `black`, `isort`, `mypy`, `pytest` before committing.
 
-### Issue: mypy errors on external libs
-**Solution:** Already configured in `pyproject.toml` — mypy ignores pddl, dlplan, unified_planning
+## Tests
 
-## Development Workflow
+`tests/conftest.py` provides two kinds of fixtures:
+- PDDL fixtures loaded from `tests/fixtures/pddl_files/<domain>/` — `simple_blocks`, `fond_blocks`, `typed_blocks`, `blocks_clear`, `doors`, `blocks3ops`, `childsnack`, … Each returns a **`(domain, problem)` tuple**, not a bare domain.
+- Raw ASP program strings (`simple_program`, `program_with_nontriv_equiv`) for testing `Solver` without any PDDL parsing.
 
-### Adding a New Feature
-1. Create feature in appropriate `*_generator.py` module
-2. Add corresponding Clingo predicate in `.lp` files  
-3. Add tests in `tests/test_*_generator.py` 
-4. Update config if needed (defaults in `genfond/config/`)
-5. Run: `black`,`isort`, `mypy`, `pytest` before commit
+Solver-level tests should prefer the raw-ASP fixtures; they are far faster. `tests/helpers.py` holds shared assertions (`get_action`).
 
-### Modifying Policy Types  
-- `policy.py` defines **PolicyType** enum  
-- Each type has: `generate_{type}_policy()` + `execute_{type}_policy()`  
-- Config: separate YAML per type in `genfond/config/`
+`domains/` holds the benchmark suites (`non-deterministic/`, `deterministic/`, `deterministic-new/`, `d2l/`) used for manual runs and benchmarking, not by the test suite.
 
-### Debugging State Space Issues
-- Use `feature_generator.py` to inspect features  
-- Use `state_space_generator.py` to visualize transitions  
-- Use `state_space_vis.py` for GraphViz rendering
+## Common Pitfalls
 
-### Profiling Performance
-- Clingo auto-threads; use `--max-threads` if CPU-bound  
-- Feature generation is expensive; check `feature_generator.py` complexity  
-- Problem iteration can skip problems; tune in `problem_iterator.py`
-
-## Performance Considerations
-
-- **Multi-threaded by default** — Clingo uses all CPUs  
-- **Memory-heavy** — State space graphs can be large; monitor on large domains  
-- **Feature generation is slow** — DLPlan runs feature synthesis; iterative deepening on complexity  
-- **Top-k planning overhead** — Required for feature observation; impacts runtime
-
-## Testing Fixtures & Utilities
-
-**Available fixtures** (in `tests/conftest.py`):
-- `simple_blocks`, `fond_blocks`, `typed_blocks`, etc. — PDDL domains
-- Programmatic domain construction via `pddl` library  
-- Helpers in `tests/helpers.py` for common assertions
-
-**Example test pattern:**
-```python
-def test_something(simple_blocks):
-    # simple_blocks is a pddl.Domain object
-    assert simple_blocks.name == "blocks"
-```
-
-## Related Commands
-
-```bash
-# Execute learned policy on test problems
-python execute_policy.py domains/.../domain.pddl policy.pickle
-```
-
-## References
-- [README.md](README.md) — Installation & usage overview
-- [Makefile](Makefile) — Build targets (container builds), only relevant for building Apptainer images for large-scale benchmarks
-- `pyproject.toml` — Dependencies, Python 3.14+ requirement
+- **Import errors in tests:** use `pytest --import-mode importlib` (what `tox.ini` does).
+- **ASP grounding takes forever or OOMs:** the state space is too large. Check sizes via `state_space_generator.py`, lower `max_complexity`, or restrict the problem set. clingo parallelizes over `os.cpu_count()` by default; override with `-n/--num-threads`. `--max-memory` sets an `RLIMIT_AS` cap.
+- **mypy errors on external libs:** already handled by the overrides in `pyproject.toml`.
 
 ---
 
-**Last updated:** March 2026  
-**For AI agents:** Focus on `solver.py`, `config_handler.py`, and `iterative_solver.py` for architectural understanding. Respect Python 3.14+ and Poetry setup — these are non-negotiable due to dependency constraints.
+`CLAUDE.md` is a symlink to this file — edit `AGENTS.md`, not the symlink.

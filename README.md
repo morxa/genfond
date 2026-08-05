@@ -49,18 +49,18 @@ To learn a policy for a domain, run the following, e.g., for `acrobatics`:
 python -m genfond domains/non-deterministic/acrobatics/{domain.pddl,p*.pddl}
 ```
 
-There are multiple options, e.g., you can use the transition-based variant by specifing `--constraints trans`. See `python -m genfond -h` for a full list of options.
+There are multiple options, e.g., you can select the type of policy to learn with `--type`, such as the transition-based variant with `--type trans`. See `python -m genfond -h` for a full list of options.
 
 ### One-shot solver
 
-The main solver iteratively solves the given problems by incrementally adding problems to the training set and by iteratively increasing the maximal feature complexity. If you instead want to run the solver once for a given feature complexity on a set of problems, you can use the oneshot solver implemented in `genfond_oneshot.py`, e.g.,:
+The main solver iteratively solves the given problems by incrementally adding problems to the training set and by iteratively increasing the maximal feature complexity. If you instead want to run the solver once for a given feature complexity on a set of problems, pass `--one-shot`, e.g.,:
 ```
-python genfond_oneshot.py --complexity 6 --max-cost 10 domains/non-deterministic/acrobatics/{domain.pddl,p0002*}
+python -m genfond --one-shot --max-complexity 6 domains/non-deterministic/acrobatics/{domain.pddl,p0002*}
 ```
 
 ## Executing a policy
 
-After learning a policy and writing it to a file (by writing a policy file with `--output <policyfile>`, both for the main solver and `genfond_oneshot.py`), you can execute the policy with `execute_policy.py`, e.g.,:
+After learning a policy and writing it to a file (with `--output <policyfile>`), you can execute the policy with `execute_policy.py`, e.g.,:
 ```
 python execute_policy.py domains/non-deterministic/acrobatics/{domain.pddl,p0005.pddl} acrobatics.policy
 ```
