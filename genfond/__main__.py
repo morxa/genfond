@@ -152,7 +152,10 @@ def main():
             "memUsage": mem_usage,
             #'numFeatures': len(policy.features),
             #'numConstraints': max(len(policy.state_constraints), len(policy.constraints)),
-            "cost": policy.cost[0] if policy else 0,
+            # The last cost component is the feature complexity sum; higher-priority
+            # levels (e.g. the frontier-transition count) are prepended by clingo and
+            # only present when their #minimize actually grounds.
+            "cost": policy.cost[-1] if policy else 0,
         }
     )
 
