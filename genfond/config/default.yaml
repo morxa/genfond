@@ -29,6 +29,24 @@ num_threads: null
 max_memory: null
 dump_failed_policies: false
 dump_clingo_program: null
+# Directory for per-round state space visualisations; null disables them. Every solver round writes
+# one file set per problem, named <round>-<problem>-c<complexity>.<format>. A round that dies with
+# an error before solving produces no image.
+state_graph_dir: null
+# svg is the only format that carries the tooltips (full state per node, action per edge).
+state_graph_format: svg
+# Also write the graphviz source next to each image.
+state_graph_dot: true
+# Above this many nodes, write only the graphviz source and skip the (superlinear) dot layout;
+# 0 draws everything.
+max_state_graph_nodes: 300
+# "id" keeps the boxes small and leaves the state to the tooltip; "state" writes it into the box.
+state_graph_node_label: id
+# Draw the action next to the edge: always, never, or auto (only while the graph stays small).
+# It is in the edge tooltip either way.
+state_graph_edge_labels: auto
+state_graph_edge_label_limit: 150
+state_graph_legend: true
 keep_going: false
 continue_after_error: false
 include_boolean_features: true
@@ -63,7 +81,6 @@ max_frontier_states_per_round: 0
 max_frontier_transitions: null
 use_unrestricted_features: false
 unselect_problems: false
-visualize_state_graphs: false
 unrestricted_feature_generator:
   generate_empty_boolean: true
   generate_inclusion_boolean: true

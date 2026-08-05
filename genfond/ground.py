@@ -114,7 +114,8 @@ def action_string(action: Action) -> str:
     return f'{action.name}({",".join([str(p) for p in action.parameters])})'
 
 
-def state_string(state) -> str:
+def state_atoms(state) -> list[str]:
+    """Render each atom of a state on its own, sorted."""
     state_str = []
     for p in state:
         if isinstance(p, Predicate):
@@ -123,4 +124,8 @@ def state_string(state) -> str:
             state_str.append(f"{p.operands[0]}={p.operands[1]}")
         else:
             raise ValueError("Unknown state type: {}".format(type(p)))
-    return ",".join(sorted(state_str))
+    return sorted(state_str)
+
+
+def state_string(state) -> str:
+    return ",".join(state_atoms(state))

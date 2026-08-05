@@ -21,6 +21,7 @@ from .problem_iterator import MAX_COST, OneShotProblemIterator, ProblemIterator,
 from .rule_policy import Policy
 from .solver import Solver
 from .state_space_generator import State, check_formula
+from .state_space_vis import dump_state_graphs
 
 log = logging.getLogger("genfond.iterative_solver")
 
@@ -70,6 +71,7 @@ def solve(
     plans: Optional[MutableMapping[str, Collection[Plan]]] = None,
     dead_states: Optional[Mapping[str, set[State]]] = None,
     allow_frontier: bool = True,
+    round_index: int = 0,
 ) -> Optional[tuple[DatalogPolicy | Policy, dict[str, Any], list[FrontierState]]]:
     stats: dict[str, Any] = dict()
     log.debug("Generating feature pool ...")
@@ -122,10 +124,21 @@ def solve(
         min_feature_complexity=complexity if enforce_highest_complexity else None,
         solve_prog=config["solve_prog"],
     )
-    if not solver.solve():
+    satisfiable = solver.solve()
+    solution = solver.solution if satisfiable else None
+    if config["state_graph_dir"]:
+        dump_state_graphs(
+            feature_pool.state_graphs,
+            feature_pool.problem_id_to_name,
+            solution,
+            config,
+            round_index=round_index,
+            complexity=complexity,
+        )
+    if not satisfiable:
         log.info("No solution found")
         return None
-    solution = solver.solution
+    assert solution is not None
     if "viol" in solution:
         log.warning(f"Found violations: {solution['viol']}")
     stats |= {
@@ -178,13 +191,14 @@ def solve_iteratively(
     else:
         problem_iterator = ProblemIterator(problems, config, plans=example_plans)
     problems_by_name = {problem.name: problem for problem in problems}
-    for iter_kwargs in problem_iterator:
+    for round_index, iter_kwargs in enumerate(problem_iterator, start=1):
         result, new_policy, frontier_states = solve_step(
             **iter_kwargs,
             domain=domain,
             stats=stats,
             config=config,
             enforce_highest_complexity=not one_shot,
+            round_index=round_index,
         )
         if result == Result.FRONTIER:
             # Expand the unexpanded states the model relied on, then retry the same
@@ -270,6 +284,7 @@ def solve_step(
     max_cost: int,
     dead_states: Optional[Mapping[str, set[State]]] = None,
     allow_frontier: bool = True,
+    round_index: int = 0,
 ) -> tuple[Result, Optional[Policy | DatalogPolicy], list[FrontierState]]:
     try:
         log.info(f"Starting solver for {pnames(active_problems)} with max complexity {complexity}")
@@ -286,6 +301,7 @@ def solve_step(
             plans=example_plans,
             dead_states=dead_states,
             allow_frontier=allow_frontier,
+            round_index=round_index,
         )
     except (RuntimeError, MemoryError) as e:
         log.warning(

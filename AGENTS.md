@@ -148,6 +148,18 @@ Caveat: SIW is incomplete, so "no plan" does not prove a dead end. A false dead 
 
 Cost-vector gotcha: the `@2` level is absent from `model.cost` when no `pruned/2` fact grounds, so the vector is length 1 or 2 depending on the instance. Always index `cost[-1]` for the feature complexity; never `cost[0]`.
 
+### State space visualization
+
+`--state-graph-dir DIR` (config key `state_graph_dir`, null = off) writes one visualization per problem for **every** solver round, including rounds that found no model. Files are `<round>-<problem>-c<complexity>.svg` plus the graphviz source; the round index comes from `enumerate(problem_iterator)` in `solve_iteratively`, so frontier retries get their own number and nothing is overwritten.
+
+The hook sits in `iterative_solver.solve` right after `solver.solve()` — the only scope where the `FeaturePool` and the clingo model are both live. `state_space_vis.dump_state_graphs` takes plain mappings (`state_graphs`, `problem_id_to_name`) rather than the pool itself, so the module stays free of a `feature_generator` import.
+
+`resolve_transitions` normalises the model into a `TransitionSelection`, because every `solve_prog` reports its choice differently: `good_trans/4` (datalog-action-params), `good_trans/3` (`solve.lp`, `solve_constraints.lp`, `solve_d2l.lp`), `good_action/3` only (`solve_datalog.lp`), and the inverted `bad_*` family (`solve_trans_constraints.lp`). `good_trans` arity is 3 **or** 4, so dispatch on tuple length, not on the key name. `good_trans_delta/6` supplements the action attribution but is never authoritative — it only exists where a selected feature actually changes. Edges are marked SELECTED / EXCLUDED / NEUTRAL; NEUTRAL covers unsat rounds and transitions out of non-decision-point states (`alive(I,S), not goal(I,S)` is the shared choice-rule body), where no encoding claims anything.
+
+The join key between model and graph is the action string: clingo returns strings unquoted and `feature_generator.node_to_clingo` emits exactly `ground.action_string(action)`. If those ever drift apart, highlighting silently degrades to zero matches — `tests/test_state_space_vis.py::test_selected_edges_come_from_a_real_model` runs each encoding end to end to catch that.
+
+Two graphviz gotchas: `pygraphviz.AGraph` is `strict=True` by default, which **merges parallel edges** and silently drops nondeterministic branches — hence `strict=False` plus a per-edge `key`. And tooltips must never be hand-escaped; pygraphviz quotes for DOT and graphviz XML-escapes for SVG. Tooltips exist only in SVG, so PNG output drops them. `max_state_graph_nodes` (default 300) skips the superlinear `dot` layout on huge graphs and writes only the source.
+
 ## Key Files
 
 | File | Purpose | Start here? |
@@ -159,7 +171,7 @@ Cost-vector gotcha: the `@2` level is absent from `model.cost` when no `pruned/2
 | `feature_generator.py` | DLPlan integration | ⚠ complex feature synthesis |
 | `state_space_generator.py` | reachable state graph, plan-restricted expansion | ⚠ state explosion handling |
 | `frontier.py` | frontier states → re-rooted planning → new example plans | ✅ small, self-contained |
-| `state_space_vis.py` | GraphViz rendering of state graphs | debugging aid |
+| `state_space_vis.py` | per-round GraphViz rendering of state graphs, with the model's selected transitions | debugging aid |
 | `tests/conftest.py` | test fixtures | ✅ both PDDL and raw-ASP fixtures |
 
 For feature work, start with `solver.py` → `config_handler.py` → `iterative_solver.py`.

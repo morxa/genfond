@@ -70,6 +70,10 @@ def main():
     )
     config_args.add_argument("--max-memory", type=int, help="maximum memory to use in MB")
     config_args.add_argument(
+        "--state-graph-dir",
+        help="write a state space visualisation per solver round to this directory",
+    )
+    config_args.add_argument(
         "--dump-failed-policies",
         action="store_true",
         help="dump failed policies to file",
