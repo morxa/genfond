@@ -141,6 +141,9 @@ class FeaturePool:
         self.instances: dict[str, InstanceInfo] = dict()
         self.mappings = dict()
         self.next_state_id = 0
+        # Action signatures: see _emit_action_signatures. Only populated when the config asks
+        # for them; the key is the tuple the datalog separation constraint can observe.
+        self.signature_ids: dict[tuple, int] = dict()
         if not max_complexity:
             max_complexity = config["max_complexity"]
         for problem in problems:
@@ -540,15 +543,21 @@ class FeaturePool:
                         eval = 1 if eval else 0
                     clingo_program += f"eval({aug_state_id}, {feature_str}, {eval}).\n"
                     stats["num_feature_evals"] += 1
+        sig_enabled = bool(self.config.get("emit_action_signatures", False))
+        sig_bools: list[tuple[str, int]] = []
         if self.config["include_pristine_states"]:
             for feature_str, feature in self.features.items():
                 if feature_str in stats["uninformative_features"] or feature_str in stats["redundant_features"]:
                     stats["num_skipped_feature_evals"] += 1
                     continue
+                raw_feature_str = feature_str
                 feature_str = f'"{feature_str}"'
                 eval = feature.evaluate(self.states[self.node_id_to_state_ids[(problem_id, node.id)]])
                 if type(eval) is bool:
                     eval = 1 if eval else 0
+                if sig_enabled:
+                    # Mirrors bool_eval/4 in the solve program, which is eval/4 thresholded at 0.
+                    sig_bools.append((raw_feature_str, 1 if eval > 0 else 0))
                 clingo_program += f"eval({problem_id}, {node.id}, {feature_str}, {eval}).\n"
                 stats["num_feature_evals"] += 1
         if self.config["include_action_params"]:
@@ -573,6 +582,9 @@ class FeaturePool:
                         clingo_program += f"aug_eval({aug_state_id}, {feature_str}, {eval}).\n"
                         stats["num_feature_evals"] += 1
         all_action_args = {str(p) for action in node.children.keys() for p in action.parameters}
+        sig_params = {action: [str(p) for p in action.parameters] for action in node.children}
+        sig_concepts: dict[Action, set[tuple[str, int]]] = {action: set() for action in node.children}
+        sig_roles: dict[Action, set[tuple[str, int, int]]] = {action: set() for action in node.children}
         for concept_str, concept in self.concepts.items():
             if concept_str in stats["uninformative_concepts"]:
                 # log.debug(f'Concept {concept_str} does not distinguish any action arguments, skipping')
@@ -592,8 +604,14 @@ class FeaturePool:
                     self.evaluate_concept_from_problem(f'"{concept_str}"', problem, node.state)
                 )
                 continue
+            raw_concept_str = concept_str
             concept_str = f'"{concept_str}"'
             extension = self.evaluate_concept_from_problem(concept_str, problem, node.state)
+            if sig_enabled:
+                for action, params in sig_params.items():
+                    for index, param in enumerate(params):
+                        if param in extension:
+                            sig_concepts[action].add((raw_concept_str, index))
             for obj in extension:
                 if obj in all_action_args:
                     clingo_program += f'c_eval({problem_id}, {node.id}, {concept_str}, "{obj}").\n'
@@ -619,8 +637,16 @@ class FeaturePool:
                     self.evaluate_role_from_problem(f'"{role_str}"', problem, node.state)
                 )
                 continue
+            raw_role_str = role_str
             role_str = f'"{role_str}"'
-            for obj1, obj2 in self.evaluate_role_from_problem(role_str, problem, node.state):
+            role_extension = self.evaluate_role_from_problem(role_str, problem, node.state)
+            if sig_enabled:
+                for action, params in sig_params.items():
+                    for index1, param1 in enumerate(params):
+                        for index2, param2 in enumerate(params):
+                            if (param1, param2) in role_extension:
+                                sig_roles[action].add((raw_role_str, index1, index2))
+            for obj1, obj2 in role_extension:
                 if obj1 in all_action_args and obj2 in all_action_args:
                     clingo_program += f'r_eval({problem_id}, {node.id}, {role_str}, "{obj1}", "{obj2}").\n'
                     stats["num_role_evals"] += 1
@@ -629,12 +655,46 @@ class FeaturePool:
         for action, children in node.children.items():
             action_str = f'"{action.name}({",".join([str(p) for p in action.parameters])})"'
             clingo_program += f'aname({action_str}, "{action.name}").\n'
+            if sig_enabled:
+                signature = (
+                    action.name,
+                    len(action.parameters),
+                    frozenset(sig_concepts[action]),
+                    frozenset(sig_roles[action]),
+                    tuple(sig_bools),
+                )
+                signature_id = self.signature_ids.setdefault(signature, len(self.signature_ids))
+                clingo_program += f"asig({problem_id}, {node.id}, {action_str}, {signature_id}).\n"
             for child in children:
                 clingo_program += f"trans({problem_id}, {node.id}, {action_str}, {child.id}).\n"
                 if self.concepts or self.roles:
                     params = [f'"{p}"' for p in action.parameters]
                     for i, p in enumerate(params):
                         clingo_program += f"aparam({action_str}, {i}, {p}).\n"
+        return clingo_program
+
+    def _emit_action_signatures(self) -> str:
+        """Emit the signature classes collected while writing the per-node facts.
+
+        The datalog separation constraint observes an (instance, state, action) triple only
+        through the action name, the concept membership of each argument position, the role
+        membership of each ordered position pair, and the source state's boolean feature
+        vector. Triples sharing all of that can never be told apart by any selection, so the
+        constraint may range over these classes instead of over the triples themselves --
+        quadratically fewer. `asig/4` links the two layers.
+        """
+        clingo_program = ""
+        for signature, signature_id in sorted(self.signature_ids.items(), key=lambda item: item[1]):
+            name, arity, concepts, roles, bools = signature
+            clingo_program += f'sig_aname({signature_id}, "{name}").\n'
+            for index in range(arity):
+                clingo_program += f"sig_pos({signature_id}, {index}).\n"
+            for concept_str, index in sorted(concepts):
+                clingo_program += f'sig_c_eval({signature_id}, "{concept_str}", {index}).\n'
+            for role_str, index1, index2 in sorted(roles):
+                clingo_program += f'sig_r_eval({signature_id}, "{role_str}", {index1}, {index2}).\n'
+            for feature_str, value in bools:
+                clingo_program += f'sig_bool_eval({signature_id}, "{feature_str}", {value}).\n'
         return clingo_program
 
     def to_clingo(self) -> str:
@@ -678,6 +738,9 @@ class FeaturePool:
         for state_graph in self.state_graphs.values():
             for node in state_graph.nodes.values():
                 clingo_program += self.node_to_clingo(state_graph.problem, node, stats)
+        if self.config.get("emit_action_signatures", False):
+            clingo_program += self._emit_action_signatures()
+            log.info(f"Collapsed the separation layer to {len(self.signature_ids)} action signature(s)")
         log.info(
             f'Generated program with {stats["num_feature_evals"]} feature evaluations ({stats["num_skipped_feature_evals"]} skipped), '
             f'{stats["num_concept_evals"]} concept evaluations ({stats["num_skipped_concept_evals"]} skipped), '

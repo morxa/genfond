@@ -38,6 +38,9 @@ include_roles: false
 include_actions: false
 include_action_params: false
 include_pristine_states: true
+# Emit asig/4 and the sig_* facts that let the datalog separation constraint range over action
+# signature classes rather than (instance, state, action) triples. See solve_datalog_sig.lp.
+emit_action_signatures: false
 include_dead_states: true
 include_goal_states: true
 preset_features: null
