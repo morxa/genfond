@@ -6,9 +6,14 @@ POLICY_TYPE="${POLICY_TYPE:-datalog}"
 EXCLUDE="${EXCLUDE:+--exclude=$EXCLUDE}"
 CONFIG="${CONFIG:+--config $CONFIG}"
 VERBOSE="${VERBOSE:+-v}"
+# Set PARTITION to override the one in genfond.bash, e.g. `PARTITION=rleap_cpu`
+PARTITION="${PARTITION:+--partition=$PARTITION}"
+# Set TAG to label a set of runs, so several experiments can be told apart in squeue and in
+# the results directory name, e.g. `TAG=frontier-off`
+TAG="${TAG:+-$TAG}"
 
 STAMP="$(date -Iseconds)"
-RESDIR="results-$STAMP"
+RESDIR="results-$STAMP$TAG"
 mkdir -p "$RESDIR/out"
 
 for domain in $DOMAINS; do
@@ -16,6 +21,6 @@ for domain in $DOMAINS; do
   domainfile="$domain/domain.pddl"
   problemfiles=$(find -L $domain ! -name domain.pddl -name '*.pddl')
   for ptype in $POLICY_TYPE; do
-    sbatch $EXCLUDE -J $domainname-$ptype -o $RESDIR/out/%x-%j.out genfond.bash python -m genfond $VERBOSE --name $domainname -n 32 --max-memory 120000 --type $ptype $CONFIG --dump-failed-policies --dump-config $RESDIR/$domainname-$ptype.yaml -o $RESDIR/$domainname-$ptype.policy --stats $RESDIR/stats.csv $domainfile $problemfiles
+    sbatch $EXCLUDE $PARTITION -J $domainname-$ptype$TAG -o $RESDIR/out/%x-%j.out genfond.bash python -m genfond $VERBOSE --name $domainname -n 32 --max-memory 120000 --type $ptype $CONFIG --dump-failed-policies --dump-config $RESDIR/$domainname-$ptype.yaml -o $RESDIR/$domainname-$ptype.policy --stats $RESDIR/stats.csv $domainfile $problemfiles
   done
 done
