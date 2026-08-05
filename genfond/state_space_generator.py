@@ -171,14 +171,34 @@ class Alive(Enum):
 
 class StateSpaceNode:
 
-    def __init__(self, state: State, id: int, plan_suffixes: list[Plan] = []):
+    def __init__(self, state: State, id: int, plan_suffixes: Optional[list] = None):
         self.state = state
         self.id = id
-        self.plan_suffixes = plan_suffixes
+        self.plan_suffixes: list = []
+        self._plan_suffix_keys: set[tuple] = set()
         self.children: dict[Action, set[StateSpaceNode]] = dict()
         self.alive = Alive.UNKNOWN
         self.goal = False
         self.parents: set[StateSpaceNode] = set()
+        if plan_suffixes:
+            self.add_plan_suffixes(plan_suffixes)
+
+    def add_plan_suffixes(self, plan_suffixes: Collection) -> bool:
+        """Register plan continuations, ignoring ones already known.
+
+        Returns whether anything was actually added. A node can be reached again long after
+        it was expanded, so the caller has to re-expand it when this reports new suffixes --
+        otherwise the actions those suffixes prescribe here are never matched.
+        """
+        added = False
+        for suffix in plan_suffixes:
+            key = tuple(suffix)
+            if key in self._plan_suffix_keys:
+                continue
+            self._plan_suffix_keys.add(key)
+            self.plan_suffixes.append(suffix)
+            added = True
+        return added
 
     def __str__(self) -> str:
         return state_string(self.state)
@@ -254,7 +274,7 @@ class StateSpaceGraph:
                         len(plan_suffixes),
                         [plan_string(plan) for plan in plan_suffixes],
                     )
-                    new, new_node = self.add_node(succ, state, action, plan_suffixes)
+                    new, new_node, gained_suffixes = self.add_node(succ, state, action, plan_suffixes)
                     known_dead = dead_states is not None and succ in dead_states
                     if new:
                         if max_num_val and any(v > max_num_val for v in get_num_vals(succ)):
@@ -292,6 +312,15 @@ class StateSpaceGraph:
                         log.debug(f"Reviving {state_string(succ)} because it matches a plan")
                         queue.append(new_node)
                         new_node.alive = Alive.UNKNOWN
+                    elif gained_suffixes and not known_dead:
+                        # The node was reached again by a plan it did not know about. It may
+                        # already have been expanded, in which case the actions this new
+                        # suffix prescribes here were never matched and its successors were
+                        # left off-plan, so it has to be expanded again. This terminates
+                        # because a node only re-enters the queue when its suffix set grows,
+                        # and that set is finite.
+                        log.debug(f"Re-expanding {state_string(succ)}, it gained a plan suffix")
+                        queue.append(new_node)
         compute_alive(self.nodes.values())
         if prune:
             self.prune_nodes()
@@ -300,21 +329,22 @@ class StateSpaceGraph:
 
     def add_node(
         self, state: State, parent_state: State, action: Action, plan_suffixes: list[list[Action]]
-    ) -> tuple[bool, StateSpaceNode]:
+    ) -> tuple[bool, StateSpaceNode, bool]:
         parent = self.nodes[parent_state]
         try:
             node = self.nodes[state]
-            node.plan_suffixes.extend(plan_suffixes)
+            gained_suffixes = node.add_plan_suffixes(plan_suffixes)
             new = False
         except KeyError:
             node = StateSpaceNode(state, self.next_id, plan_suffixes)
             self.next_id += 1
             self.nodes[state] = node
             new = True
+            gained_suffixes = False
 
         parent.add_child(action, node)
         node.parents.add(parent)
-        return new, node
+        return new, node, gained_suffixes
 
     def action_path_from_root(self, node: "StateSpaceNode") -> Optional[list[Action]]:
         """Return a shortest action sequence leading from the root to `node`.
