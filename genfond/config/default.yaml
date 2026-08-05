@@ -1,12 +1,18 @@
 min_complexity: 2
 max_complexity: 15
-# Adding an example plan or a dead end changes the state space, which can make a *simpler*
-# policy possible than the one the search has already ruled out. With this on, the complexity
-# sweep restarts at min_complexity whenever that happens, so those simpler policies are still
-# reachable; the next plan is only added once the sweep has climbed back. Off, the search keeps
-# its current complexity and never looks below it again -- much cheaper, but a policy that only
-# exists at a lower complexity in the enlarged state space is never found. Only has an effect
-# with use_example_plans, which is what makes the state space grow during the run.
+# Adding an example plan or a dead end changes the state space. With this on, the complexity
+# sweep restarts at min_complexity whenever that happens; the next plan is only added once the
+# sweep has climbed back past the level the last one was added at.
+#
+# This does NOT change which policies are reachable. The feature pool at complexity c contains
+# every feature of complexity < c, and the round right after a state-space change runs without
+# min_feature_complexity, so a policy expressible at complexity 2 is found by the round at
+# complexity 4 just as well -- and preferred, since the #minimize is over feature cost. What
+# the restart changes is the cost of getting there: the low-complexity instances are far
+# smaller, and they may still ground where the high-complexity one hits "Id out of range" or
+# exhausts memory. So this trades a full re-sweep per added plan against a chance to succeed on
+# a round whose larger instance cannot be grounded at all.
+# Only has an effect with use_example_plans, which is what makes the state space grow.
 reset_complexity_on_state_space_change: false
 policy_iterations: 100
 abort_on_cycle: false
