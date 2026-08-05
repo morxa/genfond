@@ -15,6 +15,12 @@ max_complexity: 15
 # Only has an effect with use_example_plans, which is what makes the state space grow.
 reset_complexity_on_state_space_change: false
 policy_iterations: 100
+# Seed for the global RNG. Policy execution is randomized -- rules are tried in a random order,
+# object bindings are shuffled, and successors are drawn at random -- so the number of solved
+# problems varies between runs of the *same* policy: a problem counts as solved only if all
+# policy_iterations attempts succeed, and a borderline one flakes. Set this for any run that
+# has to be compared against another. null keeps the unseeded behaviour.
+seed: null
 abort_on_cycle: false
 stop_after_first_solution: true
 policy_steps: 10000
