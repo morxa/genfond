@@ -22,6 +22,11 @@ c_selected(name).
 :- good_trans(I, S, A, _), trans(I, S, A, S2), not alive(I, S2), not pruned(I, S2).
 good_action(I, S, A) :- good_trans(I, S, A, _).
 
+% Frontier states the policy relies on: unexpanded states that a selected transition leads
+% into. They are assumed solvable (see safe_state below) and charged at priority 2, so the
+% caller must expand them and re-solve before the policy can be accepted.
+frontier(I, S) :- good_trans(I, _, _, S), pruned(I, S).
+
 safe_state(I, S) :- goal(I, S).
 safe_state(I, S) :- pruned(I, S).
 safe_state(I, S1) :- alive(I, S1), good_trans(I, S1, _, _), safe_state(I, S2) : good_trans(I, S1, _, S2).
@@ -40,7 +45,12 @@ r_distinguished(I1, S1, A1, I2, S2, A2, R) :-
 
 bool_eval(I, S, F, 1) :- eval(I, S, F, V), V > 0.
 bool_eval(I, S, F, 0) :- eval(I, S, F, V), V = 0.
-f_distinguished(I1, S1, I2, S2, F) :- state(I1, S1), state(I2, S2), bool_eval(I1, S1, F, V), not bool_eval(I2, S2, F, V).
+% Both sides must be alive: a state without eval/4 facts (a dead or frontier state) would
+% otherwise vacuously "differ" in every feature, attaching every selected feature as a
+% condition to every rule. Every consumer below already requires alive/2 on both sides.
+f_distinguished(I1, S1, I2, S2, F) :-
+    alive(I1, S1), alive(I2, S2),
+    bool_eval(I1, S1, F, V), not bool_eval(I2, S2, F, V).
 
 % TODO test whether using sets is cheaper { c_distinguished(I1, S1, A1, I2, S2, A2, C, _, _) : c_selected(C) } = 0.
 :- good_action(I1, S1, A1), alive(I2, S2), not goal(I2, S2), trans(I2, S2, A2, _), not good_action(I2, S2, A2),
@@ -79,6 +89,7 @@ f_distinguished(I1, S1, I2, S2, F) :- state(I1, S1), state(I2, S2), bool_eval(I1
     not c_distinguished(I1, S1, A1, I2, S2, A2, C) : c_selected(C);
     not c_distinguished(I2, S2, A2, I1, S1, A1, C) : c_selected(C).
 #show good_action/3.
+#show frontier/2.
 #show c_selected/1.
 #show f_selected/1.
 #show bool_eval/4.
