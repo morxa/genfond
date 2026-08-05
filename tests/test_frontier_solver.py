@@ -130,3 +130,11 @@ def test_frontier_is_closed_once_a_policy_exists():
     assert max_prune_cost(config, 4) == 0
     assert max_prune_cost({"max_frontier_transitions": 1}, MAX_COST) == 1
     assert max_prune_cost({"max_frontier_transitions": 1}, 4) == 0
+
+
+def test_frontier_is_closed_once_the_expansion_budget_is_spent():
+    config = {"max_frontier_transitions": None}
+    # A frontier model yields no policy. Once no expansion is left to pay for it, leaving the
+    # frontier open makes every remaining round return one and waste a planner call.
+    assert max_prune_cost(config, MAX_COST, allow_frontier=False) == 0
+    assert max_prune_cost(config, MAX_COST, allow_frontier=True) == MAX_COST

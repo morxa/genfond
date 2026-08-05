@@ -30,6 +30,7 @@ def test_one_shot_problem_iterator_returns_single_max_complexity_item():
         "max_complexity": 7,
         "use_selected_states": False,
         "use_unrestricted_features": True,
+        "max_frontier_expansions": 20,
     }
     iterator = iter(OneShotProblemIterator(problems, config))
 
@@ -78,6 +79,7 @@ def test_one_shot_problem_iterator_yields_solve_step_keys():
         "max_complexity": 7,
         "use_selected_states": False,
         "use_unrestricted_features": True,
+        "max_frontier_expansions": 20,
     }
     a, _ = constants("a b")
     problems = [DummyProblem("p1", frozenset({Predicate("at", a)}))]

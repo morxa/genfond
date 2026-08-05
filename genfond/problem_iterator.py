@@ -111,6 +111,10 @@ class ProblemIterator:
                 if problem.name in self.selected_states and problem not in self.active_problems:
                     del self.selected_states[problem.name]
 
+    def frontier_budget_left(self) -> bool:
+        """Whether another frontier expansion may still be spent on this run."""
+        return self.frontier_expansions <= self.config["max_frontier_expansions"]
+
     def set_solved(self, problem: Problem, solved: bool = True):
         self.solved[problem.name] = solved
 
@@ -122,11 +126,7 @@ class ProblemIterator:
         log.debug(
             f"last result: {self.last_result.name}, all features: {self.all_features}, complexity: {self.complexity}"
         )
-        if (
-            self.last_result == Result.FRONTIER
-            and self.frontier_progress
-            and self.frontier_expansions <= self.config["max_frontier_expansions"]
-        ):
+        if self.last_result == Result.FRONTIER and self.frontier_progress and self.frontier_budget_left():
             # Retry the exact same configuration; only the plan and dead-end sets grew.
             self.last_step = LastStep.EXPAND_FRONTIER
         elif (
@@ -214,6 +214,7 @@ class ProblemIterator:
             "max_cost": self.max_cost,
             "example_plans": self.active_plans,
             "dead_states": self.dead_states,
+            "allow_frontier": self.frontier_budget_left(),
         }
 
 
@@ -242,4 +243,5 @@ class OneShotProblemIterator(ProblemIterator):
             "max_cost": self.max_cost,
             "example_plans": self.active_plans,
             "dead_states": self.dead_states,
+            "allow_frontier": self.frontier_budget_left(),
         }

@@ -42,15 +42,19 @@ def _get_example_plan_computer(config: Mapping[str, Any]) -> tuple[PlannerComput
     return planner_compute_plans, planner_config, planner_name
 
 
-def max_prune_cost(config: Mapping[str, Any], max_cost: int) -> int:
+def max_prune_cost(config: Mapping[str, Any], max_cost: int, allow_frontier: bool = True) -> int:
     """How many frontier transitions a single model may use.
 
     The frontier exists for rounds that are otherwise unsolvable. A tightened `max_cost` means
     a policy already exists and this round is only trying to beat its cost, so the frontier is
     closed off there: expanding it would spend planner calls and state-space growth on shaving
     feature complexity rather than on gaining solvability.
+
+    It is also closed once the expansion budget is spent (`allow_frontier`). A frontier model
+    yields no policy, so leaving it available past that point makes every remaining round
+    return one and pay for a pointless planner call before escalating anyway.
     """
-    if max_cost < MAX_COST:
+    if not allow_frontier or max_cost < MAX_COST:
         return 0
     return config["max_frontier_transitions"] or MAX_COST
 
@@ -65,6 +69,7 @@ def solve(
     enforce_highest_complexity: bool = False,
     plans: Optional[MutableMapping[str, Collection[Plan]]] = None,
     dead_states: Optional[Mapping[str, set[State]]] = None,
+    allow_frontier: bool = True,
 ) -> Optional[tuple[DatalogPolicy | Policy, dict[str, Any], list[FrontierState]]]:
     stats: dict[str, Any] = dict()
     log.debug("Generating feature pool ...")
@@ -113,7 +118,7 @@ def solve(
         asp_instance,
         config["num_threads"],
         max_cost=max_cost,
-        max_prune_cost=max_prune_cost(config, max_cost),
+        max_prune_cost=max_prune_cost(config, max_cost, allow_frontier),
         min_feature_complexity=complexity if enforce_highest_complexity else None,
         solve_prog=config["solve_prog"],
     )
@@ -264,6 +269,7 @@ def solve_step(
     all_features: bool,
     max_cost: int,
     dead_states: Optional[Mapping[str, set[State]]] = None,
+    allow_frontier: bool = True,
 ) -> tuple[Result, Optional[Policy | DatalogPolicy], list[FrontierState]]:
     try:
         log.info(f"Starting solver for {pnames(active_problems)} with max complexity {complexity}")
@@ -279,6 +285,7 @@ def solve_step(
             enforce_highest_complexity=enforce_highest_complexity,
             plans=example_plans,
             dead_states=dead_states,
+            allow_frontier=allow_frontier,
         )
     except (RuntimeError, MemoryError) as e:
         log.warning(
