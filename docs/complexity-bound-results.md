@@ -121,9 +121,59 @@ here can move it. It is retained below only as a negative control.
 
 ## Deterministic results
 
-All at `-n 1`, one partition, frontier on, 12 h / 120 GB.
+All at `-n 1`, one partition, frontier on, 12 h / 120 GB, `--type datalog`.
 
-<!-- TODO: fill in once the six -n 1 jobs finish -->
+| domain | arm | solved | wall | rounds | unenforced | frontier | max complexity | final cost |
+|---|---|---|---|---|---|---|---|---|
+| gripper (30) | off | 30/30 | 39s | 8 | 1 | 3 | 5 | `[0, 6]` |
+| gripper (30) | on | 30/30 | 46s | 10 | 0 | 3 | 5 | `[0, 6]` |
+| miconic (25) | off | 12/25 | 7923s | 31 | 1 | 1 | 11 | `[0, 17]` |
+| miconic (25) | on | 12/25 | 8152s | 33 | 0 | 1 | 11 | `[0, 17]` |
+| blocks3ops (95) | off | 21/95 | 3374s | 19 | 0 | 4 | 4 | `[0, 10]` |
+| blocks3ops (95) | on | 20/95 | 3176s | 19 | 0 | 4 | 4 | `[0, 10]` |
+
+**The restart never changed an outcome.** Every arm found the identical final policy cost, and
+coverage is equal in every domain. The one apparent difference — blocks3ops 21 vs 20 — is not
+the flag: both runs have byte-identical iteration traces and the identical policy sequence, and
+differ only in `blocks-006-1` flaking under the unseeded execution RNG (see below).
+
+**It costs two rounds every time it fires**, which is the re-climb from `min_complexity` back to
+where the state space changed: +2 rounds and +18% wall on gripper, +2 rounds and +3% on miconic.
+
+The mechanism did fire, in miconic, and the traces show exactly the intended behaviour:
+
+| round | reset-off | reset-on |
+|---|---|---|
+| 20 | `START`, complexity 4 | `START`, complexity 4 |
+| 21 | `EXPAND_FRONTIER`, complexity 4, **unenforced** | `EXPAND_FRONTIER`, **complexity 2**, enforced |
+| 22–23 | complexity 5, 6 | complexity 3, 4 (re-climb) |
+
+This is the frontier expansion at complexity 4 — the only state-space change above
+`min_complexity` in the whole study. Note `succ_complexity` is 4 in miconic (every `START`
+restarts there), which is why the expansion lands at 4 and not at 2 as in blocks3ops.
+
+The result matches the theory: because the pool at complexity 4 contains every complexity-≤4
+feature and the unenforced round considers all of them, retreating to complexity 2 cannot find
+anything the complexity-4 round misses. It could only pay off where the larger instance fails
+to ground, and in these three domains it never did — gripper and miconic ground comfortably,
+and blocks3ops dies at complexity 4 in *both* arms.
+
+**Recommendation: keep `reset_complexity_on_state_space_change: false`.** Revisit only for a
+domain that hits `Id out of range` at a complexity the search has already climbed past, where
+the smaller instance would still ground.
+
+## The solved count is itself noisy
+
+Policy execution is randomized — `execute_datalog_policy` tries rules in `random.sample` order,
+shuffles object bindings, and draws successors with `random.choice` — and the global RNG was
+never seeded. A problem counts as solved only if all `policy_iterations` attempts succeed, so a
+borderline problem flakes.
+
+The deterministic blocks3ops pair demonstrates it cleanly: identical traces, identical policy,
+21/95 vs 20/95, the entire difference being `blocks-006-1`. `seed` (config, or `--seed`) now
+fixes the sequence; it defaults to `null`, keeping the old behaviour. **Set it for any run that
+will be compared against another.** Two seeded runs reproduce exactly, down to the mean plan
+length.
 
 ## Reproducing
 
