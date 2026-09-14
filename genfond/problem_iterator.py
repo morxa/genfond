@@ -171,6 +171,58 @@ class ProblemIterator:
     def get_unsolved_problems(self) -> list[Problem]:
         return [problem for problem in self.problems if not self.solved[problem.name]]
 
+    def _next_addable_problem(self) -> Optional[Problem]:
+        """The next unsolved problem that is not already in the training set, if any."""
+        return next(
+            (
+                problem
+                for problem in self.problems
+                if not self.solved[problem.name] and problem not in self.active_problems
+            ),
+            None,
+        )
+
+    def _add_next_problem(self) -> None:
+        """Add the next unsolved problem to the training set and reset the sweep for it.
+
+        Shared by the default escalation ladder (added only once complexity has climbed back
+        to max_cost <= complexity or max_complexity) and `add_problem_after_success` (added
+        right after a success, skipping the climb). Everything below must stay identical
+        between the two call sites.
+        """
+        self.all_features = False
+        self.max_cost = MAX_COST
+        self.active_problems_solved = False
+        self.complexity = self.succ_complexity
+        self.sweep_target = self.complexity
+        self.last_step = LastStep.START
+        next_problem = self._next_addable_problem()
+        assert next_problem is not None
+        if (
+            self.config["unselect_problems"]
+            and self.active_problems
+            and self.problems.index(next_problem)
+            > max([self.problems.index(problem) for problem in self.active_problems])
+        ):
+            self.active_problems = [next_problem]
+            # The training set is replaced, not extended, so nothing carries over.
+            self.refuted_complexity = self.config["min_complexity"] - 1
+        else:
+            self.active_problems.append(next_problem)
+            # Adding an instance is monotone: a selection that solves the larger set also
+            # solves every subset, so "no solution below `succ_complexity`" carries over
+            # and the sweep resumes there instead of at `min_complexity`. That bound is
+            # unconditional -- it was established before the success tightened `max_cost`,
+            # which is reset here anyway.
+            self.refuted_complexity = self.succ_complexity - 1
+        if self.plan_iterators:
+            self.active_plans[next_problem.name] = []
+            while len(self.active_plans[next_problem.name]) < self.config["min_number_of_plans"]:
+                next_plan = next(self.plan_iterators[next_problem.name], None)
+                if next_plan is None:
+                    break
+                self.active_plans[next_problem.name].append(next_plan)
+
     def __next__(self) -> Mapping[str, Any]:
         assert self.last_result != Result.UNKNOWN, "You must set the result of the last problem before calling next"
         log.debug(
@@ -179,6 +231,14 @@ class ProblemIterator:
         if self.last_result == Result.FRONTIER and self.frontier_progress and self.frontier_budget_left():
             # Retry the exact same configuration; only the plan and dead-end sets grew.
             self.last_step = LastStep.EXPAND_FRONTIER
+        elif (
+            self.config["add_problem_after_success"]
+            and self.active_problems_solved
+            and self._next_addable_problem() is not None
+        ):
+            # Skip the complexity/plan/feature climb entirely and add the next problem right
+            # after a success. See the config comment on `add_problem_after_success`.
+            self._add_next_problem()
         elif (
             (self.last_step == LastStep.INC_COMPLEXITY or self.complexity == self.config["max_complexity"])
             # A restarted sweep has to climb *past* the level the last plan was added at
@@ -229,42 +289,12 @@ class ProblemIterator:
             self.all_features = False
             self.complexity += 1
             self.last_step = LastStep.INC_COMPLEXITY
-        elif self.active_problems_solved and any(not solved for solved in self.solved.values()):
-            self.all_features = False
-            self.max_cost = MAX_COST
-            self.active_problems_solved = False
-            self.complexity = self.succ_complexity
-            self.sweep_target = self.complexity
-            self.last_step = LastStep.START
-            next_problem = next(
-                problem
-                for problem in self.problems
-                if not self.solved[problem.name] and problem not in self.active_problems
-            )
-            if (
-                self.config["unselect_problems"]
-                and self.active_problems
-                and self.problems.index(next_problem)
-                > max([self.problems.index(problem) for problem in self.active_problems])
-            ):
-                self.active_problems = [next_problem]
-                # The training set is replaced, not extended, so nothing carries over.
-                self.refuted_complexity = self.config["min_complexity"] - 1
-            else:
-                self.active_problems.append(next_problem)
-                # Adding an instance is monotone: a selection that solves the larger set also
-                # solves every subset, so "no solution below `succ_complexity`" carries over
-                # and the sweep resumes there instead of at `min_complexity`. That bound is
-                # unconditional -- it was established before the success tightened `max_cost`,
-                # which is reset here anyway.
-                self.refuted_complexity = self.succ_complexity - 1
-            if self.plan_iterators:
-                self.active_plans[next_problem.name] = []
-                while len(self.active_plans[next_problem.name]) < self.config["min_number_of_plans"]:
-                    next_plan = next(self.plan_iterators[next_problem.name], None)
-                    if next_plan is None:
-                        break
-                    self.active_plans[next_problem.name].append(next_plan)
+        elif (
+            self.active_problems_solved
+            and any(not solved for solved in self.solved.values())
+            and self._next_addable_problem() is not None
+        ):
+            self._add_next_problem()
         else:
             raise StopIteration
         log.debug(

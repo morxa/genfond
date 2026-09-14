@@ -54,6 +54,7 @@ def frontier_config(**overrides):
         "min_number_of_plans": 1,
         "max_frontier_expansions": 20,
         "reset_complexity_on_state_space_change": False,
+        "add_problem_after_success": False,
     }
     config.update(overrides)
     return config
@@ -303,3 +304,37 @@ def test_duplicate_frontier_plans_are_not_progress():
     iterator.record_frontier_expansion({"p1": [a_plan("pick", "drop")]}, {})
     assert iterator.frontier_progress is True
     assert len(iterator.active_plans["p1"]) == 2
+
+
+def test_add_problem_after_success_skips_the_complexity_climb():
+    # iterative_solver.py calls set_last_result(SUCCESS, cost=...) when the ASP round
+    # succeeds, then -- if execute_policy fails on a problem outside the training set --
+    # set_last_result(NO_SOLUTION) again, without an intervening next(), to report the round
+    # as not yet a full policy. With the switch on, that must add the next unsolved problem
+    # right away instead of climbing complexity on the same training set.
+    iterator, first = started_iterator(frontier_config(add_problem_after_success=True))
+    assert first["active_problems"] == [iterator.problems[0]]
+
+    iterator.set_last_result(Result.SUCCESS, cost=(9,))
+    iterator.set_solved(iterator.problems[0])
+    iterator.set_last_result(Result.NO_SOLUTION)
+    second = next(iterator)
+
+    assert second["active_problems"] == iterator.problems
+    assert second["max_cost"] == MAX_COST
+
+
+def test_without_the_switch_success_climbs_complexity_on_the_same_problems():
+    # Same scenario, switch off: today's behaviour is unchanged -- the round after a success
+    # climbs feature complexity on the same training set instead of adding the next problem.
+    iterator, first = started_iterator(frontier_config())
+    assert first["active_problems"] == [iterator.problems[0]]
+
+    iterator.set_last_result(Result.SUCCESS, cost=(9,))
+    iterator.set_solved(iterator.problems[0])
+    iterator.set_last_result(Result.NO_SOLUTION)
+    second = next(iterator)
+
+    assert second["active_problems"] == first["active_problems"]
+    assert second["complexity"] == first["complexity"] + 1
+    assert iterator.last_step == LastStep.INC_COMPLEXITY

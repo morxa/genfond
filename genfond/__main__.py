@@ -61,6 +61,14 @@ def main():
         help="restart the complexity sweep at min-complexity whenever an example plan or dead end is added",
     )
     config_args.add_argument(
+        "--add-problem-after-success",
+        action=argparse.BooleanOptionalAction,
+        # Must default to None, not False: ConfigHandler skips None overrides, so a False
+        # default would silently overrule the setting from --config on every run.
+        default=None,
+        help="add the next unsolved problem right after a success instead of first climbing feature complexity",
+    )
+    config_args.add_argument(
         "-i",
         "--policy-iterations",
         type=int,
