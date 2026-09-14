@@ -200,6 +200,12 @@ c2-unselect (`unselect_problems: true`), c2-frontier2 (`max_frontier_states_per_
 | job | arm | solved | wall | peak RSS | train set | ended by |
 |---|---|---|---|---|---|---|
 | 4133189 | c-combo (H2+H3, no memory fix, eager pairs) | **28/95** | 1 h 26 min | 106 GB | 19 problems (≤7 blocks), complexity 3, cost 21 | 2× memory error at complexity 4; no `Id out of range` |
+| 4133176 | c-base (datalog-sig) | **33/95** | 1 h 31 min | 115 GB | 9 problems (≤5 blocks), complexity 3, cost 10 | 3× `bad_alloc` (complexity 4, then a 219-state complexity-3 round right after); no `Id out of range` |
 
 The eager distinguishing-set instance for 19 problems at complexity 4 exhausts 128 GB. This is the case the
 lazy pairs arm (c3-combo, job 4133419) targets.
+
+Caution on reading these two rows: the base arm's cheaper policy (cost 10) generalised further than the combo's
+cost-21 policy learned from twice the training set, so coverage is not monotone in training-set size. Policy
+cost matters for generalisation, and the add-problem switch trades the climb's cost minimisation for training
+growth. The remaining arms decide whether a bounded climb or a final minimisation pass is needed.
