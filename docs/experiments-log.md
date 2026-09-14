@@ -45,4 +45,21 @@ per-round `refuted_complexity` enforcement) and `reduce-asp-separation-layer` (`
 no longer materialised, `--type datalog-sig`). `reset_complexity_on_state_space_change` stays
 off (benchmarked as a no-op in `docs/complexity-bound-results.md`).
 
-_Results pending._
+_Local stage, 2026-09-14, commit e39b6a7, `-n 1 --seed 0 --max-memory 24000`:_
+
+| suite | type | solved | wall | cost | peak MB | clingo atoms | note |
+|---|---|---|---|---|---|---|---|
+| blocks3ops-local (10) | datalog | 9/10 | 606 s | 4 | 21 290 | 64.1 M | `bad_alloc` at complexity 2 with 6 training problems after 20 frontier rounds; blocks-005-2 unsolved |
+| blocks3ops-local (10) | datalog-sig | **10/10** | 175 s | 9 | 5 917 | 8.6 M | solved at complexity 3, 39 rules |
+| gripper-local (5) | datalog / datalog-sig | 5/5 / 5/5 | 13 s / 4 s | 6 / 6 | 912 / 98 | | |
+| miconic-local (4) | datalog / datalog-sig | 4/4 / 4/4 | 4 s / 3 s | 12 / 12 | 283 / 143 | | |
+| blocks4ops-clear-local (4) | datalog / datalog-sig | 4/4 / 4/4 | 1 s / 0 s | 2 / 2 | 85 / 86 | | |
+| delivery-local (4) | datalog / datalog-sig | 4/4 / 4/4 | 14 s / 5 s | 9 / 9 | 790 / 315 | | |
+
+**Decision:** `datalog-sig` is at least as good everywhere and strictly better on blocks3ops, so it is the
+baseline encoding for all hypotheses from here on. Note that even datalog-sig spends most of its rounds on
+frontier expansion at complexity 2 (blocks-005-2 went from 5 to 39 example plans before complexity 3 solved
+the set); the frontier loop, not the solver, dominates wall time on the local suite.
+
+Full-95 and held-out results: see below as they arrive.
+
