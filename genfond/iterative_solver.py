@@ -16,6 +16,7 @@ from .execute_policy import execute_policy
 from .feature_generator import FeaturePool
 from .frontier import FrontierState, collect_frontier_states, expand_frontier
 from .generate_policy import generate_policy
+from .lazy_pairs import DEFAULT_BATCH, solve_with_lazy_pairs
 from .policy import PolicyType
 from .problem_iterator import MAX_COST, OneShotProblemIterator, ProblemIterator, Result
 from .rule_policy import Policy
@@ -122,7 +123,16 @@ def solve(
         min_feature_complexity=complexity if enforce_highest_complexity else None,
         solve_prog=config["solve_prog"],
     )
-    if not solver.solve():
+    if config.get("lazy_pairs", False) and config.get("emit_action_signatures", False):
+        # The instance carries no separation pairs; they are added batch by batch in response to
+        # the models that violate them. The loop wraps the solve of this one round only, so
+        # max_cost, the min_feature_complexity program and the frontier machinery are untouched.
+        satisfiable = solve_with_lazy_pairs(
+            solver, feature_pool.signatures, config.get("lazy_pairs_batch") or DEFAULT_BATCH, stats
+        )
+    else:
+        satisfiable = solver.solve()
+    if not satisfiable:
         log.info("No solution found")
         return None
     solution = solver.solution

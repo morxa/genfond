@@ -79,6 +79,18 @@ def main():
     )
     config_args.add_argument("--max-memory", type=int, help="maximum memory to use in MB")
     config_args.add_argument(
+        "--lazy-pairs",
+        action=argparse.BooleanOptionalAction,
+        # Must default to None, not False: ConfigHandler skips None overrides.
+        default=None,
+        help="add the signature separation constraints one batch of violated pairs at a time",
+    )
+    config_args.add_argument(
+        "--lazy-pairs-batch",
+        type=int,
+        help="how many violated pairs one lazy iteration may add",
+    )
+    config_args.add_argument(
         "--seed",
         type=int,
         help="seed the global RNG, which policy execution draws on; needed to compare two runs",

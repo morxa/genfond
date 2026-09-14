@@ -8,6 +8,7 @@ frontier_expansion: true
 abort_on_cycle: true
 solve_prog: solve_datalog_sig.lp
 emit_action_signatures: true
+lazy_pairs: true
 include_numerical_features: false
 include_concepts: true
 include_roles: true

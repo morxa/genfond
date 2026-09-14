@@ -693,7 +693,12 @@ class FeaturePool:
         computed in Python (see `action_signatures`) and emitted as `sig_pair/3` plus a
         deduplicated `dist/2` relation, instead of being derived by rules that would pair every
         class pair with every feature, concept and role.
+
+        With `lazy_pairs` that relation is left out entirely and handed to the solver one batch
+        of violated pairs at a time instead (see `lazy_pairs.py`); only `asig/4` is emitted here.
         """
+        if self.config.get("lazy_pairs", False):
+            return ""
         return "".join(iter_dist_set_facts(self.signatures))
 
     def to_clingo(self) -> str:

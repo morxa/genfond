@@ -65,7 +65,22 @@ class Solver:
         self.solution["cost"] = model.cost
         self.cost = model.cost
 
+    def add_pairs(self, batch: int, facts: str) -> None:
+        """Ground one more batch of lazy separation pairs into the running control.
+
+        The facts go into a part of their own and the rules that consume them into a fresh
+        instance of ``#program pairs(k)`` (see solve_datalog_sig.lp), so the rules ground against
+        this batch only. Both are grounded in one call, facts first.
+        """
+        name = f"pair_facts_{batch}"
+        self.control.add(name, [], facts)
+        self.control.ground([(name, []), ("pairs", [clingo.Number(batch)])])
+
     def solve(self) -> bool:
+        # Constraints added since the previous solve can only raise the optimum, so a bound
+        # carried over from it would be unsound. clingo does not keep one, but say so anyway.
+        assert isinstance(self.control.configuration.solve, clingo.Configuration)
+        self.control.configuration.solve.opt_mode = "opt"
         res = self.control.solve(on_model=self.on_model)
         self.statistics = self.control.statistics
         assert res.satisfiable is not None
