@@ -85,6 +85,14 @@ max_frontier_states_per_round: 0
 # Hard cap on frontier transitions in a single model (-> limit_prune_cost); null = unbounded.
 max_frontier_transitions: null
 use_unrestricted_features: false
+# After a successful round, the default is to climb feature complexity (and cycle through
+# example plans / unrestricted features) on the *same* training set until max_cost <=
+# complexity or max_complexity is reached, before adding the next unsolved problem. On domains
+# where grounding is the bottleneck (e.g. blocks3ops), that climb re-runs the largest training
+# set so far at complexities that were never needed to find a policy, and those are exactly the
+# rounds that run out of memory or hit clingo's 32-bit ground-fact id ceiling. With this on, a
+# successful round adds the next unsolved problem immediately instead, skipping the climb.
+add_problem_after_success: false
 unselect_problems: false
 visualize_state_graphs: false
 unrestricted_feature_generator:
