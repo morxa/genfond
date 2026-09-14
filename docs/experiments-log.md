@@ -99,3 +99,14 @@ Local blocks3ops suite (10 problems, datalog-sig, `-n 1 --seed 0`, 8 GB cap):
 
 Regression suites: unchanged coverage in the sonnet sanity runs (gripper 5/5 at cost 6 with role offset 2;
 cost 7 with the concept offset). Held-out and full-95 results: below.
+
+Held-out (12 instances, 8–30 blocks): role offset 2 → 1/12, both offsets → 0/12, no roles → 1/12. No local-suite
+policy generalises; the training set has to include larger instances first.
+
+Full 95, local, `--max-memory 14000`, 90 min limit (weak signal where a run ends in `bad_alloc`; only coverage and
+`Id out of range` count, see the protocol note):
+
+| arm | solved | wall | cost | ended by |
+|---|---|---|---|---|
+| baseline datalog-sig (16 GB) | 19/95 | 410 s | 8 | `bad_alloc` ×2 (complexity 6 climb, then a 163-state complexity-3 round) |
+| role offset 2 + concept offset 1 | **31/95** | ~900 s | – | `bad_alloc` ×2 at complexity 5 on 6–7 training problems (≤5 blocks) |
