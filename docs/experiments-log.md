@@ -110,3 +110,15 @@ Full 95, local, `--max-memory 14000`, 90 min limit (weak signal where a run ends
 |---|---|---|---|---|
 | baseline datalog-sig (16 GB) | 19/95 | 410 s | 8 | `bad_alloc` ×2 (complexity 6 climb, then a 163-state complexity-3 round) |
 | role offset 2 + concept offset 1 | **31/95** | ~900 s | – | `bad_alloc` ×2 at complexity 5 on 6–7 training problems (≤5 blocks) |
+
+## Cluster batch 1 (submitted 2026-09-14 23:20, `rleap_cpu`, 1 thread, seed 0, 128 GB, 12 h)
+
+| job | tag | branch | config |
+|---|---|---|---|
+| 4133176 | c-base | learn-from-examples @ 238ae61 | datalog-sig |
+| 4133177 | c-r2c1 | hyp/role-caps | role offset 2, concept offset 1 |
+| 4133178 | c-noroles | hyp/role-caps | `include_roles: false` |
+| 4133179 | c-noclimb | hyp/no-cost-climb | `add_problem_after_success: true` |
+| 4133180 | c-distsets | hyp/dist-sets | precomputed distinguishing sets |
+
+All on the full 95-problem blocks3ops suite. Results: pending.
