@@ -139,7 +139,9 @@ def solve(
     frontier_states = collect_frontier_states(feature_pool, solution)
     stats["numFrontierTransitions"] = len(frontier_states)
     try:
-        policy = generate_policy(solution, policy_type=PolicyType[config["policy_type"]])
+        policy = generate_policy(
+            solution, policy_type=PolicyType[config["policy_type"]], signatures=feature_pool.signatures
+        )
     except KeyError as e:
         log.error(f"Error during policy generation: {e}")
         raise

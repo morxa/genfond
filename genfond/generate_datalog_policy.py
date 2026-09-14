@@ -1,7 +1,8 @@
 import logging
 import re
-from typing import Any
+from typing import Any, Iterable, Iterator, Optional, Sequence
 
+from genfond.action_signatures import ActionSignature
 from genfond.datalog_policy import (
     RULE_VARS,
     DatalogPolicy,
@@ -32,49 +33,118 @@ def eval_to_cond(f: str, v: int) -> Cond:
         raise ValueError(f"Unknown value {v}")
 
 
-def generate_datalog_policy_from_signatures(solution: dict[str, Any]) -> DatalogPolicy:
+def _bitmask(items: Iterable[Any], index: dict[Any, int]) -> int:
+    mask = 0
+    for item in items:
+        mask |= 1 << index.setdefault(item, len(index))
+    return mask
+
+
+def _set_bits(mask: int) -> Iterator[int]:
+    while mask:
+        lowest = mask & -mask
+        yield lowest.bit_length() - 1
+        mask ^= lowest
+
+
+def generate_datalog_policy_from_signatures(
+    solution: dict[str, Any], signatures: Sequence[ActionSignature]
+) -> DatalogPolicy:
     """Build the policy from a model of solve_datalog_sig.lp.
 
     That program collapses the separation layer onto action signature classes, so a rule is
-    produced per good signature rather than per (instance, state, good action) triple. The
-    conditions attached are the same ones the unquotiented program shows, read off the class.
+    produced per good signature rather than per (instance, state, good action) triple.
+
+    The conditions of a rule are reconstructed here rather than shown by the solve program,
+    which would need a rule per (class pair, element). The model supplies the good classes
+    (sig_action/2), the bad ones (bad_sig/1) and the selection; everything else is a property
+    of the signature classes, which the caller passes in. The reconstruction mirrors the layered
+    #show rules the program used to carry: a bad class already separated by a selected feature
+    contributes nothing, one separated by a selected concept contributes only concept
+    conditions, and the rest contribute role conditions.
     """
     heads: dict[int, str] = dict()
-    for signature, action in solution.get("sig_action", []):
-        heads.setdefault(signature, action)
-    bool_evals: dict[tuple[int, str], int] = dict()
-    for signature, feature, value in solution.get("sig_bool_eval", []):
-        bool_evals[(signature, feature.strip('"'))] = value
-    dist_features: dict[int, set[str]] = dict()
-    for signature, _, feature in solution.get("sig_f_dist", []):
-        dist_features.setdefault(signature, set()).add(feature.strip('"'))
-    concepts: dict[int, set[tuple[int, str]]] = dict()
-    for signature, _, concept, sign, index in solution.get("sig_c_dist", []):
-        concept = concept.strip('"')
-        if concept == "name":
-            continue
-        concepts.setdefault(signature, set()).add((int(index), f"c_not({concept})" if sign == "neg" else concept))
-    roles: dict[int, set[tuple[int, int, str]]] = dict()
-    for signature, _, role, sign, index1, index2 in solution.get("sig_r_dist", []):
-        role = role.strip('"')
-        roles.setdefault(signature, set()).add((int(index1), int(index2), f"r_not({role})" if sign == "neg" else role))
+    for signature_id, action in solution.get("sig_action", []):
+        heads.setdefault(signature_id, action)
+    bad_ids = sorted(solution.get("bad_sig", set()))
+    selected_features = {feature.strip('"') for feature in solution.get("f_selected", set())}
+    # `name` is the always-selected identity concept; no signature ever carries it.
+    selected_concepts = {concept.strip('"') for concept in solution.get("c_selected", set())} - {"name"}
+    selected_roles = {role.strip('"') for role in solution.get("r_selected", set())}
+
+    # A feature is attached as a condition iff it is selected and not constant across all
+    # classes -- exactly what the program's sig_f_dist/3 derived (it ranged over all classes,
+    # not only over those of the same action name).
+    seen_value: dict[str, int] = dict()
+    varying_features: set[str] = set()
+    for signature in signatures:
+        for feature, value in signature.bools:
+            if seen_value.setdefault(feature, value) != value:
+                varying_features.add(feature)
+    cond_features = sorted(selected_features & varying_features)
+
+    relevant = sorted(set(heads) | set(bad_ids))
+    concept_index: dict[Any, int] = dict()
+    role_index: dict[Any, int] = dict()
+    feature_key: dict[int, tuple[tuple[str, int], ...]] = dict()
+    concept_mask: dict[int, int] = dict()
+    role_mask: dict[int, int] = dict()
+    for signature_id in relevant:
+        signature = signatures[signature_id]
+        feature_key[signature_id] = tuple(
+            sorted((feature, value) for feature, value in signature.bools if feature in selected_features)
+        )
+        concept_mask[signature_id] = _bitmask(
+            ((concept, position) for concept, position in signature.concepts if concept in selected_concepts),
+            concept_index,
+        )
+        role_mask[signature_id] = _bitmask(
+            ((role, position1, position2) for role, position1, position2 in signature.roles if role in selected_roles),
+            role_index,
+        )
+    concept_terms = [term for term, _ in sorted(concept_index.items(), key=lambda item: item[1])]
+    role_terms = [term for term, _ in sorted(role_index.items(), key=lambda item: item[1])]
+
     rules = set()
-    for signature, action in heads.items():
+    for signature_id, action in heads.items():
+        signature = signatures[signature_id]
+        values = dict(signature.bools)
+        conds = {feature: eval_to_cond(feature, values[feature]) for feature in cond_features if feature in values}
+        concepts_pos = concepts_neg = roles_pos = roles_neg = 0
+        for other_id in bad_ids:
+            other = signatures[other_id]
+            if other.name != signature.name or other.arity != signature.arity:
+                continue
+            if feature_key[signature_id] != feature_key[other_id]:
+                continue
+            differing = concept_mask[signature_id] ^ concept_mask[other_id]
+            if differing:
+                concepts_pos |= concept_mask[signature_id] & differing
+                concepts_neg |= concept_mask[other_id] & differing
+                continue
+            differing = role_mask[signature_id] ^ role_mask[other_id]
+            roles_pos |= role_mask[signature_id] & differing
+            roles_neg |= role_mask[other_id] & differing
+        concepts = {(position, concept) for concept, position in (concept_terms[b] for b in _set_bits(concepts_pos))}
+        concepts |= {
+            (position, f"c_not({concept})")
+            for concept, position in (concept_terms[b] for b in _set_bits(concepts_neg))
+        }
+        roles = {
+            (position1, position2, role)
+            for role, position1, position2 in (role_terms[b] for b in _set_bits(roles_pos))
+        }
+        roles |= {
+            (position1, position2, f"r_not({role})")
+            for role, position1, position2 in (role_terms[b] for b in _set_bits(roles_neg))
+        }
         name, parameters = split_action_string(action)
         variables = RULE_VARS[: len(parameters)]
-        conds = {
-            feature: eval_to_cond(feature, bool_evals[(signature, feature)])
-            for feature in sorted(dist_features.get(signature, set()))
-            if (signature, feature) in bool_evals
-        }
         rules.add(
             DatalogPolicyRule(
                 f'{name}({",".join(variables)})',
-                concepts=[(variables[index], concept) for index, concept in sorted(concepts.get(signature, set()))],
-                roles=[
-                    (variables[index1], variables[index2], role)
-                    for index1, index2, role in sorted(roles.get(signature, set()))
-                ],
+                concepts=[(variables[index], concept) for index, concept in sorted(concepts)],
+                roles=[(variables[index1], variables[index2], role) for index1, index2, role in sorted(roles)],
                 conds=conds,
             )
         )
@@ -82,9 +152,12 @@ def generate_datalog_policy_from_signatures(solution: dict[str, Any]) -> Datalog
     return DatalogPolicy(list(rules), cost=solution["cost"])
 
 
-def generate_datalog_policy(solution: dict[str, Any]) -> DatalogPolicy:
+def generate_datalog_policy(
+    solution: dict[str, Any], signatures: Optional[Sequence[ActionSignature]] = None
+) -> DatalogPolicy:
     if "sig_action" in solution:
-        return generate_datalog_policy_from_signatures(solution)
+        assert signatures is not None, "the signature-quotiented encoding needs the signature classes"
+        return generate_datalog_policy_from_signatures(solution, signatures)
     # log.info(
     #     f'Generating policy from solution with {len(solution["good_action"])}/{len(solution.get("trans", []) or "?")} good actions,'
     #     f' {len(solution.get("f_distinguished", []))} distinguished features,'
