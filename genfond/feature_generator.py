@@ -106,7 +106,6 @@ def get_action_augmented_state(problem: Problem, state: State, config: Mapping, 
         param_atoms = {get_aparam_predicate(i, action.parameters[i]) for i, _ in enumerate(action.parameters)}
         augmented_state |= param_atoms
     action_str = f'"{action.name}({",".join([str(p) for p in action.parameters])})"' if action else "None"
-    log.debug(f'Generated augmented state (action={action_str}): [{", ".join([str(p) for p in augmented_state])}]')
     return frozenset(augmented_state)
 
 
