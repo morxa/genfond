@@ -1,0 +1,1 @@
+../../deterministic/miconic/domain.pddl

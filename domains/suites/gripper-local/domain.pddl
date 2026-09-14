@@ -1,0 +1,1 @@
+../../deterministic/gripper/domain.pddl

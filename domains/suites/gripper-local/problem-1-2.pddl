@@ -1,0 +1,1 @@
+../../deterministic/gripper/problem-1-2.pddl

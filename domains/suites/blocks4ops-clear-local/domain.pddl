@@ -1,0 +1,1 @@
+../../deterministic/blocks4ops-clear/domain.pddl

@@ -188,9 +188,18 @@ def main():
     if args.stats:
         lock = FileLock(args.stats + ".lock")
         with lock:
+            # The key set differs between runs (e.g. failureReason only exists on failure), so
+            # rows appended to an existing file must follow its header or the columns shift.
+            fieldnames: list[str] = list(stats.keys())
             file_exists = os.path.isfile(args.stats)
+            if file_exists:
+                with open(args.stats) as f:
+                    fieldnames = next(csv.reader(f))
+                dropped = set(stats) - set(fieldnames)
+                if dropped:
+                    log.warning(f"Stats keys not in the header of {args.stats}, dropped: {sorted(dropped)}")
             with open(args.stats, "a") as f:
-                writer = csv.DictWriter(f, fieldnames=stats.keys())
+                writer = csv.DictWriter(f, fieldnames=fieldnames, restval="", extrasaction="ignore")
                 if not file_exists:
                     writer.writeheader()
                 writer.writerow(stats)

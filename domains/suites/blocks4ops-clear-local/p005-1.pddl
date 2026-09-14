@@ -1,0 +1,1 @@
+../../deterministic/blocks4ops-clear/p005-1.pddl
