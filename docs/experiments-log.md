@@ -123,3 +123,38 @@ Full 95, local, `--max-memory 14000`, 90 min limit (weak signal where a run ends
 | 4133180 | c-distsets | hyp/dist-sets | precomputed distinguishing sets |
 
 All on the full 95-problem blocks3ops suite. Results: pending.
+
+## H2: add the next problem right after a success (`hyp/no-cost-climb`)
+
+Mechanism: after a success whose policy fails some remaining problem, the loop used to climb complexity on the
+same training set to beat the previous cost before adding the failing problem. `add_problem_after_success: true`
+adds it immediately. Local blocks3ops suite (sonnet sanity run, 4 GB cap): baseline 9/10 in 148 s (climb hits
+the cap), switch on **10/10 in 43 s** at complexity 2 throughout; gripper unchanged 5/5.
+
+## H3: precomputed distinguishing sets (`hyp/dist-sets`)
+
+Mechanism: the datalog-sig separation layer grounded |K|² pairs × every feature/concept/role. The set of elements
+distinguishing a pair is instance data, so it is computed in Python (packed bit vectors) and emitted as
+`sig_pair/3` + deduplicated `dist/2` facts with a hitting-set constraint; the quadratic `#show` rules are gone and
+rule conditions are reconstructed in Python. Same semantics (verified on the same model).
+
+One-shot blocks3ops at complexity 4, 4 GB cap: p004-1 atoms 1.82 M → 0.12 M, clingo CPU 15.0 s → 0.85 s;
+p005-1 old `bad_alloc`, new solved in 14.6 s / 377 MB. Remaining term: Σ|D| (55 M dist facts at p006-1) →
+follow-up H5 (lazy pair constraints).
+
+## H4: combination dist-sets + no-cost-climb (`hyp/combo`)
+
+Local suites, 8 GB cap, `--add-problem-after-success`:
+
+| suite | baseline | combo |
+|---|---|---|
+| blocks3ops-local | 10/10, 175 s, cost 9, 5.9 GB | **10/10, 8 s, cost 5, 73 MB** |
+| gripper-local | 5/5, 4 s, cost 6 | 5/5, 3 s, cost 6 |
+
+Cluster: job 4133189 (tag c-combo), same protocol as batch 1. Results: pending.
+
+Combo, full 95 **locally** (16 GB cap, 2 h limit): **29/95** in 1641 s, cost 21, training set of 21 problems
+(2–7 blocks, 1781 states) still at complexity 3; ended by a Python `MemoryError` building the complexity-4
+instance (88 concepts / 73 roles × 21 problems) and a failed complexity-5 round. Baseline died with 8 training
+problems. Weak signal on the memory end, strong on coverage: every ≤7-block instance except blocks-007-4 is
+solved. Note the frontier loop: blocks-007-1 accumulated 19 example plans.
