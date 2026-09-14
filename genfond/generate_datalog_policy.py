@@ -32,7 +32,59 @@ def eval_to_cond(f: str, v: int) -> Cond:
         raise ValueError(f"Unknown value {v}")
 
 
+def generate_datalog_policy_from_signatures(solution: dict[str, Any]) -> DatalogPolicy:
+    """Build the policy from a model of solve_datalog_sig.lp.
+
+    That program collapses the separation layer onto action signature classes, so a rule is
+    produced per good signature rather than per (instance, state, good action) triple. The
+    conditions attached are the same ones the unquotiented program shows, read off the class.
+    """
+    heads: dict[int, str] = dict()
+    for signature, action in solution.get("sig_action", []):
+        heads.setdefault(signature, action)
+    bool_evals: dict[tuple[int, str], int] = dict()
+    for signature, feature, value in solution.get("sig_bool_eval", []):
+        bool_evals[(signature, feature.strip('"'))] = value
+    dist_features: dict[int, set[str]] = dict()
+    for signature, _, feature in solution.get("sig_f_dist", []):
+        dist_features.setdefault(signature, set()).add(feature.strip('"'))
+    concepts: dict[int, set[tuple[int, str]]] = dict()
+    for signature, _, concept, sign, index in solution.get("sig_c_dist", []):
+        concept = concept.strip('"')
+        if concept == "name":
+            continue
+        concepts.setdefault(signature, set()).add((int(index), f"c_not({concept})" if sign == "neg" else concept))
+    roles: dict[int, set[tuple[int, int, str]]] = dict()
+    for signature, _, role, sign, index1, index2 in solution.get("sig_r_dist", []):
+        role = role.strip('"')
+        roles.setdefault(signature, set()).add((int(index1), int(index2), f"r_not({role})" if sign == "neg" else role))
+    rules = set()
+    for signature, action in heads.items():
+        name, parameters = split_action_string(action)
+        variables = RULE_VARS[: len(parameters)]
+        conds = {
+            feature: eval_to_cond(feature, bool_evals[(signature, feature)])
+            for feature in sorted(dist_features.get(signature, set()))
+            if (signature, feature) in bool_evals
+        }
+        rules.add(
+            DatalogPolicyRule(
+                f'{name}({",".join(variables)})',
+                concepts=[(variables[index], concept) for index, concept in sorted(concepts.get(signature, set()))],
+                roles=[
+                    (variables[index1], variables[index2], role)
+                    for index1, index2, role in sorted(roles.get(signature, set()))
+                ],
+                conds=conds,
+            )
+        )
+    log.debug(f"Generated {len(rules)} rule(s) from {len(heads)} good signature(s)")
+    return DatalogPolicy(list(rules), cost=solution["cost"])
+
+
 def generate_datalog_policy(solution: dict[str, Any]) -> DatalogPolicy:
+    if "sig_action" in solution:
+        return generate_datalog_policy_from_signatures(solution)
     # log.info(
     #     f'Generating policy from solution with {len(solution["good_action"])}/{len(solution.get("trans", []) or "?")} good actions,'
     #     f' {len(solution.get("f_distinguished", []))} distinguished features,'
