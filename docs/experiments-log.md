@@ -158,3 +158,9 @@ Combo, full 95 **locally** (16 GB cap, 2 h limit): **29/95** in 1641 s, cost 21,
 instance (88 concepts / 73 roles × 21 problems) and a failed complexity-5 round. Baseline died with 8 training
 problems. Weak signal on the memory end, strong on coverage: every ≤7-block instance except blocks-007-4 is
 solved. Note the frontier loop: blocks-007-1 accumulated 19 example plans.
+
+**Cluster batch 1 after ~35 min** (peek at the last round of each log): the four arms without the
+add-problem switch are all inside the post-success climb on 5–8 training problems of ≤5 blocks: base at
+complexity 6 (858 concepts / 617 roles), dist-sets at complexity 8 (10 131 concepts / 2 090 roles),
+no-roles at 8 (9 439 concepts), role-caps at 8 (2 856 / 615). The two arms with the switch are past that:
+no-cost-climb has 14 training problems (≤6 blocks) at complexity 3, combo has 19 (≤7 blocks) at complexity 4.
