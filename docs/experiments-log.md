@@ -66,5 +66,18 @@ seed 7): the local-suite datalog-sig policy solves **1/12** (blocks-heldout-015-
 state where no rule applies. A policy learned from ≤5-block instances does not generalise; the training set
 must contain larger instances, which is exactly what the grounding ceiling prevents.
 
-Full-95 result: pending.
+**Full 95, local** (`datalog-sig`, `--max-memory 16000`, 3 h limit): **19/95** in 410 s, policy cost 8 from 8
+training problems, ended by `Result.OUT_OF_RESOURCES`. Round history that matters:
+
+1. 7 training problems (2–4 blocks, 126 states): success at complexity 3 with cost 8; the policy solves every
+   ≤4-block instance and blocks-005-1 but not blocks-005-2.
+2. The loop then climbs complexity on the *same* seven problems to beat cost 8: complexity 4 (88 concepts,
+   73 roles, 51 s), 5 (257 / 207, 166 s), 6 (858 / 617) → clingo `bad_alloc` at the 16 GB cap.
+3. blocks-005-2 is added; the next round at complexity 3 with 163 states and 29 concepts / 28 roles — an
+   instance that took 20 s two rounds earlier — hits `bad_alloc` again. An out-of-resources result has no
+   escalation branch, so the run ends.
+
+Two conclusions: the post-success cost climb, not the training set, is what reaches the grounding ceiling
+(hypothesis `no-cost-climb`); and memory from a failed round appears to be retained into the next one
+(hypothesis `memory-release`).
 
