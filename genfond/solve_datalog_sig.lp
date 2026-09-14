@@ -28,6 +28,9 @@
 #defined asig/4.
 #defined sig_pair/3.
 #defined dist/2.
+% With lazy_pairs the same relation arrives one batch at a time, tagged with the batch index.
+#defined sig_pair/4.
+#defined dist/3.
 
 { c_selected(C) } :- concept(C).
 c_selected(name).
@@ -92,3 +95,18 @@ bool_eval(I, S, F, 0) :- eval(I, S, F, V), V = 0.
 
 #program min_feature_complexity(c).
 :- C < c : f_selected(F), feature_complexity(F, C); Cost < c : c_selected(Concept), concept_complexity(Concept, Cost); Cost < c : r_selected(Role), role_complexity(Role, Cost).
+
+% ------------------------------------------------------- separation layer, added lazily
+
+% With lazy_pairs the instance carries no sig_pair/dist facts at all: the pairs are added one
+% batch at a time, in response to models of the relaxation that violate them (see lazy_pairs.py
+% and action_signatures.LazyPairs). The batch index k tags the facts so that grounding this part
+% for a new batch does not re-ground the rules over the facts of the earlier ones. sig_hit/1 is
+% a plain atom, so a batch may refer to a distinguishing set whose dist/3 facts -- and hence the
+% rule deriving sig_hit for it -- were grounded in an earlier batch.
+#program pairs(k).
+sig_hit(D) :- dist(k, D, f(F)), f_selected(F).
+sig_hit(D) :- dist(k, D, c(C)), c_selected(C).
+sig_hit(D) :- dist(k, D, r(R)), r_selected(R).
+:- good_sig(K1), bad_sig(K2), sig_pair(k, K1, K2, D), not sig_hit(D).
+:- good_sig(K2), bad_sig(K1), sig_pair(k, K1, K2, D), not sig_hit(D).
