@@ -1,5 +1,7 @@
+import gc
 import logging
 import pickle
+import resource
 import statistics
 import sys
 import time
@@ -23,6 +25,46 @@ from .solver import Solver
 from .state_space_generator import State, check_formula
 
 log = logging.getLogger("genfond.iterative_solver")
+
+
+def _read_proc_status_kb(*fields: str) -> dict[str, Optional[int]]:
+    """Read the given `VmXxx:` fields (in kB) from /proc/self/status.
+
+    Returns None for a field that could not be read (e.g. on a non-Linux platform), so callers
+    never have to special-case the whole call failing.
+    """
+    result: dict[str, Optional[int]] = {field: None for field in fields}
+    try:
+        with open("/proc/self/status") as f:
+            for line in f:
+                key, _, rest = line.partition(":")
+                if key in result:
+                    result[key] = int(rest.split()[0])
+    except OSError:
+        pass
+    return result
+
+
+def log_memory(tag: str) -> None:
+    """Log the process's memory footprint, for tracking retention across solve rounds.
+
+    `ru_maxrss` is a high-water mark (never decreases within the process); `VmRSS` is the
+    current resident set; `VmSize` is the current virtual address space, which is what
+    `RLIMIT_AS` (`--max-memory`) actually caps -- it can stay high even after `VmRSS` drops,
+    which is the signature of fragmentation rather than a live Python reference holding memory.
+    """
+    maxrss_mb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024
+    proc = _read_proc_status_kb("VmSize", "VmRSS")
+    vmsize_mb = proc["VmSize"] / 1024 if proc["VmSize"] is not None else None
+    vmrss_mb = proc["VmRSS"] / 1024 if proc["VmRSS"] is not None else None
+    log.info(
+        "Memory[%s]: maxrss=%.1fMB rss=%s vmsize=%s",
+        tag,
+        maxrss_mb,
+        f"{vmrss_mb:.1f}MB" if vmrss_mb is not None else "?",
+        f"{vmsize_mb:.1f}MB" if vmsize_mb is not None else "?",
+    )
+
 
 PlannerComputePlans = Callable[[str, str, dict[str, Any]], Iterator[Plan]]
 
@@ -257,6 +299,42 @@ def solve_iteratively(
     return policy, [p for p in problems if problem_iterator.solved[p.name]], stats
 
 
+def _release_round_memory() -> None:
+    """Force prompt release of a round's memory instead of waiting on GC/allocator heuristics.
+
+    Each round builds a `FeaturePool` (dlplan-backed state graphs and generated features) and a
+    `Solver` (a clingo `Control`, which owns the grounded program and the ASP instance string)
+    as locals of `solve()`. Both contain back-references -- state graph nodes point at their
+    graph and vice versa, dlplan elements are cached by their factory -- so they form reference
+    cycles that plain refcounting cannot free; they sit until Python's generational GC gets
+    around to them. That GC is scheduled by allocation *count*, not size, so a handful of huge,
+    cycle-holding rounds can go uncollected for a long time, and a `bad_alloc` (from clingo or,
+    via pybind11's automatic `std::bad_alloc` -> `MemoryError` mapping, from dlplan) makes it
+    worse: the exception's traceback keeps every frame between the raise and the `except` that
+    caught it alive -- including `solve()`'s `feature_pool`, `asp_instance` and `solver` locals
+    -- until the exception itself is collected. `except ... as e:` already deletes `e` (and so
+    the traceback) when its suite ends, which is what turns that chain into a self-contained
+    cycle with no external referrer; only a GC pass, not refcounting, reclaims a cycle like that.
+
+    Measured on the repro in `docs/memory-release-results.md`: `gc.collect()` alone found
+    thousands of unreachable objects and returned tens of MB of `VmSize` per round -- the
+    quantity `RLIMIT_AS`/`--max-memory` actually caps, and so the one that determines whether
+    the next round's allocation fits. `malloc_trim(0)` is a second, smaller lever on top: it
+    returns freed heap pages to the OS, which helps `RSS` a lot (relevant since other jobs share
+    this machine) but barely moved `VmSize` in that measurement, so it is not a substitute for
+    the `gc.collect()` above.
+    """
+    collected = gc.collect()
+    log.debug("gc.collect() freed %d unreachable object(s)", collected)
+    try:
+        import ctypes
+
+        ctypes.CDLL("libc.so.6").malloc_trim(0)
+    except OSError:
+        # No libc.so.6 (e.g. non-Linux): RSS just stays higher afterwards, no correctness issue.
+        log.debug("malloc_trim(0) unavailable on this platform")
+
+
 def solve_step(
     domain: Domain,
     config: Mapping,
@@ -272,6 +350,7 @@ def solve_step(
     dead_states: Optional[Mapping[str, set[State]]] = None,
     allow_frontier: bool = True,
 ) -> tuple[Result, Optional[Policy | DatalogPolicy], list[FrontierState]]:
+    log_memory(f"round start complexity={complexity}")
     try:
         log.info(f"Starting solver for {pnames(active_problems)} with max complexity {complexity}")
         solve_wall_time_start = time.perf_counter()
@@ -307,6 +386,14 @@ def solve_step(
         log.info("Solver wall time: {:.2f}s".format(stats["lastSolveWallTime"]))
         log.info("Solver CPU time: {:.2f}s".format(stats["lastSolveCpuTime"]))
         stats["totalSolveCpuTime"] = stats.get("totalSolveCpuTime", 0) + stats["lastSolveCpuTime"]
+        log_memory(f"round end complexity={complexity}")
+        # By this point `except ... as e:` has already deleted `e`, so `solve()`'s locals
+        # (`feature_pool`, `asp_instance`, `solver`/`Control`) are unreachable except through
+        # whatever reference cycles they formed among themselves -- exactly what `gc.collect()`
+        # is for. Runs on every path (success, no-solution, frontier, and error alike): ordinary
+        # rounds hold cyclic state-graph structures too, not just failed ones.
+        _release_round_memory()
+        log_memory(f"round end complexity={complexity} (after release)")
     if solution:
         policy, solve_stats, frontier_states = solution
         stats.update(solve_stats)
