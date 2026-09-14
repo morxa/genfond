@@ -194,3 +194,12 @@ Cluster: job 4133419 (tag c3-combo).
 
 Cluster batch 2 (jobs 4133410–4133412, `hyp/combo` at 162c640 with the memory fix): c2-combo (reference),
 c2-unselect (`unselect_problems: true`), c2-frontier2 (`max_frontier_states_per_round: 2`).
+
+## Cluster results
+
+| job | arm | solved | wall | peak RSS | train set | ended by |
+|---|---|---|---|---|---|---|
+| 4133189 | c-combo (H2+H3, no memory fix, eager pairs) | **28/95** | 1 h 26 min | 106 GB | 19 problems (≤7 blocks), complexity 3, cost 21 | 2× memory error at complexity 4; no `Id out of range` |
+
+The eager distinguishing-set instance for 19 problems at complexity 4 exhausts 128 GB. This is the case the
+lazy pairs arm (c3-combo, job 4133419) targets.
