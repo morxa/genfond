@@ -53,6 +53,16 @@ def main():
     )
     config_args.add_argument("--max-complexity", type=int, help="stop policy search with this max complexity")
     config_args.add_argument(
+        "--concept-complexity-offset",
+        type=int,
+        help="cap concept complexity at max(1, complexity - offset) instead of the full per-round complexity",
+    )
+    config_args.add_argument(
+        "--role-complexity-offset",
+        type=int,
+        help="cap role complexity at max(1, complexity - offset) instead of the full per-round complexity",
+    )
+    config_args.add_argument(
         "--reset-complexity-on-state-space-change",
         action=argparse.BooleanOptionalAction,
         # Must default to None, not False: ConfigHandler skips None overrides, so a False
