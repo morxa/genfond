@@ -201,6 +201,7 @@ c2-unselect (`unselect_problems: true`), c2-frontier2 (`max_frontier_states_per_
 |---|---|---|---|---|---|---|
 | 4133189 | c-combo (H2+H3, no memory fix, eager pairs) | **28/95** | 1 h 26 min | 106 GB | 19 problems (≤7 blocks), complexity 3, cost 21 | 2× memory error at complexity 4; no `Id out of range` |
 | 4133176 | c-base (datalog-sig) | **33/95** | 1 h 31 min | 115 GB | 9 problems (≤5 blocks), complexity 3, cost 10 | 3× `bad_alloc` (complexity 4, then a 219-state complexity-3 round right after); no `Id out of range` |
+| 4133410 | c2-combo (H2+H3+memory fix, eager pairs) | 28/95 | 1 h 17 min | 107 GB | 19 problems (≤7 blocks), cost 21 | complexities 3–5 refuted for the 19-problem set; `bad_alloc` at complexity 6 (858 concepts / 617 roles) |
 
 The eager distinguishing-set instance for 19 problems at complexity 4 exhausts 128 GB. This is the case the
 lazy pairs arm (c3-combo, job 4133419) targets.
