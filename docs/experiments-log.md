@@ -152,3 +152,9 @@ Local suites, 8 GB cap, `--add-problem-after-success`:
 | gripper-local | 5/5, 4 s, cost 6 | 5/5, 3 s, cost 6 |
 
 Cluster: job 4133189 (tag c-combo), same protocol as batch 1. Results: pending.
+
+Combo, full 95 **locally** (16 GB cap, 2 h limit): **29/95** in 1641 s, cost 21, training set of 21 problems
+(2–7 blocks, 1781 states) still at complexity 3; ended by a Python `MemoryError` building the complexity-4
+instance (88 concepts / 73 roles × 21 problems) and a failed complexity-5 round. Baseline died with 8 training
+problems. Weak signal on the memory end, strong on coverage: every ≤7-block instance except blocks-007-4 is
+solved. Note the frontier loop: blocks-007-1 accumulated 19 example plans.
