@@ -61,5 +61,10 @@ baseline encoding for all hypotheses from here on. Note that even datalog-sig sp
 frontier expansion at complexity 2 (blocks-005-2 went from 5 to 39 example plans before complexity 3 solved
 the set); the frontier loop, not the solver, dominates wall time on the local suite.
 
-Full-95 and held-out results: see below as they arrive.
+**Held-out** (`scripts/eval_policy.py --seed 0 -i 3`, 12 instances with 8–30 blocks from the same generator,
+seed 7): the local-suite datalog-sig policy solves **1/12** (blocks-heldout-015-1); every other instance reaches a
+state where no rule applies. A policy learned from ≤5-block instances does not generalise; the training set
+must contain larger instances, which is exactly what the grounding ceiling prevents.
+
+Full-95 result: pending.
 
