@@ -3,6 +3,7 @@ import csv
 import logging
 import os
 import pickle
+import random
 import resource
 import signal
 import sys
@@ -52,6 +53,14 @@ def main():
     )
     config_args.add_argument("--max-complexity", type=int, help="stop policy search with this max complexity")
     config_args.add_argument(
+        "--reset-complexity-on-state-space-change",
+        action=argparse.BooleanOptionalAction,
+        # Must default to None, not False: ConfigHandler skips None overrides, so a False
+        # default would silently overrule the setting from --config on every run.
+        default=None,
+        help="restart the complexity sweep at min-complexity whenever an example plan or dead end is added",
+    )
+    config_args.add_argument(
         "-i",
         "--policy-iterations",
         type=int,
@@ -69,6 +78,11 @@ def main():
         help='number of threads to use; "None" uses all available threads',
     )
     config_args.add_argument("--max-memory", type=int, help="maximum memory to use in MB")
+    config_args.add_argument(
+        "--seed",
+        type=int,
+        help="seed the global RNG, which policy execution draws on; needed to compare two runs",
+    )
     config_args.add_argument(
         "--dump-failed-policies",
         action="store_true",
@@ -98,6 +112,11 @@ def main():
         component = f"genfond.{component}"
         log.info(f"Setting log level for {component} to {loglevel}")
         logging.getLogger(component).setLevel(loglevel)
+    if config["seed"] is not None:
+        # execute_*_policy draws rule order, object bindings and successors from the global RNG,
+        # so without this two runs of the identical policy report different solved counts.
+        log.info(f'Seeding the global RNG with {config["seed"]}')
+        random.seed(config["seed"])
     if config["max_memory"]:
         _, hard = resource.getrlimit(resource.RLIMIT_AS)
         resource.setrlimit(resource.RLIMIT_AS, (config["max_memory"] * 1024 * 1024, hard))

@@ -53,6 +53,7 @@ def frontier_config(**overrides):
         "unselect_problems": False,
         "min_number_of_plans": 1,
         "max_frontier_expansions": 20,
+        "reset_complexity_on_state_space_change": False,
     }
     config.update(overrides)
     return config
@@ -141,6 +142,146 @@ def test_max_frontier_expansions_stops_the_retry_loop():
     iterator.record_frontier_expansion({"p1": [a_plan("another")]}, {})
     next(iterator)
     assert iterator.last_step != LastStep.EXPAND_FRONTIER
+
+
+def iterator_with_plans(config, num_plans=10):
+    a, b = constants("a b")
+    problems = [
+        DummyProblem("p1", frozenset({Predicate("at", a)})),
+        DummyProblem("p2", frozenset({Predicate("at", b)})),
+    ]
+    plans = {p.name: iter([a_plan(f"{p.name}-{i}") for i in range(num_plans)]) for p in problems}
+    iterator = iter(ProblemIterator(problems, config, plans=plans))
+    return iterator, next(iterator)
+
+
+def refute(iterator):
+    """Report the current round as unsatisfiable and take the next one."""
+    iterator.set_last_result(Result.NO_SOLUTION)
+    return next(iterator)
+
+
+def test_enforcement_is_dropped_after_a_plan_is_added():
+    # min_feature_complexity(c) is only justified by "c-1 was refuted", which is a statement
+    # about one particular state space. Adding a plan changes it, and the enlarged state space
+    # may well admit a policy below c that the constraint would exclude.
+    iterator, first = iterator_with_plans(frontier_config())
+    assert first["enforce_highest_complexity"] is True
+
+    second = refute(iterator)  # -> INC_COMPLEXITY, same state space
+    assert iterator.last_step == LastStep.INC_COMPLEXITY
+    assert second["enforce_highest_complexity"] is True
+
+    third = refute(iterator)  # -> INC_PLANS, state space changed
+    assert iterator.last_step == LastStep.INC_PLANS
+    assert third["complexity"] == second["complexity"]
+    assert third["enforce_highest_complexity"] is False
+
+    # Refuting the level again over the new state space re-establishes the bound.
+    fourth = refute(iterator)
+    assert fourth["complexity"] == third["complexity"] + 1
+    assert fourth["enforce_highest_complexity"] is True
+
+
+def test_enforcement_is_dropped_after_a_frontier_expansion():
+    iterator, _ = iterator_with_plans(frontier_config())
+    # At min_complexity the bound holds by definition, so climb one level first.
+    second = refute(iterator)
+    assert second["complexity"] > frontier_config()["min_complexity"]
+    assert second["enforce_highest_complexity"] is True
+
+    iterator.set_last_result(Result.FRONTIER)
+    iterator.record_frontier_expansion({"p1": [a_plan("pick")]}, {})
+    third = next(iterator)
+    assert iterator.last_step == LastStep.EXPAND_FRONTIER
+    assert third["enforce_highest_complexity"] is False
+
+
+def test_a_restricted_round_refutes_nothing():
+    # The restricted generators are a subset of the unrestricted ones, so their failure says
+    # nothing about a pool that has not been tried yet.
+    iterator, first = iterator_with_plans(frontier_config(use_unrestricted_features=True))
+    assert first["all_features"] is False
+    iterator.set_last_result(Result.NO_SOLUTION)
+    assert iterator.refuted_complexity < first["complexity"]
+
+    unrestricted = next(iterator)
+    assert unrestricted["all_features"] is True
+    assert unrestricted["complexity"] == first["complexity"]
+    iterator.set_last_result(Result.NO_SOLUTION)
+    assert iterator.refuted_complexity == first["complexity"]
+
+
+def test_enforcement_survives_an_unchanged_state_space():
+    # Toggling the generators does not touch the state space, so the refutations stay valid
+    # and the optimization must not be given up.
+    iterator, first = iterator_with_plans(frontier_config(use_unrestricted_features=True))
+    refute(iterator)  # -> unrestricted, same complexity
+    higher = refute(iterator)
+    assert higher["complexity"] == first["complexity"] + 1
+    assert higher["enforce_highest_complexity"] is True
+
+
+def test_success_refutes_its_own_complexity():
+    # clingo minimizes the feature cost, so a success means nothing at this complexity beats
+    # the new max_cost. Keeping the bound is what lets solve() skip the rounds it now knows
+    # are unsatisfiable instead of grounding them.
+    iterator, first = iterator_with_plans(frontier_config())
+    iterator.set_last_result(Result.SUCCESS, cost=(9,))
+    iterator.set_solved(iterator.problems[0])
+    second = next(iterator)
+    assert second["complexity"] == first["complexity"] + 1
+    assert second["enforce_highest_complexity"] is True
+
+
+def test_complexity_is_not_restarted_by_default():
+    iterator, first = iterator_with_plans(frontier_config())
+    refute(iterator)
+    third = refute(iterator)
+    assert iterator.last_step == LastStep.INC_PLANS
+    assert third["complexity"] == first["complexity"] + 1
+
+
+def test_complexity_restarts_at_min_complexity_when_configured():
+    config = frontier_config(reset_complexity_on_state_space_change=True)
+    iterator, first = iterator_with_plans(config)
+    refute(iterator)
+    third = refute(iterator)
+    assert iterator.last_step == LastStep.INC_PLANS
+    assert third["complexity"] == config["min_complexity"]
+    # Restarting re-establishes the refutations from the bottom, so the bound is valid again.
+    assert third["enforce_highest_complexity"] is True
+
+
+def test_restarted_sweep_gets_one_level_deeper_per_plan():
+    # Without the sweep_target guard, "add a plan" and "restart at min_complexity" alternate
+    # at one fixed level and the search never reaches the higher complexities at all. Each
+    # plan must instead be added one level deeper than the last, as it is without the restart.
+    config = frontier_config(reset_complexity_on_state_space_change=True, max_complexity=6)
+    iterator, first = iterator_with_plans(config)
+    sweep = [(first["complexity"], len(iterator.active_plans["p1"]))]
+    for _ in range(14):
+        iteration = refute(iterator)
+        sweep.append((iteration["complexity"], len(iterator.active_plans["p1"])))
+    # Sweep 2..3 with one plan, restart and sweep 2..4 with two, and so on: the plan is always
+    # added at the deepest level reached so far and the sweep then restarts at min_complexity.
+    assert sweep == [
+        (2, 1),
+        (3, 1),
+        (2, 2),
+        (3, 2),
+        (4, 2),
+        (2, 3),
+        (3, 3),
+        (4, 3),
+        (5, 3),
+        (2, 4),
+        (3, 4),
+        (4, 4),
+        (5, 4),
+        (6, 4),
+        (2, 5),
+    ]
 
 
 def test_duplicate_frontier_plans_are_not_progress():
