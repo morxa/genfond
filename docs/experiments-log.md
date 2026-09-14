@@ -169,3 +169,28 @@ Held-out (8–30 blocks) for the combo local full-95 policy (cost 21, trained on
 "no action found". Training up to 7 blocks does not transfer either; the learned rule sets only cover the
 signatures they were trained on. Generalisation is a separate question from coverage and needs its own
 hypotheses (policy language bias, or training on far larger instances) once coverage stops being the wall.
+
+## H5: lazy (counterexample-guided) pair constraints (`hyp/lazy-pairs`, on top of H3)
+
+Mechanism: no `sig_pair`/`dist` facts up front. Solve the relaxation to optimality, read selection and
+good/bad labelling, find violated pairs in Python (masked equality of packed bit vectors, bucketed per action
+name, so pairs are never enumerated), ground one batch (default 5000, smallest |D| first) into the same
+clingo `Control` as `#program pairs(k)`, re-solve. Zero violations ⇒ optimal for the full problem.
+
+One-shot blocks3ops, complexity 4, 5 GB cap:
+
+| instance | eager (H3) | lazy |
+|---|---|---|
+| p004-1 | 2,128 pairs, 2.2 s, 108 MB, cost 2 | 789 pairs, 6 iterations, 2.3 s, 87 MB, cost 2 |
+| p005-1 | 17,083 pairs, 11.3 s, 380 MB, cost 2 | 5,000 pairs, 2 iterations, 11.4 s, 201 MB, cost 2 |
+| p006-1 | `MemoryError` building 55 M dist facts | **17,056 of 1,150,646 pairs, 7 iterations, 243 s, 605 MB, cost 4** |
+| p007-1 | – | `bad_alloc` in state-space expansion / first grounding, before any lazy iteration |
+
+The complexity-4 ceiling moves from 5 to 6 blocks; at 7 blocks the wall is now the state space and the fact
+layer (`c_eval`/`r_eval`, n·|C|·m and n·|R|·m²), not the separation layer. Regression suites identical.
+
+Merged into `hyp/combo` (now H2 + H3 + memory-release + H5): local blocks3ops suite 10/10 in 15 s, gripper 5/5.
+Cluster: job 4133419 (tag c3-combo).
+
+Cluster batch 2 (jobs 4133410–4133412, `hyp/combo` at 162c640 with the memory fix): c2-combo (reference),
+c2-unselect (`unselect_problems: true`), c2-frontier2 (`max_frontier_states_per_round: 2`).
