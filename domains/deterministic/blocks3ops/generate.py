@@ -7,7 +7,7 @@ import pddl
 from pddl.core import Problem
 from pddl.formatter import problem_to_string
 from pddl.logic import Predicate, constants, variables
-from pddl.logic.effects import AndEffect
+from pddl.logic.base import And
 from tqdm import trange
 
 
@@ -44,7 +44,7 @@ def generate_problem(name, num_blocks):
         domain=domain,
         objects=blocks,
         init=init,
-        goal=AndEffect(clear(goal_blocks[0]), *goal, ontable(goal_blocks[-1])),
+        goal=And(clear(goal_blocks[0]), *goal, ontable(goal_blocks[-1])),
     )
     return problem
 

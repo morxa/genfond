@@ -1,0 +1,7 @@
+(define (problem blocks-heldout-008-1)
+    (:domain blocks3ops)
+    (:requirements :equality :strips)
+    (:objects b0 b1 b2 b3 b4 b5 b6 b7)
+    (:init (clear b1) (clear b2) (clear b6) (on b0 b4) (on b2 b3) (on b3 b5) (on b4 b7) (on b5 b0) (ontable b1) (ontable b6) (ontable b7))
+    (:goal (and (clear b1) (on b1 b3) (ontable b3)))
+)

@@ -1,0 +1,7 @@
+(define (problem blocks-heldout-020-1)
+    (:domain blocks3ops)
+    (:requirements :equality :strips)
+    (:objects b0 b1 b10 b11 b12 b13 b14 b15 b16 b17 b18 b19 b2 b3 b4 b5 b6 b7 b8 b9)
+    (:init (clear b10) (clear b14) (clear b16) (clear b4) (clear b6) (clear b7) (on b0 b8) (on b1 b2) (on b12 b1) (on b13 b11) (on b15 b18) (on b16 b19) (on b17 b13) (on b2 b3) (on b3 b5) (on b4 b12) (on b5 b9) (on b6 b17) (on b8 b15) (on b9 b0) (ontable b10) (ontable b11) (ontable b14) (ontable b18) (ontable b19) (ontable b7))
+    (:goal (and (clear b1) (on b1 b17) (on b17 b4) (on b4 b9) (on b9 b13) (on b13 b2) (on b2 b8) (on b8 b19) (on b19 b16) (ontable b16)))
+)
