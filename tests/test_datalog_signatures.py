@@ -54,8 +54,8 @@ def test_signature_encoding_grounds_far_smaller(gripper):
 def test_both_encodings_find_the_same_policy(fixture, request):
     domain, problem = request.getfixturevalue(fixture)
     _, plain = _solve(domain, problem, "datalog")
-    _, signatures = _solve(domain, problem, "datalog-sig")
-    assert generate_datalog_policy(signatures.solution) == generate_datalog_policy(plain.solution)
+    pool, signatures = _solve(domain, problem, "datalog-sig")
+    assert generate_datalog_policy(signatures.solution, pool.signatures) == generate_datalog_policy(plain.solution)
 
 
 @pytest.mark.parametrize("fixture", ["gripper", "blocks_clear"])
@@ -76,4 +76,5 @@ def test_signature_encoding_still_reports_frontier_states():
     pool = FeaturePool(domain, [problem], config, max_complexity=MAX_COMPLEXITY)
     program = pool.to_clingo()
     assert "asig(" in program
-    assert "sig_aname(" in program
+    assert "sig_pair(" in program
+    assert "dist(" in program

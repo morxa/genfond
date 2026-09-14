@@ -11,6 +11,7 @@ from pddl.logic import Predicate
 
 from genfond.state_space_vis import draw_state_graph
 
+from .action_signatures import ActionSignature, iter_dist_set_facts
 from .ground import ground, ground_domain_predicates
 from .state_space_generator import (
     Alive,
@@ -142,8 +143,8 @@ class FeaturePool:
         self.mappings = dict()
         self.next_state_id = 0
         # Action signatures: see _emit_action_signatures. Only populated when the config asks
-        # for them; the key is the tuple the datalog separation constraint can observe.
-        self.signature_ids: dict[tuple, int] = dict()
+        # for them; the key is everything the datalog separation constraint can observe.
+        self.signature_ids: dict[ActionSignature, int] = dict()
         if not max_complexity:
             max_complexity = config["max_complexity"]
         for problem in problems:
@@ -656,7 +657,7 @@ class FeaturePool:
             action_str = f'"{action.name}({",".join([str(p) for p in action.parameters])})"'
             clingo_program += f'aname({action_str}, "{action.name}").\n'
             if sig_enabled:
-                signature = (
+                signature = ActionSignature(
                     action.name,
                     len(action.parameters),
                     frozenset(sig_concepts[action]),
@@ -673,8 +674,13 @@ class FeaturePool:
                         clingo_program += f"aparam({action_str}, {i}, {p}).\n"
         return clingo_program
 
+    @property
+    def signatures(self) -> list[ActionSignature]:
+        """The signature classes collected while writing the per-node facts, indexed by id."""
+        return [signature for signature, _ in sorted(self.signature_ids.items(), key=lambda item: item[1])]
+
     def _emit_action_signatures(self) -> str:
-        """Emit the signature classes collected while writing the per-node facts.
+        """Emit the separation layer over the signature classes.
 
         The datalog separation constraint observes an (instance, state, action) triple only
         through the action name, the concept membership of each argument position, the role
@@ -682,20 +688,13 @@ class FeaturePool:
         vector. Triples sharing all of that can never be told apart by any selection, so the
         constraint may range over these classes instead of over the triples themselves --
         quadratically fewer. `asig/4` links the two layers.
+
+        Which elements distinguish a given pair of classes is fixed by the instance, so it is
+        computed in Python (see `action_signatures`) and emitted as `sig_pair/3` plus a
+        deduplicated `dist/2` relation, instead of being derived by rules that would pair every
+        class pair with every feature, concept and role.
         """
-        clingo_program = ""
-        for signature, signature_id in sorted(self.signature_ids.items(), key=lambda item: item[1]):
-            name, arity, concepts, roles, bools = signature
-            clingo_program += f'sig_aname({signature_id}, "{name}").\n'
-            for index in range(arity):
-                clingo_program += f"sig_pos({signature_id}, {index}).\n"
-            for concept_str, index in sorted(concepts):
-                clingo_program += f'sig_c_eval({signature_id}, "{concept_str}", {index}).\n'
-            for role_str, index1, index2 in sorted(roles):
-                clingo_program += f'sig_r_eval({signature_id}, "{role_str}", {index1}, {index2}).\n'
-            for feature_str, value in bools:
-                clingo_program += f'sig_bool_eval({signature_id}, "{feature_str}", {value}).\n'
-        return clingo_program
+        return "".join(iter_dist_set_facts(self.signatures))
 
     def to_clingo(self) -> str:
         stats = {

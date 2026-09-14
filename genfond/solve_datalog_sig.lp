@@ -8,6 +8,13 @@
 % signature records -- so two triples with the same signature can never be told apart by any
 % selection, and goodness is forced to be a function of the signature either way.
 %
+% Which elements distinguish a given pair of classes is a property of the instance, not of the
+% model, so it is not derived here: feature_generator emits sig_pair(K1, K2, D) once per
+% unordered pair of classes with the same action name, and dist(D, E) once per element of each
+% *distinct* distinguishing set D. Separation then becomes a hitting-set condition whose
+% grounding is linear in the emitted facts, instead of |K|^2 * (|F| + |C|*a + |R|*a^2) rules.
+% E is f("..."), c("...") or r("..."), matching f_selected/c_selected/r_selected.
+%
 % The graph layer (state/trans/alive/goal/pruned/good_trans/safe_state/frontier) is unchanged,
 % so frontier expansion works exactly as before.
 
@@ -19,11 +26,8 @@
 #defined r_eval/5.
 #defined pruned/2.
 #defined asig/4.
-#defined sig_aname/2.
-#defined sig_pos/2.
-#defined sig_c_eval/3.
-#defined sig_r_eval/4.
-#defined sig_bool_eval/3.
+#defined sig_pair/3.
+#defined dist/2.
 
 { c_selected(C) } :- concept(C).
 c_selected(name).
@@ -48,55 +52,27 @@ safe_state(I, S1) :- alive(I, S1), good_trans(I, S1, _, _), safe_state(I, S2) : 
 good_sig(K) :- good_action(I, S, A), asig(I, S, A, K).
 bad_sig(K) :- alive(I, S), not goal(I, S), trans(I, S, A, _), not good_action(I, S, A), asig(I, S, A, K).
 
-sig_c_dist(K1, K2, C) :-
-    sig_aname(K1, AName), sig_aname(K2, AName),
-    sig_c_eval(K1, C, N), sig_pos(K2, N), not sig_c_eval(K2, C, N).
-sig_r_dist(K1, K2, R) :-
-    sig_aname(K1, AName), sig_aname(K2, AName),
-    sig_r_eval(K1, R, N1, N2), sig_pos(K2, N1), sig_pos(K2, N2), not sig_r_eval(K2, R, N1, N2).
-% Both sides carry a total boolean vector, so this needs no aliveness guard: a signature only
-% exists for a state that emits actions, which is exactly an alive non-goal state.
-sig_f_dist(K1, K2, F) :- sig_bool_eval(K1, F, V1), sig_bool_eval(K2, F, V2), V1 != V2.
+sig_hit(D) :- dist(D, f(F)), f_selected(F).
+sig_hit(D) :- dist(D, c(C)), c_selected(C).
+sig_hit(D) :- dist(D, r(R)), r_selected(R).
 
-% K1 = K2 derives none of the three, so a signature can never be both good and bad.
-:- good_sig(K1), bad_sig(K2), sig_aname(K1, AName), sig_aname(K2, AName),
-   not sig_c_dist(K1, K2, C) : c_selected(C); not sig_c_dist(K2, K1, C) : c_selected(C);
-   not sig_f_dist(K1, K2, F) : f_selected(F);
-   not sig_r_dist(K1, K2, R) : r_selected(R); not sig_r_dist(K2, K1, R) : r_selected(R).
+% A class is never distinguished from itself, so it can never be both good and bad. sig_pair/3
+% only covers K1 != K2, hence the separate constraint.
+:- good_sig(K), bad_sig(K).
+:- good_sig(K1), bad_sig(K2), sig_pair(K1, K2, D), not sig_hit(D).
+:- good_sig(K2), bad_sig(K1), sig_pair(K1, K2, D), not sig_hit(D).
 
 % ------------------------------------------------------------------------- policy extraction
 
+% The conditions of a rule are reconstructed in Python from the selected elements and the good
+% and bad classes (see generate_datalog_policy), which needs nothing quadratic from the model.
 #show sig_action(K, A) : good_action(I, S, A), asig(I, S, A, K).
-#show sig_f_dist(K1, K2, F) : sig_f_dist(K1, K2, F), f_selected(F), good_sig(K1).
-#show sig_bool_eval(K, F, V) : sig_bool_eval(K, F, V), f_selected(F), good_sig(K).
-#show sig_c_dist(K1, K2, C, pos, N) :
-    sig_c_dist(K1, K2, C), c_selected(C),
-    sig_c_eval(K1, C, N), sig_pos(K2, N), not sig_c_eval(K2, C, N),
-    good_sig(K1), bad_sig(K2),
-    not sig_f_dist(K1, K2, F) : f_selected(F).
-#show sig_c_dist(K1, K2, C, neg, N) :
-    sig_c_dist(K2, K1, C), c_selected(C),
-    sig_pos(K1, N), not sig_c_eval(K1, C, N), sig_c_eval(K2, C, N),
-    good_sig(K1), bad_sig(K2),
-    not sig_f_dist(K1, K2, F) : f_selected(F).
-#show sig_r_dist(K1, K2, R, pos, N1, N2) :
-    sig_r_dist(K1, K2, R), r_selected(R),
-    sig_r_eval(K1, R, N1, N2), sig_pos(K2, N1), sig_pos(K2, N2), not sig_r_eval(K2, R, N1, N2),
-    good_sig(K1), bad_sig(K2),
-    not sig_f_dist(K1, K2, F) : f_selected(F);
-    not sig_c_dist(K1, K2, C) : c_selected(C);
-    not sig_c_dist(K2, K1, C) : c_selected(C).
-#show sig_r_dist(K1, K2, R, neg, N1, N2) :
-    sig_r_dist(K2, K1, R), r_selected(R),
-    sig_pos(K1, N1), sig_pos(K1, N2), not sig_r_eval(K1, R, N1, N2), sig_r_eval(K2, R, N1, N2),
-    good_sig(K1), bad_sig(K2),
-    not sig_f_dist(K1, K2, F) : f_selected(F);
-    not sig_c_dist(K1, K2, C) : c_selected(C);
-    not sig_c_dist(K2, K1, C) : c_selected(C).
+#show bad_sig/1.
 #show good_action/3.
 #show frontier/2.
 #show c_selected/1.
 #show f_selected/1.
+#show r_selected/1.
 #show bool_eval/4.
 
 bool_eval(I, S, F, 1) :- eval(I, S, F, V), V > 0.
