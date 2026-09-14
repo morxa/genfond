@@ -184,10 +184,27 @@ class FeaturePool:
                 feature_generator_kwargs = config["unrestricted_feature_generator"]
             else:
                 feature_generator_kwargs = config["feature_generator"]
+            # Roles cost n*m^2 grounded values per state and concepts n*m, against n for plain
+            # features, so at high complexity roles dominate the ground program (see
+            # docs/role-caps-results.md). concept_complexity_offset/role_complexity_offset let a
+            # round cap those two generators below the complexity used for booleans/numericals;
+            # an offset of 0 (the default) reproduces the previous behaviour of five equal limits.
+            concept_complexity_limit = max(1, max_complexity - config["concept_complexity_offset"])
+            role_complexity_limit = max(1, max_complexity - config["role_complexity_offset"])
+            log.info(
+                f"Feature generation limits: complexity={max_complexity}, "
+                f"concept={concept_complexity_limit}, role={role_complexity_limit}, "
+                f"boolean={max_complexity}, count_numerical={max_complexity}, "
+                f"distance_numerical={max_complexity}"
+            )
             booleans, numericals, concepts, roles = dlplan_gen.generate_features(
                 factory,
                 list(self.states.values()),
-                *5 * [max_complexity],
+                concept_complexity_limit,
+                role_complexity_limit,
+                max_complexity,
+                max_complexity,
+                max_complexity,
                 3600,
                 10000,
                 **feature_generator_kwargs,

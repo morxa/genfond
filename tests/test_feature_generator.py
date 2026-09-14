@@ -281,3 +281,54 @@ def test_lookup_node_resolves_asp_ids(typed_blocks_medsize):
         found_problem, found_node = feature_pool.lookup_node(0, node.id)
         assert found_problem.name == problem.name
         assert found_node is node
+
+
+def test_concept_and_role_complexity_offsets_reach_dlplan(simple_blocks, monkeypatch):
+    """concept_complexity_offset/role_complexity_offset must lower only the concept/role limits
+    passed to dlplan's generate_features; boolean/numerical limits stay at the round's
+    complexity. Positional order is (concept, role, boolean, count_numerical,
+    distance_numerical) -- see dlplan/generator/__init__.pyi."""
+    domain, problem = simple_blocks
+    config = ConfigHandler(type="datalog")
+    config["concept_complexity_offset"] = 2
+    config["role_complexity_offset"] = 1
+    max_complexity = 5
+
+    captured_args = {}
+
+    def fake_generate_features(factory, states, *limits, **kwargs):
+        captured_args["limits"] = limits
+        return [], [], [], []
+
+    monkeypatch.setattr("genfond.feature_generator.dlplan_gen.generate_features", fake_generate_features)
+    FeaturePool(domain, [problem], config=config, max_complexity=max_complexity)
+
+    concept_limit, role_limit, boolean_limit, count_numerical_limit, distance_numerical_limit = captured_args[
+        "limits"
+    ][:5]
+    assert concept_limit == max_complexity - 2
+    assert role_limit == max_complexity - 1
+    assert boolean_limit == max_complexity
+    assert count_numerical_limit == max_complexity
+    assert distance_numerical_limit == max_complexity
+
+
+def test_concept_and_role_complexity_offsets_are_floored_at_one(simple_blocks, monkeypatch):
+    domain, problem = simple_blocks
+    config = ConfigHandler(type="datalog")
+    config["concept_complexity_offset"] = 10
+    config["role_complexity_offset"] = 10
+    max_complexity = 3
+
+    captured_args = {}
+
+    def fake_generate_features(factory, states, *limits, **kwargs):
+        captured_args["limits"] = limits
+        return [], [], [], []
+
+    monkeypatch.setattr("genfond.feature_generator.dlplan_gen.generate_features", fake_generate_features)
+    FeaturePool(domain, [problem], config=config, max_complexity=max_complexity)
+
+    concept_limit, role_limit = captured_args["limits"][:2]
+    assert concept_limit == 1
+    assert role_limit == 1
