@@ -110,6 +110,7 @@ Full 95, local, `--max-memory 14000`, 90 min limit (weak signal where a run ends
 |---|---|---|---|---|
 | baseline datalog-sig (16 GB) | 19/95 | 410 s | 8 | `bad_alloc` ×2 (complexity 6 climb, then a 163-state complexity-3 round) |
 | role offset 2 + concept offset 1 | **31/95** | ~900 s | – | `bad_alloc` ×2 at complexity 5 on 6–7 training problems (≤5 blocks) |
+| no roles | 25/95 | 498 s | – | `bad_alloc` at complexity 4 on 9 problems, then instantly again at complexity 3 on 10 problems (29 concepts) |
 
 ## Cluster batch 1 (submitted 2026-09-14 23:20, `rleap_cpu`, 1 thread, seed 0, 128 GB, 12 h)
 
