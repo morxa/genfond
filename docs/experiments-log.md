@@ -81,3 +81,21 @@ Two conclusions: the post-success cost climb, not the training set, is what reac
 (hypothesis `no-cost-climb`); and memory from a failed round appears to be retained into the next one
 (hypothesis `memory-release`).
 
+
+## H1: separate complexity caps for concepts and roles (`hyp/role-caps`)
+
+Idea: roles cost n·m² and concepts n·m grounded values per state against n per feature, so cap them below
+the feature complexity. Two new config keys / flags, `concept_complexity_offset` and
+`role_complexity_offset` (limit = max(1, complexity − offset)); `include_roles: false` is the extreme.
+
+Local blocks3ops suite (10 problems, datalog-sig, `-n 1 --seed 0`, 8 GB cap):
+
+| arm | solved | wall | cost | rules | peak MB | clingo atoms | training set at success |
+|---|---|---|---|---|---|---|---|
+| baseline (offsets 0/0) | 10/10 | 175 s | 9 | 39 | 5 917 | 8.6 M | 6 problems, complexity 3 |
+| role offset 2 | 10/10 | 333 s | 11 | 51 | 7 586 | 5.3 M | 7 problems, complexity 3 |
+| role offset 2 + concept offset 1 | 10/10 | **31 s** | **6** | 31 | **358** | **0.19 M** | 4 problems, complexity 2 |
+| no roles | 10/10 | 151 s | 8 | 20 | 3 717 | 0.52 M | 7 problems, complexity 3 |
+
+Regression suites: unchanged coverage in the sonnet sanity runs (gripper 5/5 at cost 6 with role offset 2;
+cost 7 with the concept offset). Held-out and full-95 results: below.
