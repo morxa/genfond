@@ -164,3 +164,8 @@ add-problem switch are all inside the post-success climb on 5–8 training probl
 complexity 6 (858 concepts / 617 roles), dist-sets at complexity 8 (10 131 concepts / 2 090 roles),
 no-roles at 8 (9 439 concepts), role-caps at 8 (2 856 / 615). The two arms with the switch are past that:
 no-cost-climb has 14 training problems (≤6 blocks) at complexity 3, combo has 19 (≤7 blocks) at complexity 4.
+
+Held-out (8–30 blocks) for the combo local full-95 policy (cost 21, trained on ≤7 blocks): **0/12**, all
+"no action found". Training up to 7 blocks does not transfer either; the learned rule sets only cover the
+signatures they were trained on. Generalisation is a separate question from coverage and needs its own
+hypotheses (policy language bias, or training on far larger instances) once coverage stops being the wall.
