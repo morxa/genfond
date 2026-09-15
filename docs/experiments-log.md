@@ -539,3 +539,6 @@ slice (`final_pass_budget: 1800`, `final_pass_min_time: 600`), respects the dead
 main loop stops earlier by that budget. Resubmitted the best configuration as m7-r1-cap8 (4152032, modern,
 4 h). One pre-existing flaky solver test (zero-second limit race) is being made deterministic on
 `hyp/fix-flaky-limit-test`.
+m3-r1-res (4149378, modern, 4 h, reserve 1800 but pre-fix pass): last policy 33/95, 65 rounds, ≤8 blocks; killed.
+Note the cluster of full-configuration arms at 33–36 in 4 h against 43 for the plain siw-r1 arm on
+`hyp/min-count`; the seed arms (m6-s1/s2) decide whether that 43 was a lucky trajectory.
