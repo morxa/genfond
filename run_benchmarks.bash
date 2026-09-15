@@ -23,6 +23,9 @@ TAG="${TAG:+-$TAG}"
 # runs have to be compared against each other; measured on blocks3ops, -n 8 gave 6 rounds on
 # one repetition and 4 on the next, while -n 1 reproduced exactly.
 THREADS="${THREADS:-32}"
+# sbatch exports the environment; State is a frozenset of pddl atoms, so the loop path follows the
+# hash seed and two runs are only comparable with it pinned.
+export PYTHONHASHSEED="${PYTHONHASHSEED:-0}"
 
 STAMP="$(date -Iseconds)"
 RESDIR="results-$STAMP$TAG"
