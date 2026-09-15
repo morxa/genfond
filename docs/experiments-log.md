@@ -474,3 +474,7 @@ configuration with `restarts: 1` as full2-r1-mod (4148282, 4 h) and full2-r1-cpu
 Follow-up arms on the plan-count finding (full configuration, `rleap_cpu_modern`, 4 h, graceful wall budget):
 m2-plans1-r1 (4148300: `min_number_of_plans: 1`, restarts 1), m2-plans2-r1 (4148301), m2-r1-nobranch
 (4148302: restarts 1 and `branch: false`, i.e. a single deterministic plan per problem).
+
+fc-mod (4144319, 4 h, `hyp/final-climb` config without graceful budget): 30/95 (last policy), 24 training
+problems ≤8 blocks; killed by the limit before the final pass could run. The `full*` arms carry the graceful
+wall budget so their final pass executes.
