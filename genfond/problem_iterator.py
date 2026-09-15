@@ -3,11 +3,11 @@ import logging
 import sys
 from typing import Any, Collection, Iterator, Mapping, MutableMapping, Optional
 
-from pddl.core import Plan, Problem
+from pddl.core import Domain, Plan, Problem
 
 from .cost_utils import feature_cost
 from .ground import state_string
-from .state_space_generator import State
+from .state_space_generator import State, plan_visited_states
 
 log = logging.getLogger("genfond.problem_iterator")
 
@@ -17,6 +17,30 @@ MAX_COST = sys.maxsize
 def plan_key(plan: Plan) -> tuple:
     """A hashable identity for a plan. `Plan` defines __eq__ but no __hash__."""
     return tuple((str(name), tuple(str(arg) for arg in args)) for name, args in plan.actions)
+
+
+class PlanStateCoverage:
+    """Tracks, per problem, the set of states already reached by that problem's example plans.
+
+    A plan that reaches only states earlier plans of the same problem already cover cannot
+    change the state space `StateSpaceGraph` builds (every state it would revive or expand is
+    already reachable), so keeping it around is pure waste: one more plan for the solver to
+    replay, one more entry in every log line, no effect on what is expressible. `add()` reports
+    whether a plan actually earns its keep, so the caller can drop the ones that do not.
+    """
+
+    def __init__(self, domain: Domain, problems: Mapping[str, Problem]):
+        self.domain = domain
+        self.problems = problems
+        self.covered: dict[str, set[State]] = dict()
+
+    def add(self, problem_name: str, plan: Plan) -> bool:
+        """Register `plan`'s visited states for `problem_name`; return whether any were new."""
+        visited = plan_visited_states(self.domain, self.problems[problem_name], plan)
+        covered = self.covered.setdefault(problem_name, set())
+        new = not visited <= covered
+        covered |= visited
+        return new
 
 
 class Result(enum.Enum):
@@ -44,14 +68,26 @@ class LastStep(enum.Enum):
 
 class ProblemIterator:
 
-    def __init__(self, problems: list[Problem], config: Mapping, plans: Optional[Mapping[str, Iterator[Plan]]] = None):
+    def __init__(
+        self,
+        problems: list[Problem],
+        config: Mapping,
+        plans: Optional[Mapping[str, Iterator[Plan]]] = None,
+        plan_coverage: Optional[PlanStateCoverage] = None,
+    ):
         self.problems = problems
         self.config = config
         self.plan_iterators = plans
+        # None (the default, and what every existing test passes) disables the dedupe entirely:
+        # every plan the iterator is handed is kept, exactly as before this was added.
+        self.plan_coverage = plan_coverage
 
     def __iter__(self) -> "ProblemIterator":
         self.active_problems: list[Problem] = []
         self.active_plans: MutableMapping[str, Plan] = dict()
+        # Problems for which a max_plans_per_problem cap has already been logged, so the log
+        # line appears once per problem instead of once per round for the rest of the run.
+        self._plan_cap_logged: set[str] = set()
         self.selected_states: dict[str, set[State]] = dict()
         self.new_states: dict[str, set[State]] = dict()
         self.dead_states: dict[str, set[State]] = dict()
@@ -102,6 +138,41 @@ class ProblemIterator:
             self.sweep_target = max(self.sweep_target, self.complexity)
             self.complexity = self.config["min_complexity"]
 
+    def _plan_cap_reached(self, problem_name: str) -> bool:
+        """Whether `problem_name` already holds `max_plans_per_problem` example plans.
+
+        null (the default) never caps. Logged once per problem the first time it is hit, not on
+        every later round that would otherwise have tried to add another plan.
+        """
+        cap = self.config.get("max_plans_per_problem")
+        if cap is None:
+            return False
+        reached = len(self.active_plans.get(problem_name, [])) >= cap
+        if reached and problem_name not in self._plan_cap_logged:
+            self._plan_cap_logged.add(problem_name)
+            log.info(
+                "Problem %s reached max_plans_per_problem=%d; no more example plans will be added to it",
+                problem_name,
+                cap,
+            )
+        return reached
+
+    def _accept_plan(self, problem_name: str, plan: Plan) -> bool:
+        """Whether `plan` earns its keep: reaches a state not already covered for this problem.
+
+        With no coverage tracker (the default in every existing caller and test) every plan is
+        accepted, so this is a no-op unless the caller opted in.
+        """
+        if self.plan_coverage is None:
+            return True
+        if self.plan_coverage.add(problem_name, plan):
+            return True
+        log.info(
+            "Discarding an example plan for %s: it reaches no state beyond the existing example plans",
+            problem_name,
+        )
+        return False
+
     def record_frontier_expansion(
         self, plans: Mapping[str, list[Plan]], dead_states: Mapping[str, set[State]]
     ) -> None:
@@ -117,12 +188,18 @@ class ProblemIterator:
             active = self.active_plans.setdefault(problem_name, [])
             known = {plan_key(plan) for plan in active}
             for plan in new_plans:
+                if self._plan_cap_reached(problem_name):
+                    # Capped: no more plans go into this problem this round, regardless of
+                    # how many more the planner proposed for it.
+                    break
                 if plan_key(plan) in known:
                     # The planner is deterministic, so a frontier state that the new plan
                     # fails to expand yields the same plan every round. Re-adding it is not
                     # progress; counting it as such spins this loop until the expansion
                     # budget runs out.
                     log.debug("Frontier plan for %s is already an example plan, ignoring it", problem_name)
+                    continue
+                if not self._accept_plan(problem_name, plan):
                     continue
                 known.add(plan_key(plan))
                 active.append(plan)
@@ -247,10 +324,19 @@ class ProblemIterator:
             self.refuted_complexity = self.succ_complexity - 1
         if self.plan_iterators:
             self.active_plans[next_problem.name] = []
+            # min_number_of_plans is a deliberate floor, not runaway growth, so it is exempt
+            # from max_plans_per_problem: the cap only stops *further* growth from INC_PLANS or
+            # frontier expansion, via _plan_cap_reached there.
             while len(self.active_plans[next_problem.name]) < self.config["min_number_of_plans"]:
                 next_plan = next(self.plan_iterators[next_problem.name], None)
                 if next_plan is None:
                     break
+                # This initial batch is not deduped by state coverage -- min_number_of_plans is
+                # a deliberate floor, not runaway growth -- but the coverage tracker still needs
+                # to know about these plans so later INC_PLANS/frontier additions are compared
+                # against the true baseline.
+                if self.plan_coverage is not None:
+                    self.plan_coverage.add(next_problem.name, next_plan)
                 self.active_plans[next_problem.name].append(next_plan)
 
     def __next__(self) -> Mapping[str, Any]:
@@ -285,12 +371,17 @@ class ProblemIterator:
             and self.last_result != Result.OUT_OF_RESOURCES
             and self.plan_iterators
             and (
-                # Find the next plan for an active problem that is not yet solved
+                # Find the next plan for an active problem that is not yet solved, is not
+                # capped at max_plans_per_problem, and whose drawn plan actually adds a state
+                # beyond what this problem's existing example plans already cover.
                 found := next(
                     (
                         (k.name, v)
                         for k in self.active_problems
-                        if not self.solved[k.name] and (v := next(self.plan_iterators[k.name], None)) is not None
+                        if not self.solved[k.name]
+                        and not self._plan_cap_reached(k.name)
+                        and (v := next(self.plan_iterators[k.name], None)) is not None
+                        and self._accept_plan(k.name, v)
                     ),
                     None,
                 )

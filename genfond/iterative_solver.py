@@ -20,7 +20,7 @@ from .frontier import FrontierState, collect_frontier_states, expand_frontier
 from .generate_policy import generate_policy
 from .lazy_pairs import DEFAULT_BATCH, solve_with_lazy_pairs
 from .policy import PolicyType
-from .problem_iterator import MAX_COST, OneShotProblemIterator, ProblemIterator, Result
+from .problem_iterator import MAX_COST, OneShotProblemIterator, PlanStateCoverage, ProblemIterator, Result
 from .rule_policy import Policy
 from .solver import Solver, SolveStatus
 from .state_space_generator import State, check_formula
@@ -163,6 +163,30 @@ def solve(
     edge_counts = [len(node.children) for sg in feature_pool.state_graphs.values() for node in sg.nodes.values()]
     stats["numStates"] = sum(state_counts)
     stats["numTransitions"] = sum(edge_counts)
+    # Per-problem plan/state counts, so a runaway problem (one accumulating far more plans or
+    # states than the rest, e.g. via frontier expansion) is visible in the log without having to
+    # reconstruct it from individual round summaries after the fact.
+    if plans:
+        plan_counts = {problem.name: len(plans.get(problem.name, [])) for problem in problems}
+        if plan_counts:
+            stats["maxPlansPerProblem"] = max(plan_counts.values())
+            stats["meanPlansPerProblem"] = statistics.mean(plan_counts.values())
+            log.info(
+                "Plans per problem: max=%d mean=%.1f (%s)",
+                stats["maxPlansPerProblem"],
+                stats["meanPlansPerProblem"],
+                ", ".join(f"{name}={count}" for name, count in plan_counts.items()),
+            )
+    if state_counts:
+        state_counts_by_name = {name: len(sg.nodes) for name, sg in feature_pool.state_graphs.items()}
+        stats["maxStatesPerProblem"] = max(state_counts_by_name.values())
+        stats["meanStatesPerProblem"] = statistics.mean(state_counts_by_name.values())
+        log.info(
+            "States per problem: max=%d mean=%.1f (%s)",
+            stats["maxStatesPerProblem"],
+            stats["meanStatesPerProblem"],
+            ", ".join(f"{name}={count}" for name, count in state_counts_by_name.items()),
+        )
     if max_cost and enforce_highest_complexity and max_cost < complexity:
         log.info(
             f"No solution possible for {pnames(problems)}"
@@ -266,6 +290,7 @@ def solve_iteratively(
     example_plans: dict[str, Iterator[Plan]] = dict()
     planner_compute_plans: Optional[PlannerComputePlans] = None
     planner_config: dict[str, Any] = dict()
+    problems_by_name = {problem.name: problem for problem in problems}
     if config["use_example_plans"]:
         planner_compute_plans, planner_config, planner_name = _get_example_plan_computer(config)
         log.info(f"Using planner '{planner_name}' to generate example plans")
@@ -279,12 +304,14 @@ def solve_iteratively(
         # StateSpaceGraph only leaves states unexpanded when it is restricted by example
         # plans, so without them the flag is inert: no state is ever marked PRUNED.
         log.warning("frontier_expansion has no effect without use_example_plans")
+    # Only meaningful once there are extra plans to dedupe (INC_PLANS / frontier expansion);
+    # without use_example_plans the iterator never calls plan_coverage.add() at all.
+    plan_coverage = PlanStateCoverage(domain, problems_by_name) if config["use_example_plans"] else None
     problem_iterator: ProblemIterator | OneShotProblemIterator
     if one_shot:
-        problem_iterator = OneShotProblemIterator(problems, config, plans=example_plans)
+        problem_iterator = OneShotProblemIterator(problems, config, plans=example_plans, plan_coverage=plan_coverage)
     else:
-        problem_iterator = ProblemIterator(problems, config, plans=example_plans)
-    problems_by_name = {problem.name: problem for problem in problems}
+        problem_iterator = ProblemIterator(problems, config, plans=example_plans, plan_coverage=plan_coverage)
     for iter_kwargs in problem_iterator:
         result, new_policy, frontier_states = solve_step(
             **iter_kwargs,

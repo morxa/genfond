@@ -35,6 +35,16 @@ stop_after_first_solution: true
 policy_steps: 10000
 use_example_plans: false
 min_number_of_plans: 5
+# Hard cap on the number of example plans (from min_number_of_plans, INC_PLANS, or frontier
+# expansion) a single problem may accumulate; null (default) is unbounded, reproducing the
+# previous behaviour exactly. Runaway plan accumulation through frontier expansion has been
+# observed to reach four figures on a single problem (see docs/plan-cap-results.md), each one
+# adding states to that problem's StateSpaceGraph and facts to the ASP instance, so a very large
+# count is a symptom of the solver spinning rather than making progress. The cap only stops
+# further growth from INC_PLANS and frontier expansion -- the initial min_number_of_plans batch
+# is a deliberate floor, not runaway growth, so it is exempt; a problem may start out above the
+# cap if min_number_of_plans is set higher than it.
+max_plans_per_problem: null
 planner: siw
 planners:
   topk_planner:
