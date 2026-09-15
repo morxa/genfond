@@ -561,6 +561,12 @@ class FeaturePool:
                     clingo_program += f"eval({aug_state_id}, {feature_str}, {eval}).\n"
                     stats["num_feature_evals"] += 1
         sig_enabled = bool(self.config.get("emit_action_signatures", False))
+        # c_eval/4, r_eval/5, aparam/3 and aname/2 are read back by solve_datalog.lp and the
+        # datalog-actions/datalog-action-params variants, but solve_datalog_sig.lp never
+        # references any of the four -- the separation layer is reconstructed in Python from
+        # the same dlplan evaluations below (sig_concepts/sig_roles/sig_bools), independent of
+        # whether the text is emitted. See emit_object_facts in config/default.yaml.
+        emit_object_facts = bool(self.config.get("emit_object_facts", True))
         sig_bools: list[tuple[str, int]] = []
         if self.config["include_pristine_states"]:
             for feature_str, feature in self.features.items():
@@ -631,7 +637,8 @@ class FeaturePool:
                             sig_concepts[action].add((raw_concept_str, index))
             for obj in extension:
                 if obj in all_action_args:
-                    clingo_program += f'c_eval({problem_id}, {node.id}, {concept_str}, "{obj}").\n'
+                    if emit_object_facts:
+                        clingo_program += f'c_eval({problem_id}, {node.id}, {concept_str}, "{obj}").\n'
                     stats["num_concept_evals"] += 1
                 else:
                     stats["num_skipped_concept_evals"] += 1
@@ -665,13 +672,15 @@ class FeaturePool:
                                 sig_roles[action].add((raw_role_str, index1, index2))
             for obj1, obj2 in role_extension:
                 if obj1 in all_action_args and obj2 in all_action_args:
-                    clingo_program += f'r_eval({problem_id}, {node.id}, {role_str}, "{obj1}", "{obj2}").\n'
+                    if emit_object_facts:
+                        clingo_program += f'r_eval({problem_id}, {node.id}, {role_str}, "{obj1}", "{obj2}").\n'
                     stats["num_role_evals"] += 1
                 else:
                     stats["num_skipped_role_evals"] += 1
         for action, children in node.children.items():
             action_str = f'"{action.name}({",".join([str(p) for p in action.parameters])})"'
-            clingo_program += f'aname({action_str}, "{action.name}").\n'
+            if emit_object_facts:
+                clingo_program += f'aname({action_str}, "{action.name}").\n'
             if sig_enabled:
                 signature = ActionSignature(
                     action.name,
@@ -684,7 +693,7 @@ class FeaturePool:
                 clingo_program += f"asig({problem_id}, {node.id}, {action_str}, {signature_id}).\n"
             for child in children:
                 clingo_program += f"trans({problem_id}, {node.id}, {action_str}, {child.id}).\n"
-                if self.concepts or self.roles:
+                if emit_object_facts and (self.concepts or self.roles):
                     params = [f'"{p}"' for p in action.parameters]
                     for i, p in enumerate(params):
                         clingo_program += f"aparam({action_str}, {i}, {p}).\n"

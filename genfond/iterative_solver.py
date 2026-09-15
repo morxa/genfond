@@ -129,8 +129,9 @@ def solve(
     log.debug("Generating ASP instance ...")
     asp_instance = feature_pool.to_clingo()
     # The full instance is available via dump_clingo_program; logging it made verbose run logs
-    # grow to gigabytes (2.4 M dist/2 facts per round on blocks3ops).
-    log.debug(f"ASP instance: {asp_instance.count(chr(10))} lines, {len(asp_instance) / 1e6:.1f} MB")
+    # grow to gigabytes (2.4 M dist/2 facts per round on blocks3ops). The summary line stays at
+    # INFO (not DEBUG) so the effect of emit_object_facts on instance size is visible by default.
+    log.info(f"ASP instance: {asp_instance.count(chr(10))} lines, {len(asp_instance) / 1e6:.1f} MB")
     if config.get("dump_clingo_program", None):
         with open(config["dump_clingo_program"], "w") as f:
             f.write(asp_instance)

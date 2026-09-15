@@ -70,6 +70,15 @@ include_pristine_states: true
 # Emit asig/4 and the sig_* facts that let the datalog separation constraint range over action
 # signature classes rather than (instance, state, action) triples. See solve_datalog_sig.lp.
 emit_action_signatures: false
+# Emit c_eval/4, r_eval/5, aparam/3 and aname/2 -- one fact per (state, concept|role, action
+# argument [pair]) and one per (state, action). solve_datalog.lp (and the datalog-actions /
+# datalog-action-params variants) read these back out of the model, so they stay on there. With
+# emit_action_signatures the separation layer is reconstructed in Python from the same dlplan
+# evaluations instead (see action_signatures.py), and solve_datalog_sig.lp never references
+# these four predicates at all, so default_datalog-sig.yaml turns this off: on a 7-block
+# blocks3ops instance these were the dominant ground atoms (n*|C|*m and n*|R|*m^2) for facts
+# nothing consumed. See docs/lean-facts-results.md.
+emit_object_facts: true
 # Add the pairwise separation constraints of the signature encoding lazily, one batch of
 # violated pairs per solve, instead of emitting all of them in the instance. Only meaningful
 # together with emit_action_signatures. See lazy_pairs.py.

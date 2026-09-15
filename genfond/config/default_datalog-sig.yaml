@@ -9,6 +9,10 @@ abort_on_cycle: true
 solve_prog: solve_datalog_sig.lp
 emit_action_signatures: true
 lazy_pairs: true
+# solve_datalog_sig.lp never references c_eval/r_eval/aparam/aname; the separation layer is
+# reconstructed in Python from the same dlplan evaluations (action_signatures.py). See
+# emit_object_facts in default.yaml.
+emit_object_facts: false
 include_numerical_features: false
 include_concepts: true
 include_roles: true
