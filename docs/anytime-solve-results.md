@@ -190,3 +190,54 @@ non-determinism noted above — it happens to land on the 7-iteration trajectory
 write-up recorded (identical 17,056 pairs / 249,659 `dist` facts), where the plain `bb` run here
 takes a 10-iteration one. That the two `bb` columns differ by 30 s with the same strategy and the
 same instance is a useful measure of how noisy a single sample is on this domain.
+
+### The stalling round reproduced: blocks3ops p005-1 + p005-2 + p006-1, one shot at complexity 4
+
+Three problems at once (5,053 states, 3.76 M separation pairs) is the closest local analogue of
+the cluster rounds that hang, and it behaves like them. `timeout 25m` per configuration.
+
+| config | outcome | lazy iterations finished | violated pairs left when the budget ran out | pairs grounded | cost of last model |
+|---|---|---|---|---|---|
+| `bb` (default) | **0/3, killed at 25 m** | 4 | 80,078 of 3,761,162 | 20,000 | 4 (proven optimal) |
+| `usc` | **0/3, killed at 25 m** | 2 | 1,412,518 of 3,761,162 | 10,000 | 0 (proven optimal) |
+| `bb` + 60 s limit | **0/3, killed at 25 m** | **24** (22 of them cut off) | **277** of 3,761,162 | 34,934 | 37 (not proven optimal) |
+
+No configuration produces a policy, so on coverage this is 0/3 three times over. What differs is
+everything else:
+
+* `bb` finishes four solves — 2.2 s, 47.7 s, 95.1 s, 43.7 s — and then its fifth runs for **21
+  minutes without returning**, having reported its first model 0.7 s in. That is the cluster
+  symptom, reproduced in one instance on a laptop.
+* `usc` is *worse* here, and instructively so. Its first two solves take 2.1 s and 1.0 s — the
+  same 13x speedup as on p006-1 — and then its third burns the remaining 24 minutes and yields
+  **nothing**, because core-guided search reports no model until the bounds meet. A stalled `usc`
+  solve wastes its whole budget; a stalled `bb` solve at least has a model in hand.
+* The 60 s budget converts the stall into steady progress: 24 iterations instead of 4, and the
+  violated-pair count falls from 1.53 M to **277**, three orders of magnitude closer to closing
+  the loop than `bb` gets. It still did not close within 25 minutes.
+
+The cost column shows the mechanism and its price. Each cut-off model is expensive (16, 29, 34,
+36, 33, 38, 45, 25, …, 48, 37 against `bb`'s proven optimum of 4 at the same point), because
+what `bb` has after 60 s is a model that selects far more than it needs. An expensive selection
+separates *more* pairs, which is why the loop closes faster — the budget is effectively trading
+policy cost for loop progress. Had this round closed, the policy would have been valid but far
+from minimal, `max_cost` would have been set to `cost - 1` as a preference, and the complexity
+level would **not** have been refuted, so the search would have gone on looking for the cheap
+policy. That is precisely the semantics the soundness argument above is there to justify.
+
+## Verdict
+
+* **`--clingo-opt-strategy usc` is the change worth taking to the cluster.** On the single-problem
+  version of the stalling round it cuts clingo time 12.7x at identical cost, and it costs nothing
+  on any of the five regression suites. It is not a cure: on the three-problem round it stalls
+  too, and stalls *harder* than `bb` because it has no model to fall back on.
+* **`--solve-time-limit` is the safety net, not a speedup.** Every suite here finishes its solves
+  in 0.20 s, so the budget is invisible; on the round that hangs it is the only configuration that
+  keeps making progress. Its cost is policy quality: the models it keeps are 8–12x more expensive
+  than the optimum, and the honest bookkeeping for that (no refutation, `max_cost` as a preference
+  only) is what the implementation adds.
+* **Do not combine them.** `usc` under a budget is all-or-nothing; cancelled early it has nothing
+  to keep, and the round degrades to `Result.TIMEOUT`.
+* Untested here: whether a larger budget (say 600 s, which is still 1/4 of what a single stalled
+  `bb` solve consumed) closes the three-problem round, and whether `usc` plus a *generous* budget
+  is better than either alone. Both need cluster time, not a laptop.
