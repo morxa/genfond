@@ -527,3 +527,4 @@ budget the climb loses badly at scale; the budgeted pair (gs-climb-tl / gs-nocli
 
 full2-r1-mod (4148282, modern, 4 h): last policy 33/95, 63 rounds, ≤8 blocks; killed in the final pass (same
 deadline bug as full2-mod, no stats row).
+m2-plans2-r1 (4148301): last policy 33/95, 68 rounds, ≤8 blocks; also killed in the final pass.
