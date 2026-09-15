@@ -510,3 +510,8 @@ Also on the modern node (4 h, full configuration + restarts 1 + cap 8 + reserve 
 m6-minc3 (`min_complexity: 3`, skipping the complexity-2 rounds). In implementation: `hyp/min-train-size`
 (`min_train_objects`: never train on instances below a size threshold; small instances may induce the
 overfitted rule sets).
+
+full2-mod (4144791, modern, 4 h, full configuration incl. forced labels): queued until ~20:55, then 68 rounds,
+last policy **33/95**; killed by SLURM rather than stopping gracefully — the final pass started within the
+budget but its climb rounds (118 s, 392 s solves) ran past the 300 s reserve, so no stats row or policy was
+written. Fix in progress (`hyp/final-pass-deadline`: the pass gets its own budget and respects the deadline).
