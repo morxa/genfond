@@ -367,3 +367,16 @@ the number of selected elements.
 The per-solve time budget is the only setting that keeps rounds moving at this scale; core-guided search and
 32 threads do not. The gs-climb / gs-noclimb arms were submitted without the budget and will stall the same way,
 so they are resubmitted with `solve_time_limit: 300` as gs-climb-tl / gs-noclimb-tl.
+
+## H13: minimise the number of selected elements (`hyp/min-count`, on `hyp/min-rules`)
+
+`minimize_selected_count: none|below|above` (count of selected concepts+features+roles at its own priority
+level; frontier moved to `@3`; `cost_utils.feature_cost` derives the complexity level from both knobs).
+blocks3ops-local: `above` → 27 rules, 5 selected elements (drops `c_equal`), held-out **0/12** again;
+regression suites unchanged. Composing `count=above` with `sigs=above` (two stacked levels above the
+complexity level) did not finish in 30 min on an idle 96-core node. Neither Occam bias reproduces the preset's
+generalisation locally; both are cheap to test for coverage at scale.
+
+Cluster batch 6 on `hyp/min-count` (goal suffix `_g`, all H2–H8 machinery), all with
+`add_problem_after_success`, `solve_time_limit: 300`, role offset 2 / concept offset 1: gs-tl-r2c1 (no
+bias), mc-sigs (good-signature bias above), mc-count (selected-count bias above).
