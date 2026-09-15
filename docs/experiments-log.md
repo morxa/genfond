@@ -312,3 +312,13 @@ constructor is a DLPlan issue (or needs a genfond-side goal-comparison augmentat
 **Protocol correction:** `State` is a `frozenset` of pddl atoms, so iteration order and the frontier loop's
 choices follow `PYTHONHASHSEED`; `--seed 0 -n 1` alone does not make two runs identical. Both benchmark scripts
 now pin `PYTHONHASHSEED`. Earlier single-run A/Bs carry that noise.
+
+## H11: DLPlan never generates goal-comparison concepts for genfond (bug)
+
+`dlplan/src/generator/rules/concepts/equal.cpp` (pinned rev cfd4561) generates `c_equal(R, R_goal)` only when
+the goal role's predicate name is the other's plus the **lowercase** suffix `_g`. genfond names goal predicates
+`on_G`, `clear_G`, … (uppercase), so the rule never matches and no `c_equal` concept, hence no "block sits on
+its goal support", ever enters a synthesised pool, at any complexity. The hand-written preset (H9) bypassed
+the generator, which is why it generalised. Fix: accept `_G` in the rule (branch `fix-equal-goal-suffix` on
+the dlplan fork), rebuild the venv and the apptainer image, re-pin. Validation on the local suite and the
+held-out set is running.
