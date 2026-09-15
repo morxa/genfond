@@ -349,3 +349,19 @@ above → 20 / 23. Held-out **0/12 in all three**. Regression suites: `below` id
 `above` +1 cost on blocks4ops-clear. Fewer rules alone does not give generalisation. The preset policy had
 5 selected elements; the synthesised ones select more, cheaper elements → H13 (`hyp/min-count`): minimise
 the number of selected elements.
+
+**Cluster snapshot 13:06 (batch 4 at 4 h 20 min, x32 at 6 h, preset at 1 h 40 min):**
+
+| arm | training set | last policy solved | state |
+|---|---|---|---|
+| c4-usc | 17 (≤7 blocks) | 27 | stuck 4 h in lazy iteration 2 (usc) |
+| c4-tl300 | 26 incl. 8-block | 32 | progressing, iterations at the 300 s budget, not proven optimal |
+| c4-usc-r2c1 | 24 incl. 8-block | 33 | iteration 2 took 47 min, stuck since 08:54 |
+| c4-tl300-r2c1 | 29 incl. 8-block | **38** | progressing, 18 budgeted iterations per round |
+| x32-combo | 23 incl. 8-block | 31 | stuck 3.5 h in iteration 2 with 32 threads |
+| x32-r2c1 | 26 incl. 8-block | 33 | iteration 3 took 3 h |
+| c5-preset | 18 | – | frontier expansion runaway on 08-2 (1 423 plans, 721 MB log); preset pool unsatisfiable for the set |
+
+The per-solve time budget is the only setting that keeps rounds moving at this scale; core-guided search and
+32 threads do not. The gs-climb / gs-noclimb arms were submitted without the budget and will stall the same way,
+so they are resubmitted with `solve_time_limit: 300` as gs-climb-tl / gs-noclimb-tl.
