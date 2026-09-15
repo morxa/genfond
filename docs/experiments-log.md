@@ -451,3 +451,22 @@ heuristic cancels the gain and is left off. Merged into `hyp/combo` (6ac9f3f, 18
 
 Cluster: fc-wall arms (4144770 modern 4 h, 4144771 cpu 12 h: final pass + graceful wall budget, from the
 combo commit before forced labels) and full2 arms (modern 4 h, cpu 12 h: the same plus `fix_forced_labels`).
+
+**Batch 7 results (4 h on `rleap_cpu_modern`, `hyp/min-count`, add-problem + role caps, budget 300 s unless
+stated; coverage = last policy tested, from the log tail):**
+
+| arm | training set at 4 h | last policy solved |
+|---|---|---|
+| tl60 (budget 60 s) | 28, ≤8 blocks | – (no policy test found in the 441 MB log tail) |
+| tl900 (budget 900 s) | 28, ≤8 blocks | 33 |
+| **siw-r1 (SIW restarts 1)** | 11 incl. **10-block** | **43** |
+| siw-r10 (restarts 10) | 28, ≤8 blocks | 33 |
+| siw-nobranch | 23 incl. 10-block | 29 |
+| unrestricted generators | 26, ≤8 blocks | – (as tl60) |
+| frontier2 | 29, ≤8 blocks | 33 |
+| preset (hand-crafted pool) | 10 incl. 10-block | – (pool unsatisfiable at the end; 1.4 GB log) |
+
+Fewer example plans per problem (`restarts: 1`) is the largest single gain so far: 43/95 in 4 h against
+33–34 for the 300 s-budget arms at 12 h, and the training set reaches 10-block instances with only 11
+problems. Smaller plan sets mean smaller state spaces and fewer pairs per round. Submitted the full
+configuration with `restarts: 1` as full2-r1-mod (4148282, 4 h) and full2-r1-cpu (4148283, 12 h).
