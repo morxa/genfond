@@ -339,9 +339,38 @@ def _final_cost_minimization_pass(
     config: Mapping,
     stats: MutableMapping[str, Any],
     policy: Policy | DatalogPolicy,
+    wall_deadline: Optional[float] = None,
 ) -> tuple[Policy | DatalogPolicy, list[Problem]]:
     """Look for a cheaper policy on the final training set, once the main loop has nothing left
     to add.
+
+    `wall_deadline` is an absolute `time.perf_counter()`-based deadline, the same kind
+    `solve_iteratively`'s main loop uses (see its module-level comment) -- but not necessarily
+    the same *value*: it is always `wall_time_start + max_wall_time - wall_time_reserve`, i.e.
+    this pass may run right up to the point that leaves `wall_time_reserve` seconds for
+    `__main__`'s own (unbounded) verification pass after `solve_iteratively` returns, even when
+    the main loop's own deadline was narrowed by `final_pass_budget` to leave this pass a
+    guaranteed slice of the budget instead of whatever happens to be left over. None
+    (`max_wall_time` unset) reproduces the previous unbounded pass exactly.
+
+    A cluster run was killed by the SLURM time limit *inside* this pass: the main loop stopped
+    gracefully at its own deadline, but the pass then ran its own climb rounds (each a fresh,
+    increasingly expensive `solve_step` call) with nothing checking `wall_deadline` or
+    `genfond.shutdown.stop_requested()`, so it ran past `wall_time_reserve` and the job was
+    killed before the final evaluation, stats row and policy file were ever written -- exactly
+    the failure mode `max_wall_time` exists to prevent in the main loop. This closes the same
+    gap here: before starting the pass at all (skipping it outright, see below), and again
+    before every round once it is running.
+
+    If the main loop already stopped because it ran out of wall-clock budget
+    (`stats["stoppedBy"] == "wall_time"`), starting this pass at all is only worthwhile when a
+    healthy amount of the remaining budget is left for it -- a pass given only a few seconds
+    cannot usefully climb even one complexity level, and it would rather not spend those seconds
+    on a `solve_step` call it will likely have to cut off anyway. `final_pass_min_time` (config,
+    default 600s) is that threshold, checked against `wall_deadline - now`. It is not applied
+    when the main loop stopped for some other reason (every problem solved, or the ladder
+    exhausted its own escalation branches): in that case any remaining time, however little, is
+    better spent attempting a round than not.
 
     Called unconditionally after `solve_iteratively`'s main `for` loop ends, for any reason that
     lets it return normally: the `stop_after_first_solution` break (every problem solved), or
@@ -378,6 +407,32 @@ def _final_cost_minimization_pass(
     `Result.OUT_OF_RESOURCES`/`TIMEOUT` end the pass gracefully with the best policy found so
     far, exactly like they end the main loop's own climb.
     """
+    if wall_deadline is not None:
+        remaining = wall_deadline - time.perf_counter()
+        skip_reason: Optional[str] = None
+        if stop_requested():
+            skip_reason = "stop_requested"
+        elif remaining <= 0:
+            skip_reason = "deadline_exhausted"
+        elif stats.get("stoppedBy") == "wall_time":
+            final_pass_min_time = config.get("final_pass_min_time")
+            if final_pass_min_time is None:
+                final_pass_min_time = 600
+            if remaining < final_pass_min_time:
+                skip_reason = "insufficient_wall_time"
+        if skip_reason is not None:
+            log.warning(
+                "Skipping final cost minimization pass: %s (%.1fs remaining before deadline)",
+                skip_reason,
+                remaining,
+            )
+            stats["finalPassSkipped"] = skip_reason
+            # problem_iterator.solved reflects the main loop's own testing, without
+            # re-executing the policy -- exactly what solve_iteratively would return unchanged
+            # if it never called this function at all, which is what a skip amounts to.
+            already_solved = [p for p in problems if problem_iterator.solved[p.name]]
+            return policy, already_solved
+
     active_problems = problem_iterator.active_problems
     example_plans = problem_iterator.active_plans
     dead_states = problem_iterator.dead_states
@@ -395,6 +450,14 @@ def _final_cost_minimization_pass(
     rounds = 0
     log.info(f"Starting final cost minimization pass from complexity {complexity}, max cost {max_cost}")
     while max_cost > complexity and complexity < config["max_complexity"]:
+        if wall_deadline is not None and (stop_requested() or time.perf_counter() >= wall_deadline):
+            stats["finalPassStoppedBy"] = "signal" if stop_requested() else "wall_time"
+            log.warning(
+                "Final cost minimization pass: stopping before round %d (wall-clock deadline"
+                " exhausted or stop requested)",
+                rounds + 1,
+            )
+            break
         complexity += 1
         rounds += 1
         result, new_policy, _frontier_states = solve_step(
@@ -409,6 +472,7 @@ def _final_cost_minimization_pass(
             enforce_highest_complexity=False,
             dead_states=dead_states,
             allow_frontier=False,
+            wall_deadline=wall_deadline,
         )
         if result in (Result.OUT_OF_RESOURCES, Result.TIMEOUT):
             break
@@ -451,16 +515,31 @@ def solve_iteratively(
     stats: dict[str, str | int | float] = dict()
     # An absolute deadline (time.perf_counter()-based) for the whole run, `wall_time_reserve`
     # seconds short of `max_wall_time` so that budget is left over for the final verification
-    # loop in __main__ after this function returns. The same deadline is handed to every round's
-    # Solver as `wall_deadline`, so a round already in flight when the budget runs out is cut off
-    # at this instant too, rather than only being prevented from starting the next one -- see
-    # docs/wall-budget-results.md. None (the default, `max_wall_time: null`) reproduces the
-    # previous behaviour exactly: no round is ever cut short and this loop never stops early.
+    # loop in __main__ after this function returns. `final_pass_deadline` is that deadline --
+    # also the one `_final_cost_minimization_pass` itself must respect, see its docstring.
+    # `wall_deadline` is the (possibly earlier) deadline handed to the *round loop* below and to
+    # every round's Solver as `wall_deadline`, so a round already in flight when the budget runs
+    # out is cut off at this instant too, rather than only being prevented from starting the next
+    # one -- see docs/wall-budget-results.md. None (the default, `max_wall_time: null`)
+    # reproduces the previous behaviour exactly: no round is ever cut short and this loop never
+    # stops early.
+    #
+    # When the final cost-minimization pass is enabled (`final_cost_minimization` together with
+    # `add_problem_after_success`, its only non-no-op combination), `wall_deadline` is narrowed
+    # by `final_pass_budget` seconds so the round loop stops that much *earlier* than
+    # `final_pass_deadline`, guaranteeing the pass a budget of its own instead of only whatever
+    # happens to be left once the loop has already run right up to `final_pass_deadline` -- the
+    # gap that let a cluster run's pass overrun the SLURM time limit, see
+    # docs/final-climb-results.md and _final_cost_minimization_pass's docstring.
     wall_time_start = time.perf_counter()
     max_wall_time = config.get("max_wall_time")
+    final_pass_deadline: Optional[float] = None
     wall_deadline: Optional[float] = None
     if max_wall_time is not None:
-        wall_deadline = wall_time_start + max_wall_time - (config.get("wall_time_reserve") or 0)
+        final_pass_deadline = wall_time_start + max_wall_time - (config.get("wall_time_reserve") or 0)
+        wall_deadline = final_pass_deadline
+        if config.get("final_cost_minimization", False) and config.get("add_problem_after_success", False):
+            wall_deadline = final_pass_deadline - (config.get("final_pass_budget") or 0)
     example_plans: dict[str, Iterator[Plan]] = dict()
     planner_compute_plans: Optional[PlannerComputePlans] = None
     planner_config: dict[str, Any] = dict()
@@ -488,12 +567,17 @@ def solve_iteratively(
         problem_iterator = ProblemIterator(problems, config, plans=example_plans, plan_coverage=plan_coverage)
     for iter_kwargs in problem_iterator:
         if wall_deadline is not None and time.perf_counter() >= wall_deadline:
+            # `max_wall_time - (wall_deadline - wall_time_start)` is what's held back in total --
+            # just `wall_time_reserve` normally, or `wall_time_reserve + final_pass_budget` when
+            # the final pass narrowed `wall_deadline` (see the deadline computation above).
+            # wall_deadline is only ever set below when max_wall_time is not None.
+            assert max_wall_time is not None
             log.warning(
-                "Wall-clock budget exhausted (%.1fs used of %.1fs, %.1fs reserve); stopping"
+                "Wall-clock budget exhausted (%.1fs used of %.1fs, %.1fs held back); stopping"
                 " without starting another round",
                 time.perf_counter() - wall_time_start,
                 max_wall_time,
-                config.get("wall_time_reserve") or 0,
+                max_wall_time - (wall_deadline - wall_time_start),
             )
             stats["stoppedBy"] = "wall_time"
             stats["wallBudgetUsed"] = time.perf_counter() - wall_time_start
@@ -604,7 +688,7 @@ def solve_iteratively(
         # _final_cost_minimization_pass. Not reached after an unhandled exception, which
         # propagates out of the loop instead.
         policy, solved_problems = _final_cost_minimization_pass(
-            domain, problems, problem_iterator, config, stats, policy
+            domain, problems, problem_iterator, config, stats, policy, wall_deadline=final_pass_deadline
         )
     return policy, solved_problems, stats
 

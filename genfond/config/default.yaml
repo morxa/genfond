@@ -86,23 +86,51 @@ clingo_options: []
 # seen so far is kept. Such a model is still a valid policy -- it satisfies every constraint --
 # but its cost is only an upper bound, so the round no longer refutes its complexity level.
 solve_time_limit: null
-# Wall-clock budget in seconds for the *whole run* (solve_iteratively's round loop), null
-# (default) leaves it unbounded -- the previous behaviour exactly. With a budget set,
-# solve_iteratively stops starting new rounds and cuts off a round already in flight
-# (Solver.wall_deadline, composing with solve_time_limit as whichever is sooner) once
-# `max_wall_time - wall_time_reserve` seconds have elapsed since the loop started, then returns
+# Wall-clock budget in seconds for the *whole run*. null (default) leaves it unbounded -- the
+# previous behaviour exactly. The budget is laid out, earliest deadline first, as:
+#
+#   |<---------------------------- max_wall_time ---------------------------->|
+#   |<--- round loop --->|<--- final cost-min. pass --->|<--- wall_time_reserve --->|
+#   0                 wall_deadline               final_pass_deadline        max_wall_time
+#                  (= final_pass_deadline               (= max_wall_time -
+#                   - final_pass_budget,                  wall_time_reserve)
+#                   only when the pass
+#                   is enabled; else
+#                   = final_pass_deadline)
+#
+# `wall_time_reserve` is time kept back from *both* phases above for __main__'s own final
+# evaluation (pickle the policy, verify it on every problem, write the stats row -- unbounded,
+# runs after solve_iteratively returns). `solve_iteratively`'s round loop stops starting new
+# rounds and cuts off a round already in flight (Solver.wall_deadline, composing with
+# solve_time_limit as whichever is sooner) once it reaches `wall_deadline`, then returns
 # normally with the last successful policy (if any) so __main__ proceeds exactly as on a normal
-# end: pickle it, verify it on every problem, and write the stats row -- with an extra
-# stoppedBy=wall_time (or =signal, see SIGTERM below) column and wallBudgetUsed. Exists because a
-# cluster job killed by the SLURM time limit writes neither a policy nor a stats row, and loses
-# whatever round or clingo solve was in progress. SIGTERM (which SLURM sends ahead of the hard
-# kill; see genfond.bash's --signal=B:TERM@600) and SIGINT trigger the identical graceful stop
-# independently of this setting. See docs/wall-budget-results.md.
+# end -- with an extra stoppedBy=wall_time (or =signal, see SIGTERM below) column and
+# wallBudgetUsed. Exists because a cluster job killed by the SLURM time limit writes neither a
+# policy nor a stats row, and loses whatever round or clingo solve was in progress. SIGTERM
+# (which SLURM sends ahead of the hard kill; see genfond.bash's --signal=B:TERM@600) and SIGINT
+# trigger the identical graceful stop independently of this setting. See
+# docs/wall-budget-results.md.
+#
+# When final_cost_minimization (below) is enabled together with add_problem_after_success (its
+# only non-no-op combination), the round loop's own `wall_deadline` is narrowed by
+# final_pass_budget seconds, so it stops that much earlier than final_pass_deadline and
+# guarantees the pass a budget of its own; the pass itself respects final_pass_deadline (see
+# final_pass_min_time and _final_cost_minimization_pass's docstring). Without the pass enabled,
+# wall_deadline == final_pass_deadline, reproducing the previous two-phase (loop, then
+# __main__) layout exactly.
 max_wall_time: null
-# How much of max_wall_time to hold back from the round loop so the final verification pass in
-# __main__ (which runs after solve_iteratively returns and is not itself time-bounded) has room
-# to finish. Only has an effect together with max_wall_time.
+# How much of max_wall_time to hold back for __main__'s own final evaluation, after both the
+# round loop and (if enabled) the final cost-minimization pass are done. Only has an effect
+# together with max_wall_time.
 wall_time_reserve: 300
+# How much of max_wall_time to reserve for the final cost-minimization pass (below), by stopping
+# the round loop that much earlier than it otherwise would. Only has an effect together with
+# max_wall_time, final_cost_minimization and add_problem_after_success -- the pass's only
+# non-no-op combination. The pass is what improves generalisation (see
+# docs/final-climb-results.md), so it is given a guaranteed slice of the budget instead of
+# whatever happens to be left over once the round loop has already run right up to
+# max_wall_time - wall_time_reserve.
+final_pass_budget: 1800
 dump_failed_policies: false
 dump_clingo_program: null
 keep_going: false
@@ -218,6 +246,16 @@ add_problem_after_success: false
 # stop_after_first_solution break fires without ever climbing), it runs the old climb exactly
 # once more on the frozen final training set -- see docs/final-climb-results.md.
 final_cost_minimization: false
+# Only meaningful with final_cost_minimization and max_wall_time both set. If the round loop
+# already stopped because it ran out of wall-clock budget (stoppedBy == "wall_time"), the pass
+# is skipped outright -- rather than started only to immediately hit its own deadline -- unless
+# at least this many seconds remain before final_pass_deadline (max_wall_time -
+# wall_time_reserve). Not applied when the loop stopped for any other reason (every problem
+# solved, or the ladder exhausted its own escalation branches): then any remaining time, however
+# little, is better spent attempting a round than not. See
+# _final_cost_minimization_pass's docstring; a skipped pass is recorded as
+# stats["finalPassSkipped"] with the reason.
+final_pass_min_time: 600
 unselect_problems: false
 visualize_state_graphs: false
 unrestricted_feature_generator:
