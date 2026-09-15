@@ -218,6 +218,33 @@ def plan_string(plan):
     return " ".join([action_string(action) for action in plan])
 
 
+def plan_visited_states(domain: Domain, problem: Problem, plan: Plan) -> set[State]:
+    """The states `plan` reaches when replayed from `problem.init`, without expanding the graph.
+
+    Mirrors the plan-matching branch of `StateSpaceGraph.__init__`: at a nondeterministic action
+    the actual runtime outcome is unknown, so every effect outcome is counted as visited, exactly
+    as a plan suffix there is propagated to *all* matching successors, not just one. A step whose
+    precondition fails along some branch simply drops that branch (no successor states from it),
+    which cannot happen for a genuinely valid plan but is handled defensively all the same.
+
+    This only follows the plan's own actions -- it does not ground or check every action of the
+    domain -- so it is far cheaper than building (or extending) a `StateSpaceGraph`. Used to
+    dedupe candidate example plans by the states they would actually add.
+    """
+    actions = plan.instantiate(domain)
+    frontier = {problem.init}
+    visited = {problem.init}
+    for action in actions:
+        successors: set[State] = set()
+        for state in frontier:
+            if not check_formula(state, action.precondition):
+                continue
+            successors |= apply_action_effects(state, action)
+        frontier = successors
+        visited |= frontier
+    return visited
+
+
 class StateSpaceGraph:
 
     def __init__(
