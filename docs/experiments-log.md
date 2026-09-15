@@ -494,3 +494,13 @@ reached 18–20 problems (≤8 blocks) and stayed so for the last 59 rounds; fro
 attached **4 880** example plans to blocks-008-2 (7.8 GB log). No policy test in the tail. Conclusion: the
 preset shows generalisation is attainable on small sets but is not a complete policy language for blocks3ops,
 and unbounded frontier plan growth is a real defect (addressed by `hyp/plan-cap`).
+
+## H17: cap and dedupe example plans (`hyp/plan-cap`, on `hyp/min-count`)
+
+`max_plans_per_problem` (null = unbounded) stops INC_PLANS/frontier expansion adding plans beyond the cap;
+plans whose replayed state set adds nothing to a problem's covered states are dropped (catches what the
+action-sequence key misses). blocks3ops-local with cap 8: largest problem 45 → 8 plans, 190 → 45 states,
+grounded atoms 97 365 → 24 346, wall 28.7 s → 13.7 s, identical policy cost; gripper/miconic byte-identical.
+The unbounded-baseline driver on the workstation failed on a bind-path error, so no direct A/B there; the
+cluster arms provide it. Merged into `hyp/combo` (189 tests). Arms: m5-r1-cap8 (modern, 4 h) and c-r1-cap8
+(cpu, 12 h) = full configuration + restarts 1 + reserve 1800 + cap 8.
