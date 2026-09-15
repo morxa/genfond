@@ -488,3 +488,9 @@ H15 result (4 h, modern node): m-mined **36/95** (31 training problems, ≤9 blo
 221 concepts / 8 roles at the last round) against 33 for tl900/frontier2 with the default grammar in the same
 4 h; m-mined-fc 33/95 (27 problems, killed before the pass; no graceful budget on that branch). A modest but
 consistent gain; combined with `restarts: 1` next (m4-mined-r1).
+
+H9 at scale (c5-preset, 4138079, 12 h): the hand-crafted pool became unsatisfiable once the training set
+reached 18–20 problems (≤8 blocks) and stayed so for the last 59 rounds; frontier expansion meanwhile
+attached **4 880** example plans to blocks-008-2 (7.8 GB log). No policy test in the tail. Conclusion: the
+preset shows generalisation is attainable on small sets but is not a complete policy language for blocks3ops,
+and unbounded frontier plan growth is a real defect (addressed by `hyp/plan-cap`).
