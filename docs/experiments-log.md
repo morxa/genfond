@@ -524,3 +524,6 @@ siw-r1 arm (43) on the earlier branch; the m6 seed arms will show how much of th
 gs-climb / gs-noclimb (4139572/3, `hyp/goal-suffix`, no solve budget, 12 h): climb 16/95 (15 training
 problems ≤6 blocks, stuck from 16:09), switch 28/95 (22 problems ≤7 blocks, stuck from 19:55). Without a
 budget the climb loses badly at scale; the budgeted pair (gs-climb-tl / gs-noclimb-tl) is the fair test.
+
+full2-r1-mod (4148282, modern, 4 h): last policy 33/95, 63 rounds, ≤8 blocks; killed in the final pass (same
+deadline bug as full2-mod, no stats row).
