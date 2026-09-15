@@ -319,6 +319,6 @@ now pin `PYTHONHASHSEED`. Earlier single-run A/Bs carry that noise.
 the goal role's predicate name is the other's plus the **lowercase** suffix `_g`. genfond names goal predicates
 `on_G`, `clear_G`, … (uppercase), so the rule never matches and no `c_equal` concept, hence no "block sits on
 its goal support", ever enters a synthesised pool, at any complexity. The hand-written preset (H9) bypassed
-the generator, which is why it generalised. Fix: accept `_G` in the rule (branch `fix-equal-goal-suffix` on
-the dlplan fork), rebuild the venv and the apptainer image, re-pin. Validation on the local suite and the
-held-out set is running.
+the generator, which is why it generalised. Decision (Till): genfond adopts DLPlan's convention and names goal
+predicates `_g` (`hyp/goal-suffix`); DLPlan and the apptainer image stay as they are. Old `.policy` pickles
+become incompatible. Validation on the local suite and the held-out set is running.
