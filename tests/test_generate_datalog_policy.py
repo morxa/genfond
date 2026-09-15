@@ -12,10 +12,10 @@ def test_generate_datalog_policy():
         "cost": 5,
         "c_selected": {
             "c_one_of(Table)",
-            "c_some(r_transitive_reflexive_closure(r_primitive(on,0,1)),c_projection(r_primitive(on_G,0,1),0))",
-            "c_some(r_transitive_reflexive_closure(r_primitive(on,0,1)),c_projection(r_primitive(on_G,0,1),1))",
-            "c_projection(r_primitive(on_G,0,1),0)",
-            "c_projection(r_primitive(on_G,0,1),1)",
+            "c_some(r_transitive_reflexive_closure(r_primitive(on,0,1)),c_projection(r_primitive(on_g,0,1),0))",
+            "c_some(r_transitive_reflexive_closure(r_primitive(on,0,1)),c_projection(r_primitive(on_g,0,1),1))",
+            "c_projection(r_primitive(on_g,0,1),0)",
+            "c_projection(r_primitive(on_g,0,1),1)",
         },
         "good_action": {
             (0, 0, "puton(A, Table, C)"),
@@ -32,7 +32,7 @@ def test_generate_datalog_policy():
                 0,
                 0,
                 "puton(E, Table, F)",
-                "c_some(r_transitive_reflexive_closure(r_primitive(on,0,1)),c_projection(r_primitive(on_G,0,1),0))",
+                "c_some(r_transitive_reflexive_closure(r_primitive(on,0,1)),c_projection(r_primitive(on_g,0,1),0))",
                 "pos",
                 0,
             ),
@@ -44,7 +44,7 @@ def test_generate_datalog_policy():
                 0,
                 1,
                 "puton(E, Table, F)",
-                "c_some(r_transitive_reflexive_closure(r_primitive(on,0,1)),c_projection(r_primitive(on_G,0,1),1))",
+                "c_some(r_transitive_reflexive_closure(r_primitive(on,0,1)),c_projection(r_primitive(on_g,0,1),1))",
                 "pos",
                 0,
             ),
@@ -55,7 +55,7 @@ def test_generate_datalog_policy():
                 0,
                 2,
                 "puton(D, C, Table)",
-                "c_projection(r_primitive(on_G,0,1),0)",
+                "c_projection(r_primitive(on_g,0,1),0)",
                 "pos",
                 0,
             ),
@@ -66,7 +66,7 @@ def test_generate_datalog_policy():
                 0,
                 2,
                 "puton(D, C, Table)",
-                "c_projection(r_primitive(on_G,0,1),1)",
+                "c_projection(r_primitive(on_g,0,1),1)",
                 "pos",
                 1,
             ),
@@ -82,7 +82,7 @@ def test_generate_datalog_policy():
                     ("Y", "c_one_of(Table)"),
                     (
                         "X",
-                        "c_some(r_transitive_reflexive_closure(r_primitive(on,0,1)),c_projection(r_primitive(on_G,0,1),0))",
+                        "c_some(r_transitive_reflexive_closure(r_primitive(on,0,1)),c_projection(r_primitive(on_g,0,1),0))",
                     ),
                 ],
             ),
@@ -92,15 +92,15 @@ def test_generate_datalog_policy():
                     ("Y", "c_one_of(Table)"),
                     (
                         "X",
-                        "c_some(r_transitive_reflexive_closure(r_primitive(on,0,1)),c_projection(r_primitive(on_G,0,1),1))",
+                        "c_some(r_transitive_reflexive_closure(r_primitive(on,0,1)),c_projection(r_primitive(on_g,0,1),1))",
                     ),
                 ],
             ),
             DatalogPolicyRule(
                 "puton(X, Y, Z)",
                 concepts=[
-                    ("X", "c_projection(r_primitive(on_G,0,1),0)"),
-                    ("Y", "c_projection(r_primitive(on_G,0,1),1)"),
+                    ("X", "c_projection(r_primitive(on_g,0,1),0)"),
+                    ("Y", "c_projection(r_primitive(on_g,0,1),1)"),
                 ],
             ),
         ]
@@ -146,18 +146,18 @@ def test_generate_datalog_policy_with_conds():
 def test_generate_datalog_policy_with_role_conds():
     solution = {
         "cost": 2,
-        "r_selected": {"r_primitive(on_G,0,1)"},
+        "r_selected": {"r_primitive(on_g,0,1)"},
         "good_action": {
             (0, 0, "puton(A, C, Table)"),
         },
         "r_distinguished": {
-            (0, 0, "puton(A, C, Table)", 0, 0, "puton(A, B, C)", "r_primitive(on_G,0,1)", "pos", 0, 1),
+            (0, 0, "puton(A, C, Table)", 0, 0, "puton(A, B, C)", "r_primitive(on_g,0,1)", "pos", 0, 1),
         },
     }
     policy = generate_datalog_policy(solution)
     print(policy)
     assert policy == DatalogPolicy(
         [
-            DatalogPolicyRule("puton(P, Q, R)", roles=[("P", "Q", "r_primitive(on_G,0,1)")]),
+            DatalogPolicyRule("puton(P, Q, R)", roles=[("P", "Q", "r_primitive(on_g,0,1)")]),
         ]
     )

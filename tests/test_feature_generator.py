@@ -27,7 +27,7 @@ def test_generate_features_simple_blocks(simple_blocks):
     assert feature_pool.evaluate_feature("b_empty(r_primitive(on,0,1))", problem, on_ab) is False
     assert feature_pool.evaluate_feature("n_count(c_primitive(holding,0))", problem, on_ab) == 0
     assert feature_pool.evaluate_feature("n_count(r_primitive(on,0,1))", problem, on_ab) == 1
-    assert feature_pool.evaluate_feature("n_count(r_primitive(on_G,0,1))", problem, on_ab) == 1
+    assert feature_pool.evaluate_feature("n_count(r_primitive(on_g,0,1))", problem, on_ab) == 1
     assert (
         feature_pool.evaluate_feature("n_count(r_transitive_reflexive_closure(r_primitive(on,0,1)))", problem, on_ab)
         == 4
@@ -37,7 +37,7 @@ def test_generate_features_simple_blocks(simple_blocks):
     assert feature_pool.evaluate_feature("b_empty(r_primitive(on,0,1))", problem, holding_a) is True
     assert feature_pool.evaluate_feature("n_count(c_primitive(holding,0))", problem, holding_a) == 1
     assert feature_pool.evaluate_feature("n_count(r_primitive(on,0,1))", problem, holding_a) == 0
-    assert feature_pool.evaluate_feature("n_count(r_primitive(on_G,0,1))", problem, holding_a) == 1
+    assert feature_pool.evaluate_feature("n_count(r_primitive(on_g,0,1))", problem, holding_a) == 1
     assert (
         feature_pool.evaluate_feature(
             "n_count(r_transitive_reflexive_closure(r_primitive(on,0,1)))", problem, holding_a
@@ -49,7 +49,7 @@ def test_generate_features_simple_blocks(simple_blocks):
     assert feature_pool.evaluate_concept("c_primitive(holding,0)", problem, holding_a) == {a.name}
     assert feature_pool.evaluate_role("r_primitive(on,0,1)", problem, on_ab) == {(a.name, b.name)}
     assert feature_pool.evaluate_role("r_primitive(on,0,1)", problem, holding_a) == set()
-    assert feature_pool.evaluate_role("r_primitive(on_G,0,1)", problem, on_ab) == {(a.name, c.name)}
+    assert feature_pool.evaluate_role("r_primitive(on_g,0,1)", problem, on_ab) == {(a.name, c.name)}
 
 
 @pytest.mark.skip(reason="r_and is not generated")
@@ -71,7 +71,7 @@ def test_generate_features_fond_blocks(fond_blocks):
     assert feature_pool.evaluate_feature("n_count(c_primitive(clear,0))", problem, istate) == 3
     assert feature_pool.evaluate_feature("n_count(c_some(r_primitive(on,0,1),c_one_of(Table)))", problem, istate) == 2
     assert (
-        feature_pool.evaluate_feature("n_count(r_and(r_primitive(on,0,1),r_primitive(on_G,0,1)))", problem, istate)
+        feature_pool.evaluate_feature("n_count(r_and(r_primitive(on,0,1),r_primitive(on_g,0,1)))", problem, istate)
         == 0
     )
     cta_puton = get_action(ground_actions, "puton", (c, table, a))
@@ -83,12 +83,12 @@ def test_generate_features_fond_blocks(fond_blocks):
     )
     assert (
         feature_pool.evaluate_feature(
-            "n_count(r_and(r_primitive(on,0,1),r_primitive(on_G,0,1)))", problem, cta_puton_state
+            "n_count(r_and(r_primitive(on,0,1),r_primitive(on_g,0,1)))", problem, cta_puton_state
         )
         == 0
     )
     assert (
-        feature_pool.evaluate_feature("n_count(r_and(r_primitive(on,0,1),r_primitive(on_G,0,1)))", problem, gstates[0])
+        feature_pool.evaluate_feature("n_count(r_and(r_primitive(on,0,1),r_primitive(on_g,0,1)))", problem, gstates[0])
         == 1
     )
     assert feature_pool.evaluate_concept("c_primitive(clear,0)", problem, istate) == {table.name, b.name, c.name}
@@ -96,7 +96,7 @@ def test_generate_features_fond_blocks(fond_blocks):
         a.name,
         b.name,
     }
-    assert feature_pool.evaluate_role("r_and(r_primitive(on,0,1),r_primitive(on_G,0,1))", problem, gstates[0]) == {
+    assert feature_pool.evaluate_role("r_and(r_primitive(on,0,1),r_primitive(on_g,0,1))", problem, gstates[0]) == {
         (b.name, a.name)
     }
 
@@ -118,23 +118,23 @@ def test_features_to_clingo(simple_blocks):
     assert 'feature_complexity("b_empty(r_primitive(on,0,1))", 2).' in clingo_program
     assert 'feature("n_count(r_primitive(on,0,1))").' in clingo_program
     assert 'feature_complexity("n_count(r_primitive(on,0,1))", 2).' in clingo_program
-    assert 'feature("n_count(r_primitive(on_G,0,1))").' in clingo_program
-    assert 'feature_complexity("n_count(r_primitive(on_G,0,1))", 2).' in clingo_program
+    assert 'feature("n_count(r_primitive(on_g,0,1))").' in clingo_program
+    assert 'feature_complexity("n_count(r_primitive(on_g,0,1))", 2).' in clingo_program
     assert "state(0, 0)." in clingo_program
     assert 'eval(0, 0, "b_empty(c_primitive(holding,0))", 1).' in clingo_program
     assert 'eval(0, 0, "b_empty(r_primitive(on,0,1))", 0).' in clingo_program
     assert 'eval(0, 0, "n_count(r_primitive(on,0,1))", 1).' in clingo_program
-    assert 'eval(0, 0, "n_count(r_primitive(on_G,0,1))", 1).' in clingo_program
+    assert 'eval(0, 0, "n_count(r_primitive(on_g,0,1))", 1).' in clingo_program
     assert "state(0, 1)." in clingo_program
     assert 'eval(0, 1, "b_empty(c_primitive(holding,0))", 0).' in clingo_program
     assert 'eval(0, 1, "b_empty(r_primitive(on,0,1))", 1).' in clingo_program
     assert 'eval(0, 1, "n_count(r_primitive(on,0,1))", 0).' in clingo_program
-    assert 'eval(0, 1, "n_count(r_primitive(on_G,0,1))", 1).' in clingo_program
+    assert 'eval(0, 1, "n_count(r_primitive(on_g,0,1))", 1).' in clingo_program
     assert "state(0, 2)." in clingo_program
     assert 'eval(0, 1, "b_empty(c_primitive(holding,0))", 0).' in clingo_program
     assert 'eval(0, 1, "b_empty(r_primitive(on,0,1))", 1).' in clingo_program
     assert 'eval(0, 1, "n_count(r_primitive(on,0,1))", 0).' in clingo_program
-    assert 'eval(0, 2, "n_count(r_primitive(on_G,0,1))", 1).' in clingo_program
+    assert 'eval(0, 2, "n_count(r_primitive(on_g,0,1))", 1).' in clingo_program
     assert 'trans(0, 0, "pick(a,b)", 1).' in clingo_program
     assert 'trans(0, 1, "put(a,b)", 0).' in clingo_program
     assert "c_eval" not in clingo_program
@@ -208,13 +208,13 @@ def test_features_with_augmented_states(blocks_clear):
         print(f"{feature} = {feature_pool.evaluate_feature(feature, problem, problem.init, unstack10)}")
     assert (
         feature_pool.evaluate_feature(
-            "b_empty(c_and(c_primitive(clear_G,0),c_primitive(aparam1,0)))", problem, problem.init, unstack10
+            "b_empty(c_and(c_primitive(clear_g,0),c_primitive(aparam1,0)))", problem, problem.init, unstack10
         )
         == False
     )
     assert (
         feature_pool.evaluate_feature(
-            "b_empty(c_and(c_primitive(clear_G,0),c_primitive(aparam1,0)))", problem, problem.init, unstack01
+            "b_empty(c_and(c_primitive(clear_g,0),c_primitive(aparam1,0)))", problem, problem.init, unstack01
         )
         == True
     )
@@ -230,7 +230,7 @@ def test_augmented_states_to_clingo(blocks_clear):
     clingo_program = feature_pool.to_clingo()
     print(f"full program:\n{clingo_program}")
     assert 'aug_state(0, 0, "unstack(b1,b0)", 0).' in clingo_program
-    assert 'eval(0, "b_empty(c_and(c_primitive(clear_G,0),c_primitive(aparam1,0)))", 0).' in clingo_program
+    assert 'eval(0, "b_empty(c_and(c_primitive(clear_g,0),c_primitive(aparam1,0)))", 0).' in clingo_program
     assert 'trans(0, 0, "unstack(b1,b0)", 1).' in clingo_program
 
 

@@ -39,7 +39,7 @@ def test_fond_blocks(fond_blocks):
                     ("Y", "c_one_of(Table)"),
                     (
                         "X",
-                        "c_some(r_transitive_reflexive_closure(r_primitive(on,0,1)),c_projection(r_primitive(on_G,0,1),0))",
+                        "c_some(r_transitive_reflexive_closure(r_primitive(on,0,1)),c_projection(r_primitive(on_g,0,1),0))",
                     ),
                 ],
             ),
@@ -49,15 +49,15 @@ def test_fond_blocks(fond_blocks):
                     ("Y", "c_one_of(Table)"),
                     (
                         "X",
-                        "c_some(r_transitive_reflexive_closure(r_primitive(on,0,1)),c_projection(r_primitive(on_G,0,1),1))",
+                        "c_some(r_transitive_reflexive_closure(r_primitive(on,0,1)),c_projection(r_primitive(on_g,0,1),1))",
                     ),
                 ],
             ),
             DatalogPolicyRule(
                 "puton(X, Y, Z)",
                 concepts=[
-                    ("X", "c_projection(r_primitive(on_G,0,1),0)"),
-                    ("Y", "c_projection(r_primitive(on_G,0,1),1)"),
+                    ("X", "c_projection(r_primitive(on_g,0,1),0)"),
+                    ("Y", "c_projection(r_primitive(on_g,0,1),1)"),
                 ],
             ),
         ]
@@ -90,7 +90,7 @@ def test_datalog_policy_with_roles(fond_blocks):
             DatalogPolicyRule(
                 "puton(X, Y, Z)",
                 roles=[
-                    ("X", "Y", "r_primitive(on_G,0,1)"),
+                    ("X", "Y", "r_primitive(on_g,0,1)"),
                 ],
             ),
             DatalogPolicyRule(
@@ -109,9 +109,9 @@ def test_blocks3ops(blocks3ops):
     domain, problem = blocks3ops
 
     cond1 = (
-        "b_empty(r_restrict(r_primitive(on, 0, 1), c_and(c_primitive(ontable, 0), c_not(c_primitive(ontable_G, 0)))))"
+        "b_empty(r_restrict(r_primitive(on, 0, 1), c_and(c_primitive(ontable, 0), c_not(c_primitive(ontable_g, 0)))))"
     )
-    cond2 = "b_empty(r_and(r_primitive(on, 0, 1), r_not(r_primitive(on_G, 0, 1))))"
+    cond2 = "b_empty(r_and(r_primitive(on, 0, 1), r_not(r_primitive(on_g, 0, 1))))"
 
     policy = DatalogPolicy(
         [
@@ -131,9 +131,9 @@ def test_blocks3ops(blocks3ops):
                 "stack(X, Y)",
                 concepts=[
                     ("Y", "c_primitive(ontable, 0)"),
-                    ("Y", "c_primitive(ontable_G, 0)"),
+                    ("Y", "c_primitive(ontable_g, 0)"),
                 ],
-                roles=[("X", "Y", "r_primitive(on_G, 0, 1)")],
+                roles=[("X", "Y", "r_primitive(on_g, 0, 1)")],
                 conds={
                     cond1: Cond.TRUE,
                     cond2: Cond.TRUE,
@@ -144,7 +144,7 @@ def test_blocks3ops(blocks3ops):
                 concepts=[
                     ("Y", "c_some(r_and(r_primitive(on, 0, 1), r_inverse(r_primitive(on, 1, 0))), c_top)"),
                 ],
-                roles=[("X", "Y", "r_primitive(on_G, 0, 1)")],
+                roles=[("X", "Y", "r_primitive(on_g, 0, 1)")],
                 conds={
                     cond1: Cond.TRUE,
                     cond2: Cond.TRUE,
@@ -163,7 +163,7 @@ def test_execute_datalog_policy_with_augmented_states(blocks_clear):
         [
             DatalogPolicyRule(
                 "unstack(X, Y)",
-                state_aug_conds={"b_empty(c_and(c_primitive(clear_G,0),c_primitive(aparam1,0)))": Cond.FALSE},
+                state_aug_conds={"b_empty(c_and(c_primitive(clear_g,0),c_primitive(aparam1,0)))": Cond.FALSE},
             )
         ]
     )
@@ -175,7 +175,7 @@ def test_execute_datalog_policy_with_augmented_states(blocks_clear):
         [
             DatalogPolicyRule(
                 "unstack(X, Y)",
-                state_aug_conds={"b_empty(c_and(c_primitive(clear_G,0),c_primitive(aparam0,0)))": Cond.FALSE},
+                state_aug_conds={"b_empty(c_and(c_primitive(clear_g,0),c_primitive(aparam0,0)))": Cond.FALSE},
             )
         ]
     )

@@ -41,11 +41,11 @@ def get_aparam_predicate(i: int, param: str) -> Predicate:
 def construct_vocabulary_info(domain: Domain, config: Mapping) -> VocabularyInfo:
     vocabulary = VocabularyInfo()
     for predicate in domain.predicates:
-        assert f"{predicate.name}_G" not in [p.name for p in domain.predicates]
+        assert f"{predicate.name}_g" not in [p.name for p in domain.predicates]
     for predicate in domain.predicates:
         # TODO some predicates may be static.
         vocabulary.add_predicate(predicate.name, predicate.arity)
-        vocabulary.add_predicate(f"{predicate.name}_G", predicate.arity)
+        vocabulary.add_predicate(f"{predicate.name}_g", predicate.arity)
     max_arity = max([len(action.parameters) for action in domain.actions])
     if config["include_actions"] or config["include_action_params"]:
         for i in range(max_arity):
@@ -62,7 +62,7 @@ def _get_state_from_goal(goal_formula: Formula):
     states = apply_effects(set([frozenset()]), goal_formula)
     assert len(states) == 1, f"Goal formula must define a unique goal state, found {len(states)} states: {states}"
     state = next(iter(states))
-    goal_state = {Predicate(f"{predicate.name}_G", *predicate.terms) for predicate in state}
+    goal_state = {Predicate(f"{predicate.name}_g", *predicate.terms) for predicate in state}
     return goal_state
 
 
@@ -75,7 +75,7 @@ def construct_instance_info(
         instance.add_object(object.name)
     for predicate in ground_domain_predicates(domain, problem):
         map[predicate] = instance.add_atom(predicate.name, [str(t) for t in predicate.terms])
-        goal_predicate = Predicate(f"{predicate.name}_G", *predicate.terms)
+        goal_predicate = Predicate(f"{predicate.name}_g", *predicate.terms)
         map[goal_predicate] = instance.add_atom(goal_predicate.name, [str(t) for t in predicate.terms])
     if config["include_actions"]:
         for action in ground(domain, problem):
