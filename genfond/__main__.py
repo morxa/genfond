@@ -134,6 +134,13 @@ def main():
         "'below' only breaks ties after feature cost, 'above' decides fewest good signatures first",
     )
     config_args.add_argument(
+        "--minimize-selected-count",
+        choices=["none", "below", "above"],
+        help="minimize the number of selected concepts/features/roles, instead of just their "
+        "total complexity (solve_datalog_sig.lp only): 'below' only breaks ties after feature "
+        "cost, 'above' decides fewest selected elements first",
+    )
+    config_args.add_argument(
         "--seed",
         type=int,
         help="seed the global RNG, which policy execution draws on; needed to compare two runs",
@@ -227,11 +234,19 @@ def main():
             #'numFeatures': len(policy.features),
             #'numConstraints': max(len(policy.state_constraints), len(policy.constraints)),
             # The feature complexity sum; higher-priority levels (e.g. the frontier-transition
-            # count, and with minimize_good_signatures="above" the good-signature count) are
-            # prepended by clingo and only present when their #minimize actually grounds, and
-            # with minimize_good_signatures="below" the good-signature count is appended after
-            # it instead -- see cost_utils.feature_cost.
-            "cost": feature_cost(policy.cost, config["minimize_good_signatures"]) if policy else 0,
+            # count, and with minimize_good_signatures/minimize_selected_count="above" the
+            # good-signature/selected-element count) are prepended by clingo and only present
+            # when their #minimize actually grounds, and with either of them set to "below" the
+            # corresponding count is appended after it instead -- see cost_utils.feature_cost.
+            "cost": (
+                feature_cost(
+                    policy.cost,
+                    config["minimize_good_signatures"],
+                    config.get("minimize_selected_count", "none"),
+                )
+                if policy
+                else 0
+            ),
         }
     )
 

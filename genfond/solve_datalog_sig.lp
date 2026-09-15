@@ -85,33 +85,51 @@ bool_eval(I, S, F, 0) :- eval(I, S, F, V), V = 0.
 #minimize { Cost,F : f_selected(F), feature_complexity(F, Cost) }.
 #minimize { Cost,R : r_selected(R), role_complexity(R, Cost) }.
 
-#minimize { 1@2,I,S1,A,S2 : good_trans(I, S1, A, S2), pruned(I, S2) }.
+#minimize { 1@3,I,S1,A,S2 : good_trans(I, S1, A, S2), pruned(I, S2) }.
 
-% ------------------------------------------------------------- Occam bias over good signatures
+% -------------------------------------------------- Occam biases over good signatures / arity
 %
-% Optional (see minimize_good_signatures in config/default.yaml): minimize the number of good
-% signature classes, i.e. the number of rules the policy ends up with, since a rule is the
-% projection of a good signature onto the selected elements. Grounded only when Solver is asked
-% for it (solver.py), so the default "none" setting reproduces the previous program byte for
-% byte -- these two #program parts are simply never grounded.
+% Two optional, independent Occam biases (see minimize_good_signatures and
+% minimize_selected_count in config/default.yaml), each grounded only when Solver is asked for
+% it, so the default "none"/"none" setting reproduces the previous program byte for byte.
+%
+% minimize_good_signatures minimizes the number of good signature classes, i.e. the number of
+% rules the policy ends up with, since a rule is the projection of a good signature onto the
+% selected elements.
+%
+% minimize_selected_count minimizes the number of *selected elements* (concepts, features and
+% roles together -- one #minimize statement per kind, all three at the same priority so they
+% form a single level) instead of their total complexity. A hand-picked pool that generalizes on
+% blocks3ops-heldout selects few, general elements; the plain complexity-cost objective instead
+% tends to prefer several cheap, narrow elements over one more expensive general one, and every
+% extra selected element grows the number of distinguishable object classes -- and hence rules
+% -- exponentially. See docs/min-count-results.md.
 %
 % Priority layout (descending in model.cost, see solver.py's cost-vector gotcha and
-% feature_cost() below): the frontier-transition count above stays the highest priority (@2)
-% either way, so a frontier model is never preferred just to save a rule.
-%
-% "below": @-1 is lower priority than the feature/concept/role complexity minimize above
-% (unspecified priority, i.e. @0), so feature cost is decided first and the good-signature
-% count only breaks ties between equal-cost policies. This pushes feature complexity out of the
-% last position of model.cost -- callers must use solver.feature_cost(), not cost[-1], whenever
-% this is active.
+% cost_utils.feature_cost() below): the frontier-transition count is the highest priority (@3)
+% regardless of which of these are active, so a frontier model is never preferred just to save a
+% rule or an element. The two "above" variants (@2, @1) both sit strictly between the
+% feature/concept/role complexity minimize (@0, unspecified priority) and the frontier count, so
+% complexity stays the lowest priority *present* and remains model.cost[-1] whenever neither
+% "below" variant is active. The two "below" variants (@-1, @-2) sit under complexity, so each
+% one active pushes complexity one further position from the end of model.cost -- callers must
+% go through cost_utils.feature_cost() (which computes the offset from the config), never index
+% cost[-1] directly, whenever either "below" setting may be active.
 #program minimize_good_sigs_below.
 #minimize { 1@-1,K : good_sig(K) }.
 
-% "above": @1 sits strictly between the feature complexity minimize (@0) and the frontier count
-% (@2), so fewest good signatures is decided first and feature cost only breaks ties. Feature
-% complexity stays the lowest priority present, so it remains model.cost[-1] unchanged.
 #program minimize_good_sigs_above.
-#minimize { 1@1,K : good_sig(K) }.
+#minimize { 1@2,K : good_sig(K) }.
+
+#program minimize_selected_count_below.
+#minimize { 1@-2,E : c_selected(E) }.
+#minimize { 1@-2,E : f_selected(E) }.
+#minimize { 1@-2,E : r_selected(E) }.
+
+#program minimize_selected_count_above.
+#minimize { 1@1,E : c_selected(E) }.
+#minimize { 1@1,E : f_selected(E) }.
+#minimize { 1@1,E : r_selected(E) }.
 
 #program limit_feature_cost(c).
 :- #sum { C,F : f_selected(F), feature_complexity(F, C); Cost,Concept : c_selected(Concept), concept_complexity(Concept, Cost); Cost,Role : r_selected(Role), role_complexity(Role, Cost) } > c.

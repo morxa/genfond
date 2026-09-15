@@ -132,6 +132,13 @@ def solve(
             f"minimize_good_signatures={config['minimize_good_signatures']!r} needs solve_prog="
             f"'solve_datalog_sig.lp' (--type datalog-sig), got {config['solve_prog']!r}"
         )
+    if config.get("minimize_selected_count", "none") != "none" and config["solve_prog"] != "solve_datalog_sig.lp":
+        # The minimize_selected_count_{below,above} #program parts (see solve_datalog_sig.lp)
+        # only exist there too, for the same reason.
+        raise ValueError(
+            f"minimize_selected_count={config['minimize_selected_count']!r} needs solve_prog="
+            f"'solve_datalog_sig.lp' (--type datalog-sig), got {config['solve_prog']!r}"
+        )
     log.debug("Generating feature pool ...")
     feature_pool = FeaturePool(
         domain,
@@ -188,6 +195,7 @@ def solve(
         clingo_options=config["clingo_options"],
         time_limit=config["solve_time_limit"],
         minimize_good_signatures=config.get("minimize_good_signatures", "none"),
+        minimize_selected_count=config.get("minimize_selected_count", "none"),
     )
     if config.get("lazy_pairs", False) and config.get("emit_action_signatures", False):
         # The instance carries no separation pairs; they are added batch by batch in response to
@@ -212,6 +220,17 @@ def solve(
     solution = solver.solution
     if "viol" in solution:
         log.warning(f"Found violations: {solution['viol']}")
+    # The quantity minimize_selected_count trades off against feature complexity. Logged at INFO
+    # (not DEBUG), like the good-signature/rule count in generate_datalog_policy, so the effect
+    # of that setting on a run is visible by default regardless of whether it is active.
+    num_selected = (
+        len(solution.get("c_selected", [])) + len(solution.get("f_selected", [])) + len(solution.get("r_selected", []))
+    )
+    stats["numSelectedElements"] = num_selected
+    log.info(
+        f"Selected {num_selected} element(s): {len(solution.get('c_selected', []))} concept(s), "
+        f"{len(solution.get('f_selected', []))} feature(s), {len(solution.get('r_selected', []))} role(s)"
+    )
     stats.update(
         {
             "clingoAtoms": solver.statistics["problem"]["lp"]["atoms"],

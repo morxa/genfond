@@ -115,9 +115,23 @@ lazy_pairs_batch: 5000
 # feature/concept/role complexity minimize, so it only breaks ties between equal-cost policies.
 # "above" adds it at a higher priority, so fewest good signatures is decided first and feature
 # cost only breaks ties -- this changes which policy is optimal, not just which one wins a tie.
-# Both keep the frontier-transition count (solve_datalog_sig.lp's `@2` level) the highest
-# priority. See docs/min-rules-results.md.
+# Both keep the frontier-transition count (solve_datalog_sig.lp's highest `#minimize` priority)
+# the highest priority. See docs/min-rules-results.md.
 minimize_good_signatures: none
+# Occam bias for the signature-quotiented encoding (solve_datalog_sig.lp only; a no-op for
+# every other solve_prog): whether to minimize the *number* of selected concepts/features/roles
+# instead of only their total complexity. A hand-picked pool with fewer, more general selected
+# elements generalizes far better than the solver's own cost-minimal choice, which tends to
+# prefer several cheap, narrow elements over one more expensive general one -- and every element
+# beyond what generalizes grows the number of distinguishable object classes, and hence the
+# number of rules, exponentially. "none" (default) reproduces the previous behaviour byte-for-
+# byte. "below" adds the minimize at a lower priority than the feature/concept/role complexity
+# minimize, so it only breaks ties between equal-cost policies. "above" adds it at a higher
+# priority, so fewest selected elements is decided first and feature cost only breaks ties --
+# this changes which policy is optimal, not just which one wins a tie. Composes freely with
+# minimize_good_signatures (independent priority levels; see solve_datalog_sig.lp). Both keep
+# the frontier-transition count the highest priority. See docs/min-count-results.md.
+minimize_selected_count: none
 include_dead_states: true
 include_goal_states: true
 preset_features: null

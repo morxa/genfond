@@ -162,9 +162,17 @@ class ProblemIterator:
             # beat the cost we actually achieved, which is a real upper bound whether or not
             # it is the optimum. Only the refutation below depends on optimality. `max_cost`
             # bounds `limit_feature_cost`, i.e. the feature/concept/role complexity sum, not
-            # the raw cost vector -- with minimize_good_signatures="below" that is no longer
-            # cost[-1] (see cost_utils.feature_cost), so it must be extracted the same way here.
-            self.max_cost = feature_cost(cost, self.config.get("minimize_good_signatures", "none")) - 1
+            # the raw cost vector -- with minimize_good_signatures="below" or
+            # minimize_selected_count="below" that is no longer cost[-1] (see
+            # cost_utils.feature_cost), so it must be extracted the same way here.
+            self.max_cost = (
+                feature_cost(
+                    cost,
+                    self.config.get("minimize_good_signatures", "none"),
+                    self.config.get("minimize_selected_count", "none"),
+                )
+                - 1
+            )
             if full_feature_pool and optimal:
                 # clingo minimizes the feature cost, so the extracted value is optimal for this
                 # pool: nothing at this complexity beats the new `max_cost`. That refutes the level
