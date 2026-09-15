@@ -228,3 +228,11 @@ Arms keep primitive, not, some, all, and concepts and primitive, inverse, transi
 
 Also pending: 4133419 c3-combo (lazy pairs), 4133421 c3-r2c1 (lazy pairs + role caps), 4133412 c2-frontier2,
 4133177–4133180 (batch 1 single hypotheses).
+
+**Cluster, 07:00 on 2026-09-15 (batch 1 at 7.5 h, batch 3 at 6.5 h):** the lazy-pairs arms are the first to put
+8-block instances into the training set (c3-r2c1: 27 training problems, c3-grammar-r2c1: 26), and the grammar
+arm has 20. But every combo arm has been inside one round for 5–6 h. The log tails show where: the first relaxed
+lazy solve finishes in 0.2–100 s, then the second solve, after grounding the first batch of 5000 pair constraints
+(400 k `dist` facts on c3-combo), never returns. The optimisation (minimise feature cost subject to hitting-set
+constraints) is now the wall, not grounding and not memory. Exploration copies with 32 clingo threads were
+submitted as x32-combo (4135666) and x32-r2c1 (4135667); they are not comparable to the seeded 1-thread arms.
