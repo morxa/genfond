@@ -87,6 +87,32 @@ bool_eval(I, S, F, 0) :- eval(I, S, F, V), V = 0.
 
 #minimize { 1@2,I,S1,A,S2 : good_trans(I, S1, A, S2), pruned(I, S2) }.
 
+% ------------------------------------------------------------- Occam bias over good signatures
+%
+% Optional (see minimize_good_signatures in config/default.yaml): minimize the number of good
+% signature classes, i.e. the number of rules the policy ends up with, since a rule is the
+% projection of a good signature onto the selected elements. Grounded only when Solver is asked
+% for it (solver.py), so the default "none" setting reproduces the previous program byte for
+% byte -- these two #program parts are simply never grounded.
+%
+% Priority layout (descending in model.cost, see solver.py's cost-vector gotcha and
+% feature_cost() below): the frontier-transition count above stays the highest priority (@2)
+% either way, so a frontier model is never preferred just to save a rule.
+%
+% "below": @-1 is lower priority than the feature/concept/role complexity minimize above
+% (unspecified priority, i.e. @0), so feature cost is decided first and the good-signature
+% count only breaks ties between equal-cost policies. This pushes feature complexity out of the
+% last position of model.cost -- callers must use solver.feature_cost(), not cost[-1], whenever
+% this is active.
+#program minimize_good_sigs_below.
+#minimize { 1@-1,K : good_sig(K) }.
+
+% "above": @1 sits strictly between the feature complexity minimize (@0) and the frontier count
+% (@2), so fewest good signatures is decided first and feature cost only breaks ties. Feature
+% complexity stays the lowest priority present, so it remains model.cost[-1] unchanged.
+#program minimize_good_sigs_above.
+#minimize { 1@1,K : good_sig(K) }.
+
 #program limit_feature_cost(c).
 :- #sum { C,F : f_selected(F), feature_complexity(F, C); Cost,Concept : c_selected(Concept), concept_complexity(Concept, Cost); Cost,Role : r_selected(Role), role_complexity(Role, Cost) } > c.
 

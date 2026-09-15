@@ -148,7 +148,10 @@ def generate_datalog_policy_from_signatures(
                 conds=conds,
             )
         )
-    log.debug(f"Generated {len(rules)} rule(s) from {len(heads)} good signature(s)")
+    # Logged at INFO (not DEBUG): the good-signature count is the quantity
+    # minimize_good_signatures trades off against feature cost, so it needs to be visible by
+    # default to judge the effect of that setting on a run.
+    log.info(f"Generated {len(rules)} rule(s) from {len(heads)} good signature(s), {len(bad_ids)} bad signature(s)")
     return DatalogPolicy(list(rules), cost=solution["cost"])
 
 

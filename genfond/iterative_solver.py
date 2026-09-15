@@ -124,6 +124,14 @@ def solve(
     # not a SolveStatus name: those paths keep the pre-existing NO_SOLUTION handling.
     stats["solveStatus"] = None
     stats["solveOptimal"] = True
+    if config.get("minimize_good_signatures", "none") != "none" and config["solve_prog"] != "solve_datalog_sig.lp":
+        # good_sig/1 (and the two #program parts Solver grounds for it) only exist in
+        # solve_datalog_sig.lp; grounding them against another solve_prog would fail inside
+        # clingo with a much less legible error.
+        raise ValueError(
+            f"minimize_good_signatures={config['minimize_good_signatures']!r} needs solve_prog="
+            f"'solve_datalog_sig.lp' (--type datalog-sig), got {config['solve_prog']!r}"
+        )
     log.debug("Generating feature pool ...")
     feature_pool = FeaturePool(
         domain,
@@ -179,6 +187,7 @@ def solve(
         opt_strategy=config["clingo_opt_strategy"],
         clingo_options=config["clingo_options"],
         time_limit=config["solve_time_limit"],
+        minimize_good_signatures=config.get("minimize_good_signatures", "none"),
     )
     if config.get("lazy_pairs", False) and config.get("emit_action_signatures", False):
         # The instance carries no separation pairs; they are added batch by batch in response to

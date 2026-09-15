@@ -5,6 +5,7 @@ from typing import Any, Collection, Iterator, Mapping, MutableMapping, Optional
 
 from pddl.core import Plan, Problem
 
+from .cost_utils import feature_cost
 from .ground import state_string
 from .state_space_generator import State
 
@@ -159,11 +160,14 @@ class ProblemIterator:
             self.active_problems_solved = True
             # Keeping this as a *preference* is sound either way: the next round is asked to
             # beat the cost we actually achieved, which is a real upper bound whether or not
-            # it is the optimum. Only the refutation below depends on optimality.
-            self.max_cost = cost[-1] - 1
+            # it is the optimum. Only the refutation below depends on optimality. `max_cost`
+            # bounds `limit_feature_cost`, i.e. the feature/concept/role complexity sum, not
+            # the raw cost vector -- with minimize_good_signatures="below" that is no longer
+            # cost[-1] (see cost_utils.feature_cost), so it must be extracted the same way here.
+            self.max_cost = feature_cost(cost, self.config.get("minimize_good_signatures", "none")) - 1
             if full_feature_pool and optimal:
-                # clingo minimizes the feature cost, so `cost[-1]` is optimal for this pool:
-                # nothing at this complexity beats the new `max_cost`. That refutes the level
+                # clingo minimizes the feature cost, so the extracted value is optimal for this
+                # pool: nothing at this complexity beats the new `max_cost`. That refutes the level
                 # just as an UNSAT would, and keeps the `max_cost < complexity` short circuit
                 # in `iterative_solver.solve` available for the rounds that follow. A model
                 # that was merely the best found before the time budget ran out proves no such

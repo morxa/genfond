@@ -105,6 +105,19 @@ emit_object_facts: true
 lazy_pairs: false
 # How many violated pairs one lazy iteration may add (the smallest distinguishing sets first).
 lazy_pairs_batch: 5000
+# Occam bias for the signature-quotiented encoding (solve_datalog_sig.lp only; a no-op for
+# every other solve_prog): whether to additionally minimize the number of good signature
+# classes selected. A datalog rule is the projection of one good signature onto the selected
+# elements, so every good signature beyond the minimum needed to cover the alive states (the
+# solver must select >= 1 good transition per alive non-goal state, but may select more) adds a
+# rule that only fits the training states it was picked for. "none" (default) reproduces the
+# previous behaviour byte-for-byte. "below" adds the minimize at a lower priority than the
+# feature/concept/role complexity minimize, so it only breaks ties between equal-cost policies.
+# "above" adds it at a higher priority, so fewest good signatures is decided first and feature
+# cost only breaks ties -- this changes which policy is optimal, not just which one wins a tie.
+# Both keep the frontier-transition count (solve_datalog_sig.lp's `@2` level) the highest
+# priority. See docs/min-rules-results.md.
+minimize_good_signatures: none
 include_dead_states: true
 include_goal_states: true
 preset_features: null

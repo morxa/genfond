@@ -7,6 +7,7 @@ from typing import Optional, Sequence
 
 import clingo
 
+from .cost_utils import feature_cost
 from .problem_iterator import MAX_COST
 
 log = logging.getLogger(__name__)
@@ -51,8 +52,10 @@ class Solver:
         opt_strategy: str = "bb",
         clingo_options: Optional[Sequence[str]] = None,
         time_limit: Optional[float] = None,
+        minimize_good_signatures: str = "none",
     ):
         self.asp_code = asp_code
+        self.minimize_good_signatures = minimize_good_signatures
         self.opt_strategy = opt_strategy or "bb"
         self.time_limit = time_limit
         options = list(clingo_options or [])
@@ -71,6 +74,12 @@ class Solver:
             parts.append(("limit_prune_cost", [clingo.Number(max_prune_cost)]))
         if min_feature_complexity:
             parts.append(("min_feature_complexity", [clingo.Number(min_feature_complexity)]))
+        if minimize_good_signatures == "below":
+            parts.append(("minimize_good_sigs_below", []))
+        elif minimize_good_signatures == "above":
+            parts.append(("minimize_good_sigs_above", []))
+        elif minimize_good_signatures != "none":
+            raise ValueError(f"Unknown minimize_good_signatures: {minimize_good_signatures!r}")
         self.control.ground(parts)
         assert isinstance(self.control.configuration.solve, clingo.Configuration)
         self.control.configuration.solve.parallel_mode = num_threads or os.cpu_count()
@@ -82,6 +91,11 @@ class Solver:
         self.optimal = False
         self.timed_out = False
         self.elapsed = 0.0
+
+    @property
+    def feature_complexity(self) -> int:
+        """`self.cost`'s feature/concept/role complexity component; see `feature_cost()`."""
+        return feature_cost(self.cost, self.minimize_good_signatures)
 
     def on_model(self, model: clingo.Model) -> None:
         if not self.solution:

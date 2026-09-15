@@ -15,6 +15,7 @@ from filelock import FileLock
 from tqdm.contrib.logging import logging_redirect_tqdm
 
 from genfond.config_handler import DEFAULT_TYPE_CONFIGS, ConfigHandler
+from genfond.cost_utils import feature_cost
 from genfond.execute_policy import execute_policy
 
 from .iterative_solver import pnames, solve_iteratively
@@ -127,6 +128,12 @@ def main():
         help="how many violated pairs one lazy iteration may add",
     )
     config_args.add_argument(
+        "--minimize-good-signatures",
+        choices=["none", "below", "above"],
+        help="minimize the number of good signature classes (solve_datalog_sig.lp only): "
+        "'below' only breaks ties after feature cost, 'above' decides fewest good signatures first",
+    )
+    config_args.add_argument(
         "--seed",
         type=int,
         help="seed the global RNG, which policy execution draws on; needed to compare two runs",
@@ -219,10 +226,12 @@ def main():
             "memUsage": mem_usage,
             #'numFeatures': len(policy.features),
             #'numConstraints': max(len(policy.state_constraints), len(policy.constraints)),
-            # The last cost component is the feature complexity sum; higher-priority
-            # levels (e.g. the frontier-transition count) are prepended by clingo and
-            # only present when their #minimize actually grounds.
-            "cost": policy.cost[-1] if policy else 0,
+            # The feature complexity sum; higher-priority levels (e.g. the frontier-transition
+            # count, and with minimize_good_signatures="above" the good-signature count) are
+            # prepended by clingo and only present when their #minimize actually grounds, and
+            # with minimize_good_signatures="below" the good-signature count is appended after
+            # it instead -- see cost_utils.feature_cost.
+            "cost": feature_cost(policy.cost, config["minimize_good_signatures"]) if policy else 0,
         }
     )
 
