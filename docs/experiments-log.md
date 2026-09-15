@@ -322,3 +322,11 @@ its goal support", ever enters a synthesised pool, at any complexity. The hand-w
 the generator, which is why it generalised. Decision (Till): genfond adopts DLPlan's convention and names goal
 predicates `_g` (`hyp/goal-suffix`); DLPlan and the apptainer image stay as they are. Old `.policy` pickles
 become incompatible. Validation on the local suite and the held-out set is running.
+
+H11 result (`hyp/goal-suffix`, 17ed4c2): with `_g` the pools gain `c_equal` (29→30 / 88→90 concepts at
+complexity 3 / 4). blocks3ops-local 10/10, cost 7, **36 rules** using `c_equal` heavily, held-out **0/12**;
+regression suites identical. So availability of the right concept is necessary but not sufficient: among thirty
+concepts the cost-minimal selection still yields a training-fitted rule set, where the tiny preset pool forced
+a 13-rule policy (cost 6, 5/12). Next: an Occam bias on the number of good signatures (H12, `hyp/min-rules`).
+Gotcha found: `scripts/eval_policy.py` run as a script imports the editable-installed genfond from the main
+checkout unless `PYTHONPATH=.` is set.
