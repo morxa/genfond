@@ -533,3 +533,9 @@ gs-climb-tl / gs-noclimb-tl (4139742/3, goal suffix + 300 s budget, 12 h): climb
 ≤6 blocks), add-problem switch **31/95** (25 problems ≤8 blocks). Verdict on Till's hypothesis: at scale the
 switch is right; the cost minimisation the climb provided is better spent once at the end (H14 final pass),
 and the base arm's 33 with a cost-10 policy looks like a lucky model rather than a systematic effect.
+
+Final-pass deadline fix (`hyp/final-pass-deadline`, 6f43768, merged into `hyp/combo`): the pass gets its own
+slice (`final_pass_budget: 1800`, `final_pass_min_time: 600`), respects the deadline between rounds, and the
+main loop stops earlier by that budget. Resubmitted the best configuration as m7-r1-cap8 (4152032, modern,
+4 h). One pre-existing flaky solver test (zero-second limit race) is being made deterministic on
+`hyp/fix-flaky-limit-test`.
