@@ -478,3 +478,8 @@ m2-plans1-r1 (4148300: `min_number_of_plans: 1`, restarts 1), m2-plans2-r1 (4148
 fc-mod (4144319, 4 h, `hyp/final-climb` config without graceful budget): 30/95 (last policy), 24 training
 problems ≤8 blocks; killed by the limit before the final pass could run. The `full*` arms carry the graceful
 wall budget so their final pass executes.
+
+full-mod (4144770, 4 h, combo before forced labels, graceful budget 13 200 s): first arm to end on its own —
+`stoppedBy=wall_time`, stats row and policy written, final pass ran (1 round, cost 37 → 37; the 300 s reserve
+leaves no room for it). 30/95, 24 training problems incl. 10-block. Future arms set `wall_time_reserve: 1800`
+so the pass has half an hour.
