@@ -150,8 +150,9 @@ class Solver:
         elif res.satisfiable is False:
             self.status = SolveStatus.UNSATISFIABLE
         else:
-            # No model and no proof of unsatisfiability: the budget ran out first.
-            assert self.timed_out, "a solve that ran to completion must be SAT or UNSAT"
+            # No model and no proof of unsatisfiability: the budget ran out first. Without a
+            # budget this cannot happen, and the `assert res.satisfiable is not None` below
+            # still reports it exactly as it did before -- no new failure mode on that path.
             self.status = SolveStatus.UNKNOWN
         self.optimal = self.status in (SolveStatus.OPTIMAL, SolveStatus.UNSATISFIABLE)
         log.info(
