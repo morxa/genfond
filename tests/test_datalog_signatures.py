@@ -10,6 +10,7 @@ import pddl
 import pytest
 
 from genfond.config_handler import ConfigHandler
+from genfond.execute_datalog_policy import execute_datalog_policy
 from genfond.feature_generator import FeaturePool
 from genfond.generate_datalog_policy import generate_datalog_policy
 from genfond.lazy_pairs import solve_with_lazy_pairs
@@ -62,11 +63,26 @@ def test_both_encodings_find_the_same_policy(fixture, request):
 
     The lazy loop solves a different (growing) program and may therefore return a different
     optimal model; that it is optimal for the full problem is pinned in test_lazy_pairs.py.
+
+    This used to assert the two generated policies were identical. Since the goal-suffix rename
+    (docs/goal-suffix-results.md) unlocked `c_equal` concepts, gripper has several distinct
+    equal-cost optimal policies, and the plain and signature-quotiented encodings are free to
+    land on different ones -- both cost 6, 5 rules vs 4 rules for gripper. The claim the two
+    encodings actually make is equivalence of the optimization problem, not of the arbitrary
+    tie-break, so this only pins the cost (as test_both_encodings_agree_on_feature_cost already
+    does, for both `lazy` settings) and checks that both policies genuinely solve the problem
+    rather than merely agreeing on a number.
     """
     domain, problem = request.getfixturevalue(fixture)
     _, plain = _solve(domain, problem, "datalog")
     pool, signatures = _solve(domain, problem, "datalog-sig", lazy=False)
-    assert generate_datalog_policy(signatures.solution, pool.signatures) == generate_datalog_policy(plain.solution)
+    plain_policy = generate_datalog_policy(plain.solution)
+    signature_policy = generate_datalog_policy(signatures.solution, pool.signatures)
+    # cost[-1] is the feature complexity; the @2 level is absent when no pruned/2 grounds.
+    assert signature_policy.cost[-1] == plain_policy.cost[-1]
+    config = ConfigHandler(type="datalog")
+    execute_datalog_policy(domain, problem, plain_policy, config)
+    execute_datalog_policy(domain, problem, signature_policy, config)
 
 
 @pytest.mark.parametrize("lazy", [False, True])
