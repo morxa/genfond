@@ -1,5 +1,6 @@
 import time
 
+import clingo
 import pytest
 
 import genfond.solver as solver_module
@@ -409,7 +410,38 @@ def test_a_time_limit_does_not_turn_unsatisfiability_into_unknown():
     assert solver.optimal is True
 
 
-def test_a_time_limit_too_short_for_any_model_is_unknown_not_unsatisfiable():
+def test_a_time_limit_too_short_for_any_model_is_unknown_not_unsatisfiable(monkeypatch):
+    # Whether clingo's background search thread reports a first model before our very first
+    # (zero-length) wait() call returns is a genuine race (see the identical caveat on
+    # test_a_wall_deadline_already_past_cuts_the_solve_off_immediately below). That race is
+    # inherent to real async clingo timing and not something Solver.solve controls, so instead
+    # of racing against it we replace the async handle: wait() always reports "not finished" and
+    # on_model is never invoked, deterministically reproducing the "cancelled before any model"
+    # outcome this test exists to check.
+    class FakeResult:
+        satisfiable = None
+        exhausted = False
+
+    class FakeHandle:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc_info):
+            return False
+
+        def wait(self, timeout):
+            return False
+
+        def cancel(self):
+            pass
+
+        def get(self):
+            return FakeResult()
+
+    def fake_solve(self, on_model=None, **kwargs):
+        return FakeHandle()
+
+    monkeypatch.setattr(clingo.Control, "solve", fake_solve)
     solver = Solver(HARD_OPTIMISATION_PROGRAM, num_threads=1, time_limit=0.0)
     assert not solver.solve()
     assert solver.timed_out is True
