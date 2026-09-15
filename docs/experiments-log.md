@@ -336,3 +336,16 @@ minimisation across complexity levels, and cheaper policies generalised better.)
 workstation, blocks3ops-local, 4 threads: climb on → 10/10, 26 rules, 18 rounds, 19 s, held-out 0/12;
 switch on → 10/10, 26 rules, 14 rounds, 14 s, held-out 0/12. No difference at this scale. Full-95 arms
 gs-climb (4139572) and gs-noclimb (4139573) test it at scale.
+
+## H12: minimise the number of good signatures (`hyp/min-rules`, on `hyp/goal-suffix`)
+
+`minimize_good_signatures: none|below|above` adds `#minimize { 1@P, K : good_sig(K) }` under or over the
+complexity level (frontier stays highest); `cost_utils.feature_cost` now finds the complexity level for every
+layout (this also fixed `max_cost` being read from the wrong level once extra levels exist). Also repaired the
+gripper encoding-equivalence test to compare cost, since `c_equal` created a tie.
+
+blocks3ops-local (10 problems), local, seed 0: none → 36 rules / 72 good signatures; below → 26 / 30;
+above → 20 / 23. Held-out **0/12 in all three**. Regression suites: `below` identical to baseline everywhere,
+`above` +1 cost on blocks4ops-clear. Fewer rules alone does not give generalisation. The preset policy had
+5 selected elements; the synthesised ones select more, cheaper elements → H13 (`hyp/min-count`): minimise
+the number of selected elements.
