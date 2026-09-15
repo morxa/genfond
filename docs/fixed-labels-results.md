@@ -93,7 +93,10 @@ its solution space or its optimum. Independent of `fix_forced_labels`.
 
 In `/home/thofmann/code/genfond-wt/fixed-labels`: `pytest tests/ --import-mode importlib -q` →
 **164 passed, 1 skipped** (150 + 1 before, plus the 14 new ones). `mypy genfond tests`,
-`black --check`, `isort --check` clean.
+`black --check`, `isort --check` clean. One pre-existing flake seen once in four full runs:
+`test_execute_datalog_policy.py::test_datalog_policy_with_roles`, which exercises the randomized
+policy executor with no seed and does not touch any code this branch changes; it passes in
+isolation every time and passed in the other three full runs.
 
 `tests/test_forced_labels.py` checks each of the four rules on hand-built occurrence sets, both
 inconsistency cases, and — non-circularly — that clingo refutes the *opposite* of every forced
@@ -109,8 +112,8 @@ PYTHONHASHSEED=0 --max-memory 60000`, `timeout 30m`.
 
 ### How much is actually forced
 
-This is the finding that decides the hypothesis. Across all five suites the forced-**bad** set is
-empty on four of them, in every single round:
+This decides *which* of the four rules does the work. Across all five suites the forced-**bad**
+set is empty on four of them, in every single round:
 
 | suite (iterative run) | rounds | forced good (occurrences) | forced bad | forced good classes | forced bad classes |
 |---|---|---|---|---|---|
@@ -153,9 +156,30 @@ The one place with real forced-bad labels is gripper, where 35 of 120 states rea
 | lazy iterations | 2 | 2 |
 | final cost / rules / solved | `[6]` / 4 / 5 of 5 | `[6]` / 4 / 5 of 5 |
 
-So where bad labels exist the mechanism does exactly what it is supposed to: the relaxation
-starts from a non-trivial model instead of the free one, and 40% fewer pairs are ever grounded.
-It just does not reach the domain the stall is in.
+So where bad labels exist the seeding does exactly what it is supposed to: the relaxation starts
+from a non-trivial model instead of the free one, and 40 % fewer pairs are ever grounded. The
+blocks3ops results below show that the forced-*good* labels alone are worth more, and they do
+reach the domain the stall is in.
+
+### Where it does pay: blocks3ops one-shot
+
+The suites above are all sub-second solves, where nothing can show. The interesting case is one
+round of blocks3ops big enough to hurt but small enough to finish: `--one-shot --max-complexity 4
+--role-complexity-offset 2 --concept-complexity-offset 1` on the eight blocks3ops-local problems
+p002-1 … p004-2 (558 occurrences, 377 signature classes).
+
+| arm | lazy iterations | solver CPU | wall | cost | rules | solved |
+|---|---|---|---|---|---|---|
+| baseline | 8 | 327.0 s | 5:31 | `[8]` | 50 | 8/8 |
+| `--fix-forced-labels` | **4** | **166.7 s** | **2:50** | `[8]` | 56 | 8/8 |
+| `--plan-label-heuristic` | **2** | **40.7 s** | **0:45** | `[8]` | 48 | 8/8 |
+
+Same proven optimum in all three. `fix_forced_labels` halves the counterexample loop and the
+solver time (**1.96x**) — and note it does so with **zero** forced-bad labels and therefore an
+empty batch 0: the entire gain comes from the 47 of 377 classes (12.5 %) whose `good_sig` is
+pinned by rule 3, which decides one side of every separation constraint those classes appear in
+before the search starts. The plan heuristic is better still here (**8x**), the opposite sign
+from what it does on the iterative blocks3ops-local run.
 
 ### Equivalence: one-shot, identical inputs
 
@@ -219,39 +243,78 @@ soundness argument requires. Every run is slower: 1-1.5 s on the small suites, w
 constant cost of `--heuristic=Domain` on solves that take milliseconds, and **3.6x more solver
 CPU on blocks3ops-local** (51.9 s vs 14.3 s) for the same 10/10. Biasing `good_trans` towards the
 plan is not free: it fights the cost objective, which has no reason to prefer the plan's actions,
-so clasp spends its time undoing the hint. Not recommended on this evidence.
+so clasp can spend its time undoing the hint. That is not the whole story — on the blocks3ops
+one-shot above the same flag is the *fastest* arm (8x baseline, 2 lazy iterations instead of 8) —
+but the sign flips by setting, so it stays off by default and needs its own study.
 
-STALL_PLACEHOLDER
+### The stall case
+
+`--one-shot --max-complexity 4` on `domains/deterministic/blocks3ops/{domain,p005-1,p005-2,p006-1}`
+— the case `docs/experiments-log.md` (H8) records as "4 solves, then hangs 21 min". 25 407
+occurrences, 4 927 signature classes, **4 271 354** pairs in the full separation relation. Forced:
+1 062 occurrences (4.2 %) and 196 classes (4.0 %) good, **0 bad**, so again no batch-0 seeding.
+Every arm hit the 30-minute timeout without a policy; what differs is how far the lazy loop got.
+
+| arm | lazy iterations in 30 min | last model cost | violated pairs still outstanding |
+|---|---|---|---|
+| baseline, no solve limit | 2 | `[0]` | 1 678 288 |
+| **`--fix-forced-labels`, no solve limit** | **6** | **`[6]`** | **3 179** |
+| `--plan-label-heuristic`, no solve limit | 2 | `[0]` | 1 631 856 |
+| both, no solve limit | 2 | `[0]` | 1 602 894 |
+| baseline, `--solve-time-limit 300` | 8 | `[7]` | 119 |
+| `--fix-forced-labels`, `--solve-time-limit 300` | 9 | `[7]` | 200 |
+| `--plan-label-heuristic`, `--solve-time-limit 300` | 7 | `[8]` | 581 |
+
+Without a solve budget this is the clearest result in the whole experiment: `fix_forced_labels`
+takes the round from **1.68 M outstanding pairs to 3 179** — a factor of 500, three orders of
+magnitude closer to closing the loop — in the same wall clock, and lifts the best model from the
+free selection (`[0]`) to cost `[6]`. That is exactly the failure mode the hypothesis targeted:
+the unconstrained first relaxation returns a selection that separates nothing, and every
+subsequent solve has to chew through millions of counterexamples one 5 000-pair batch at a time.
+Pinning 4 % of the classes good decides one side of every constraint those classes appear in, so
+the relaxation is no longer free.
+
+With `--solve-time-limit 300` the two arms are level (8 vs 9 iterations, 119 vs 200 outstanding):
+the budget already forces the loop forward, which is what `docs/anytime-solve-results.md` found,
+and the forced labels add nothing on top. The plan heuristic does not help this round in either
+configuration.
 
 ## Summary
 
-The implementation does what it claims and is verified to: the four forcing rules are each a
-consequence of the program, clingo refutes the opposite of every label the analysis produces, the
-one-shot optimum is identical with the flag on and off, and where forced-bad labels exist
-(gripper) the mechanism pays off exactly as designed — the lazy loop starts from a constrained
-relaxation and grounds 40 % fewer pairs.
+**`fix_forced_labels` works, and it works on the stall.** On the exact case H8 records as
+hanging, it moves the round from 1.68 M outstanding separation pairs to 3 179 in the same 30
+minutes (×500) and lifts the best model from the free selection to cost `[6]`; on the largest
+blocks3ops one-shot that still finishes, it halves the lazy loop and the solver time (327 s →
+167 s) at the identical proven optimum. Correctness holds everywhere it was checked: identical
+optimum with the flag on and off on every one-shot round, clingo refuting the opposite of every
+label the analysis produces on the unmodified program, and no change in solved counts on any
+suite.
 
-**But the hypothesis's premise does not hold on the domains that matter.** The task assumed that
-"on a deterministic, plan-restricted state space many labels are forced"; measured, the
-forced-*bad* set is empty in every round of four of the five suites, including all 27 rounds of
-blocks3ops-local. Rule 1 is the only seed for a bad label and it needs an outcome that is neither
-`alive` nor `pruned`; `frontier_expansion` makes every off-plan successor `pruned`, i.e. *safe*,
-and these domains have no dead ends of their own. With no bad label, the cross-state propagation
-(rule 2) — the only step a grounder genuinely cannot do — never starts, rule 4 has nothing to
-start from, and the pair seeding has nothing to seed. What remains is rule 3, which labels 1-15 %
-of occurrences good and is the kind of propagation clasp's own preprocessing can already do on a
-`1 { ... }` choice with a single surviving element — consistent with the measurement, where the
-flag changes neither the number of solves nor the solve time on those suites.
+**The surprise is *which* rule does the work.** The hypothesis expected rule 1 (a transition into
+a dead end is bad) to seed a cross-state propagation through the signature classes. Measured, the
+forced-**bad** set is empty in every round of four of the five suites *and* on the stall case:
+`frontier_expansion` turns every off-plan successor into a `pruned` state, which `safe_state`
+counts as safe, and these domains have no dead ends of their own — so rules 1, 2 and 4 never fire
+and the pair seeding never has a pair to seed. All of the gain above comes from **rule 3 alone**,
+the sole-surviving-class rule, which pins 4-15 % of the classes *good*. Pinning `good_sig(K)`
+decides one side of every separation constraint K appears in, which is what stops the first
+relaxed solve from returning a selection that separates nothing. That is a different mechanism
+from the one the hypothesis proposed, and it is the one worth keeping.
 
-So this is a negative result on the stall, with a clear mechanism rather than a shrug:
-`fix_forced_labels` cannot bite while every off-plan successor counts as safe. The two follow-ups
-it suggests are (a) measure it at the scale where the state space really is plan-restricted and
-`pruned` states are plentiful, together with `frontier_expansion: false` (which turns exactly
-those successors back into dead ends and would make rule 1 fire everywhere — at the cost
-documented in `docs/frontier-expansion-results.md`), and (b) extend rule 1 with the round-level
-`limit_prune_cost(0)` that `iterative_solver.max_prune_cost` already imposes on every
-post-success round: under that constraint a transition into a `pruned` state cannot be good
-either, which would restore the forcing structure for exactly those rounds.
+Two follow-ups this opens up, both aimed at making rules 1/2/4 fire at all:
 
-Both flags default to `false` and the default ground program is unchanged, so the branch is safe
-to merge or to leave parked.
+* Extend rule 1 with the round-level `limit_prune_cost(0)` that `iterative_solver.max_prune_cost`
+  already imposes on every post-success round. Under that constraint a transition into a `pruned`
+  state cannot be good either, so on those rounds every off-plan successor becomes a non-candidate
+  and the cross-state propagation gets its seed.
+* Measure at the scale where the plan restriction actually restricts (the local suites expand the
+  full reachable space, so `frontier_expansion: false` changes nothing there), together with the
+  `frontier_expansion` trade-off in `docs/frontier-expansion-results.md`.
+
+`plan_label_heuristic` is a separate story and the evidence is mixed: 8× faster than baseline on
+the blocks3ops one-shot that finishes (2 lazy iterations instead of 8), 3.6× *slower* in solver
+CPU on the iterative blocks3ops-local run, and no help on the stall case in either configuration.
+Composed with `fix_forced_labels` it dominates on the small one-shot and cancels the forced-label
+gain on the stall. Leave it off by default; it needs its own study.
+
+Both flags default to `false` and the default ground program is unchanged.
