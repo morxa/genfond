@@ -27,6 +27,11 @@ class Result(enum.Enum):
     # is not a policy yet. The caller expands those states and the same configuration is
     # retried with the enlarged plan set.
     FRONTIER = 4
+    # The solve ran out of its wall-clock budget (`solve_time_limit`) without finding a model.
+    # Unlike NO_SOLUTION this is *not* a refutation -- the round says nothing about whether a
+    # policy exists at this complexity -- so it must not set `refuted_complexity`. Escalation
+    # otherwise proceeds exactly as after NO_SOLUTION.
+    TIMEOUT = 5
 
 
 class LastStep(enum.Enum):
@@ -131,7 +136,15 @@ class ProblemIterator:
             # solved over, so the complexity levels refuted so far no longer apply.
             self._invalidate_refutations()
 
-    def set_last_result(self, result: Result, cost: Optional[tuple[int]] = None) -> None:
+    def set_last_result(self, result: Result, cost: Optional[tuple[int]] = None, optimal: bool = True) -> None:
+        """Record how the last round ended.
+
+        `optimal` says whether the round's model was *proved* to be of minimal cost. It is only
+        ever False under a `solve_time_limit`, where a solve can be cancelled while it still
+        holds a merely feasible model. Such a model is a valid policy -- every constraint is
+        satisfied -- but its cost is an upper bound, not the optimum, so it refutes nothing:
+        a cheaper policy may well exist at this very complexity.
+        """
         self.last_result = result
         # Only a round over the full feature pool refutes a complexity level; the restricted
         # generators are a subset, so their failure says nothing about the unrestricted ones.
@@ -144,12 +157,17 @@ class ProblemIterator:
         if result == Result.SUCCESS:
             assert cost
             self.active_problems_solved = True
+            # Keeping this as a *preference* is sound either way: the next round is asked to
+            # beat the cost we actually achieved, which is a real upper bound whether or not
+            # it is the optimum. Only the refutation below depends on optimality.
             self.max_cost = cost[-1] - 1
-            if full_feature_pool:
+            if full_feature_pool and optimal:
                 # clingo minimizes the feature cost, so `cost[-1]` is optimal for this pool:
                 # nothing at this complexity beats the new `max_cost`. That refutes the level
                 # just as an UNSAT would, and keeps the `max_cost < complexity` short circuit
-                # in `iterative_solver.solve` available for the rounds that follow.
+                # in `iterative_solver.solve` available for the rounds that follow. A model
+                # that was merely the best found before the time budget ran out proves no such
+                # thing, which is why `optimal` guards this and not `max_cost` above.
                 self.refuted_complexity = max(self.refuted_complexity, self.complexity)
             self.succ_complexity = self.complexity
             # self.solved = {

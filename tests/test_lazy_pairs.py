@@ -12,7 +12,7 @@ from genfond.action_signatures import ActionSignature, LazyPairs, iter_dist_set_
 from genfond.config_handler import ConfigHandler
 from genfond.feature_generator import FeaturePool
 from genfond.lazy_pairs import solve_with_lazy_pairs
-from genfond.solver import Solver
+from genfond.solver import Solver, SolveStatus
 
 MAX_COMPLEXITY = 4
 SOLVE_PROG = "solve_datalog_sig.lp"
@@ -70,7 +70,7 @@ def test_lazy_loop_reports_an_unsatisfiable_relaxation_as_unsatisfiable():
     # No transition reaches a goal, so the graph layer alone is already unsatisfiable and no
     # separation pair can repair it.
     unsat = _solver("state(0, 0). alive(0, 0).")
-    assert not solve_with_lazy_pairs(unsat, SIGNATURES, batch_size=1)
+    assert solve_with_lazy_pairs(unsat, SIGNATURES, batch_size=1) == SolveStatus.UNSATISFIABLE
 
 
 def test_violated_pairs_agree_with_the_eager_relation():
@@ -132,3 +132,88 @@ def test_the_lazy_selection_is_feasible_for_the_eagerly_grounded_program(fixture
     checked = _solver(eager_instance + forced)
     assert checked.solve(), "the lazy selection violates a pair the eager encoding grounds"
     assert checked.cost[-1] == lazy.cost[-1]
+
+
+class _CutOffSolver:
+    """A `Solver` that reports every solve as cut off by its time budget.
+
+    `solve_time_limit` can cancel a solve while it holds a model that satisfies every constraint
+    of the current relaxation but whose cost was never proved minimal. lazy_pairs only reads
+    `status`, `solution`, `cost` and `optimal` off the solver, so downgrading the status of a
+    real solve reproduces that case exactly, without depending on clingo losing a race.
+    """
+
+    def __init__(self, solver):
+        self._solver = solver
+
+    def __getattr__(self, name):
+        return getattr(self._solver, name)
+
+    def solve(self):
+        found = self._solver.solve()
+        if found:
+            self._solver.status = SolveStatus.SATISFIABLE
+            self._solver.optimal = False
+        return found
+
+
+def test_a_cut_off_solve_still_yields_a_feasible_selection_but_is_not_optimal(gripper):
+    """The soundness claim for the anytime path, checked against the eager encoding.
+
+    The loop stops only when a model violates no pair, so its result is feasible for the full
+    problem however many solves were cut off on the way; what it loses is the optimality
+    argument, and it must say so.
+    """
+    domain, problem = gripper
+    config = ConfigHandler(type="datalog-sig")
+    config["lazy_pairs"] = False
+    pool = FeaturePool(domain, [problem], config, max_complexity=MAX_COMPLEXITY)
+    eager_instance = pool.to_clingo()
+
+    config["lazy_pairs"] = True
+    lazy_pool = FeaturePool(domain, [problem], config, max_complexity=MAX_COMPLEXITY)
+    lazy = _CutOffSolver(_solver(lazy_pool.to_clingo()))
+    status = solve_with_lazy_pairs(lazy, lazy_pool.signatures, batch_size=config["lazy_pairs_batch"])
+    assert status == SolveStatus.SATISFIABLE
+
+    forced = "".join(
+        f'{key}("{element}").'
+        for key in ("f_selected", "c_selected", "r_selected")
+        for element in (str(symbol).strip('"') for symbol in lazy.solution.get(key, set()))
+        if element != "name"
+    )
+    checked = _solver(eager_instance + forced)
+    assert checked.solve(), "a selection the cut-off loop accepted violates an eagerly grounded pair"
+
+
+class _NoModelSolver:
+    """A `Solver` whose solve is cancelled before it ever reports a model."""
+
+    def __init__(self, solver):
+        self._solver = solver
+
+    def __getattr__(self, name):
+        return getattr(self._solver, name)
+
+    def solve(self):
+        self._solver.solution = dict()
+        self._solver.cost = []
+        self._solver.status = SolveStatus.UNKNOWN
+        self._solver.optimal = False
+        self._solver.timed_out = True
+        return False
+
+
+def test_a_solve_cut_off_before_its_first_model_is_reported_as_unknown():
+    # The relaxation here is plainly satisfiable, so UNKNOWN must not be confused with
+    # UNSATISFIABLE: the round refutes nothing and the caller must escalate, not record a
+    # refutation of the complexity level.
+    plain = _solver(INSTANCE)
+    assert solve_with_lazy_pairs(plain, SIGNATURES, batch_size=1) == SolveStatus.OPTIMAL
+
+    lazy = _NoModelSolver(_solver(INSTANCE))
+    stats: dict = dict()
+    assert solve_with_lazy_pairs(lazy, SIGNATURES, batch_size=1, stats=stats) == SolveStatus.UNKNOWN
+    assert stats["lazyPairsOptimal"] is False
+    # Nothing was learned, so nothing was grounded either.
+    assert stats["lazyPairsGrounded"] == 0

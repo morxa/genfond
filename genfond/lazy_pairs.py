@@ -19,6 +19,14 @@ So the pairs are added on demand instead, in the classic lazy-constraint loop:
 The relaxation only grows, so the loop terminates: each iteration adds at least one pair that
 the previous model violated and the pair set is finite. An UNSAT relaxation proves the full
 problem UNSAT. Only pairs actually needed to justify the final cost are ever grounded.
+
+Under a `solve_time_limit` (see `Solver.solve`) step 1 may be cut off. The loop keeps working on
+the best model clingo had: the stopping rule is "this model violates no pair", which is a
+statement about the model, not about how it was found, so whatever the loop returns is still
+feasible for the full problem and still a valid policy. What a cut-off solve costs is the
+optimality argument of step 2 -- that only goes through for a relaxed *optimum* -- so the loop
+reports `SolveStatus.SATISFIABLE` rather than `OPTIMAL` in that case. A solve cut off before its
+first model yields `UNKNOWN`, which is not a refutation of anything.
 """
 
 import logging
@@ -26,7 +34,7 @@ import time
 from typing import Any, Mapping, MutableMapping, Optional, Sequence
 
 from .action_signatures import ActionSignature, LazyPairs
-from .solver import Solver
+from .solver import Solver, SolveStatus
 
 log = logging.getLogger("genfond.lazy_pairs")
 
@@ -42,24 +50,49 @@ def solve_with_lazy_pairs(
     signatures: Sequence[ActionSignature],
     batch_size: int = DEFAULT_BATCH,
     stats: Optional[MutableMapping[str, Any]] = None,
-) -> bool:
-    """Solve to optimality, adding violated separation pairs until the model satisfies them all.
+) -> SolveStatus:
+    """Solve, adding violated separation pairs until the model satisfies them all.
 
-    Returns whether the (full) problem is satisfiable; on success `solver.solution` holds the
-    final, genuinely optimal model, so policy extraction runs on it unchanged.
+    Returns the status of the round. `OPTIMAL` means `solver.solution` holds a genuinely
+    optimal model of the full problem, `SATISFIABLE` that it holds a feasible one whose cost
+    was never proved optimal (only possible under a `solve_time_limit`), `UNSATISFIABLE` that
+    the full problem has no model at all, and `UNKNOWN` that the budget ran out before any
+    model was found -- which refutes nothing.
+
+    With a time limit an intermediate solve may be cut off. Two cases:
+
+    * It has a model. The model is a model of the current relaxation, so the counterexample
+      scan applies to it unchanged and the loop proceeds exactly as before; it is simply a
+      weaker (more expensive) point to cut from. Because the loop only stops once a model
+      violates *no* pair, whatever it returns is feasible for the full problem -- i.e. a valid
+      policy -- regardless of how many solves were cut off on the way. What is lost is
+      optimality: a relaxed optimum that is feasible is a full optimum, but a merely feasible
+      relaxed model says nothing about the full optimum, so the final status is `OPTIMAL` only
+      when the *last* solve proved its own cost optimal.
+    * It has no model. Then nothing is known: it is not a refutation, since the relaxation may
+      well be satisfiable and the solver just did not get there. The loop reports `UNKNOWN`.
     """
     pairs = LazyPairs(signatures)
     total_pairs = pairs.index.num_pairs()
     for iteration in range(1, len(signatures) ** 2 + 2):
         start = time.perf_counter()
-        satisfiable = solver.solve()
+        solver.solve()
         elapsed = time.perf_counter() - start
-        if not satisfiable:
+        if solver.status == SolveStatus.UNSATISFIABLE:
             # Every model of the full problem is a model of the relaxation, so an unsatisfiable
             # relaxation settles the full problem too.
             log.info(f"Lazy pairs: iteration {iteration} unsatisfiable after {pairs.num_pairs_emitted} pair(s)")
-            _record(stats, iteration, pairs, total_pairs)
-            return False
+            _record(stats, iteration, pairs, total_pairs, optimal=True)
+            return SolveStatus.UNSATISFIABLE
+        if solver.status == SolveStatus.UNKNOWN:
+            # Cut off before the first model of the relaxation: no refutation, no labelling to
+            # scan, nothing to add. The round is inconclusive.
+            log.info(
+                f"Lazy pairs: iteration {iteration} ran out of its time budget before any model,"
+                f" after {pairs.num_pairs_emitted} pair(s); round is inconclusive"
+            )
+            _record(stats, iteration, pairs, total_pairs, optimal=False)
+            return SolveStatus.UNKNOWN
         solution = solver.solution
         violated, batch = pairs.violated_pairs(
             _selected(solution, "f_selected"),
@@ -74,19 +107,31 @@ def solve_with_lazy_pairs(
             f"Lazy pairs: iteration {iteration}, cost {solver.cost}, {violated} violated pair(s) of"
             f" {total_pairs}, adding {len(batch)}, {pairs.num_pairs_emitted} pair(s) and"
             f" {pairs.num_dist_facts} dist fact(s) grounded, solved in {elapsed:.2f}s"
+            f'{"" if solver.optimal else " (not proven optimal)"}'
         )
         if not violated:
-            _record(stats, iteration, pairs, total_pairs)
-            return True
+            log.info(
+                f"Lazy pairs: done after {iteration} iteration(s), cost {solver.cost},"
+                f' {"proven optimal" if solver.optimal else "NOT proven optimal (time budget)"}'
+            )
+            _record(stats, iteration, pairs, total_pairs, optimal=solver.optimal)
+            return SolveStatus.OPTIMAL if solver.optimal else SolveStatus.SATISFIABLE
         assert batch, "a violated pair must be addable, otherwise the loop cannot make progress"
         solver.add_pairs(iteration, facts)
     raise RuntimeError("Lazy pair loop did not terminate")
 
 
-def _record(stats: Optional[MutableMapping[str, Any]], iterations: int, pairs: LazyPairs, total_pairs: int) -> None:
+def _record(
+    stats: Optional[MutableMapping[str, Any]],
+    iterations: int,
+    pairs: LazyPairs,
+    total_pairs: int,
+    optimal: bool,
+) -> None:
     if stats is None:
         return
     stats["lazyPairIterations"] = iterations
+    stats["lazyPairsOptimal"] = optimal
     stats["lazyPairsGrounded"] = pairs.num_pairs_emitted
     stats["lazyPairsTotal"] = total_pairs
     stats["lazyDistFacts"] = pairs.num_dist_facts
