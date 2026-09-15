@@ -470,3 +470,7 @@ Fewer example plans per problem (`restarts: 1`) is the largest single gain so fa
 33–34 for the 300 s-budget arms at 12 h, and the training set reaches 10-block instances with only 11
 problems. Smaller plan sets mean smaller state spaces and fewer pairs per round. Submitted the full
 configuration with `restarts: 1` as full2-r1-mod (4148282, 4 h) and full2-r1-cpu (4148283, 12 h).
+
+Follow-up arms on the plan-count finding (full configuration, `rleap_cpu_modern`, 4 h, graceful wall budget):
+m2-plans1-r1 (4148300: `min_number_of_plans: 1`, restarts 1), m2-plans2-r1 (4148301), m2-r1-nobranch
+(4148302: restarts 1 and `branch: false`, i.e. a single deterministic plan per problem).
