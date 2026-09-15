@@ -97,6 +97,24 @@ def main():
     )
     config_args.add_argument("--max-memory", type=int, help="maximum memory to use in MB")
     config_args.add_argument(
+        "--clingo-opt-strategy",
+        help='clingo optimisation strategy, e.g. "bb" (default, branch and bound) or "usc" (core-guided)',
+    )
+    config_args.add_argument(
+        "--clingo-option",
+        dest="clingo_options",
+        action="append",
+        # Must default to None, not [], so that ConfigHandler leaves the config value alone.
+        default=None,
+        metavar="OPT",
+        help="extra raw clingo option for the Control; repeatable",
+    )
+    config_args.add_argument(
+        "--solve-time-limit",
+        type=float,
+        help="wall-clock budget in seconds for a single clingo solve; keeps the best model found so far",
+    )
+    config_args.add_argument(
         "--lazy-pairs",
         action=argparse.BooleanOptionalAction,
         # Must default to None, not False: ConfigHandler skips None overrides.

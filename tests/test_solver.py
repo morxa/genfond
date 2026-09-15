@@ -1,6 +1,8 @@
+import pytest
+
 from genfond.generate_policy import generate_policy
 from genfond.rule_policy import Cond, Effect, PolicyRule
-from genfond.solver import Solver
+from genfond.solver import Solver, SolveStatus
 
 
 def test_solver_choose_good_trans():
@@ -305,3 +307,123 @@ def test_solver_policy_nontriv_equiv(program_with_nontriv_equiv):
         PolicyRule({"b_g": Cond.FALSE}, [[]]),
         PolicyRule({"b_g": Cond.FALSE}, [[], [("b_g", Effect.SET)]]),
     }
+
+
+# A knapsack with 40 random six-digit weights: clingo's branch and bound finds a first model in
+# well under a millisecond and is still nowhere near proving optimality minutes later. That gap
+# is what the anytime path exists for, and what makes the assertions below stable. The instance
+# is grounded alongside solve.lp, whose own #minimize has no ground instances here (there are no
+# features and no states), so the cost vector is this program's alone.
+HARD_OPTIMISATION_PROGRAM = (
+    "".join(
+        f"item({i},{w}).\n"
+        for i, w in enumerate(
+            [
+                684327,
+                296913,
+                771294,
+                549023,
+                913884,
+                168752,
+                430961,
+                802517,
+                255480,
+                619073,
+                384216,
+                947850,
+                172639,
+                508427,
+                736195,
+                291048,
+                865312,
+                403785,
+                129564,
+                690238,
+                574901,
+                318476,
+                852063,
+                227194,
+                961370,
+                445829,
+                703512,
+                186047,
+                639285,
+                520718,
+                874603,
+                351962,
+                718340,
+                263815,
+                596274,
+                908451,
+                147903,
+                482756,
+                665128,
+                239581,
+            ]
+        )
+    )
+    + """
+{ sel(I) : item(I,_) }.
+:- #sum { W,I : sel(I), item(I,W) } < 10000000.
+#minimize { W@0,I : sel(I), item(I,W) }.
+"""
+)
+
+
+def test_a_solve_without_a_time_limit_is_reported_as_optimal():
+    solver = Solver("feature(f). feature_complexity(f, 1). state(0, 0). alive(0, 0). goal(0, 0).")
+    assert solver.solve()
+    assert solver.status == SolveStatus.OPTIMAL
+    assert solver.optimal is True
+    assert solver.timed_out is False
+
+
+def test_a_short_time_limit_keeps_the_best_model_and_marks_it_not_optimal():
+    solver = Solver(HARD_OPTIMISATION_PROGRAM, num_threads=1, time_limit=0.5)
+    assert solver.solve(), "the budget must be long enough for clingo to report some model"
+    assert solver.timed_out is True
+    assert solver.status == SolveStatus.SATISFIABLE
+    assert solver.optimal is False
+    # The model is kept, not discarded: it is a real model of the program, just not the cheapest.
+    assert solver.solution
+    assert solver.cost and solver.cost[-1] >= 10000000
+
+
+def test_a_generous_time_limit_still_proves_optimality():
+    solver = Solver("feature(f). feature_complexity(f, 1). state(0, 0). alive(0, 0). goal(0, 0).", time_limit=600)
+    assert solver.solve()
+    assert solver.timed_out is False
+    assert solver.status == SolveStatus.OPTIMAL
+    assert solver.optimal is True
+
+
+def test_a_time_limit_does_not_turn_unsatisfiability_into_unknown():
+    # ":- goal(0,0)." with the goal asserted is refuted immediately; a budget must not blur that.
+    solver = Solver("state(0, 0). alive(0, 0). goal(0, 0). :- goal(0, 0).", time_limit=600)
+    assert not solver.solve()
+    assert solver.status == SolveStatus.UNSATISFIABLE
+    assert solver.optimal is True
+
+
+def test_a_time_limit_too_short_for_any_model_is_unknown_not_unsatisfiable():
+    solver = Solver(HARD_OPTIMISATION_PROGRAM, num_threads=1, time_limit=0.0)
+    assert not solver.solve()
+    assert solver.timed_out is True
+    # The crucial distinction: nothing was refuted, so callers must not record a refutation.
+    assert solver.status == SolveStatus.UNKNOWN
+    assert solver.optimal is False
+
+
+def test_the_opt_strategy_reaches_the_clingo_control():
+    default = Solver("state(0, 0).")
+    assert str(default.control.configuration.solver[0].opt_strategy).startswith("bb")
+    usc = Solver("state(0, 0).", opt_strategy="usc")
+    assert str(usc.control.configuration.solver[0].opt_strategy).startswith("usc")
+
+
+def test_extra_clingo_options_reach_the_clingo_control():
+    # Passed through verbatim at construction, which is the only place clingo accepts them.
+    solver = Solver("state(0, 0).", clingo_options=["--opt-strategy=usc,oll"])
+    assert str(solver.control.configuration.solver[0].opt_strategy).startswith("usc")
+    with pytest.raises(RuntimeError):
+        Solver("state(0, 0).", clingo_options=["--no-such-clingo-option"])

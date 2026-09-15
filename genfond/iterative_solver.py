@@ -22,7 +22,7 @@ from .lazy_pairs import DEFAULT_BATCH, solve_with_lazy_pairs
 from .policy import PolicyType
 from .problem_iterator import MAX_COST, OneShotProblemIterator, ProblemIterator, Result
 from .rule_policy import Policy
-from .solver import Solver
+from .solver import Solver, SolveStatus
 from .state_space_generator import State, check_formula
 
 log = logging.getLogger("genfond.iterative_solver")
@@ -113,8 +113,17 @@ def solve(
     plans: Optional[MutableMapping[str, Collection[Plan]]] = None,
     dead_states: Optional[Mapping[str, set[State]]] = None,
     allow_frontier: bool = True,
-) -> Optional[tuple[DatalogPolicy | Policy, dict[str, Any], list[FrontierState]]]:
-    stats: dict[str, Any] = dict()
+    stats: Optional[MutableMapping[str, Any]] = None,
+) -> Optional[tuple[DatalogPolicy | Policy, MutableMapping[str, Any], list[FrontierState]]]:
+    # The caller may hand in the run-level stats dict so that the keys describing *why* a round
+    # produced no policy (solveStatus, solveOptimal) survive a `return None`; the returned
+    # mapping is then that same object and `stats.update(...)` on it is a no-op.
+    if stats is None:
+        stats = dict()
+    # Defaults for the paths that return before a solve happens at all. `None` is deliberately
+    # not a SolveStatus name: those paths keep the pre-existing NO_SOLUTION handling.
+    stats["solveStatus"] = None
+    stats["solveOptimal"] = True
     log.debug("Generating feature pool ...")
     feature_pool = FeaturePool(
         domain,
@@ -167,27 +176,40 @@ def solve(
         max_prune_cost=max_prune_cost(config, max_cost, allow_frontier),
         min_feature_complexity=complexity if enforce_highest_complexity else None,
         solve_prog=config["solve_prog"],
+        opt_strategy=config["clingo_opt_strategy"],
+        clingo_options=config["clingo_options"],
+        time_limit=config["solve_time_limit"],
     )
     if config.get("lazy_pairs", False) and config.get("emit_action_signatures", False):
         # The instance carries no separation pairs; they are added batch by batch in response to
         # the models that violate them. The loop wraps the solve of this one round only, so
         # max_cost, the min_feature_complexity program and the frontier machinery are untouched.
-        satisfiable = solve_with_lazy_pairs(
+        status = solve_with_lazy_pairs(
             solver, feature_pool.signatures, config.get("lazy_pairs_batch") or DEFAULT_BATCH, stats
         )
     else:
-        satisfiable = solver.solve()
-    if not satisfiable:
-        log.info("No solution found")
+        solver.solve()
+        status = solver.status
+    stats["solveStatus"] = status.name
+    # Whether the round *proved* its answer. A model whose cost was never proved optimal must
+    # not be used to refute a complexity level; the iterator is told via
+    # set_last_result(..., optimal=...).
+    stats["solveOptimal"] = status in (SolveStatus.OPTIMAL, SolveStatus.UNSATISFIABLE)
+    if not stats["solveOptimal"]:
+        stats["nonOptimalRounds"] = stats.get("nonOptimalRounds", 0) + 1
+    if status in (SolveStatus.UNSATISFIABLE, SolveStatus.UNKNOWN):
+        log.info("No solution found" if status == SolveStatus.UNSATISFIABLE else "Solve was inconclusive (timed out)")
         return None
     solution = solver.solution
     if "viol" in solution:
         log.warning(f"Found violations: {solution['viol']}")
-    stats |= {
-        "clingoAtoms": solver.statistics["problem"]["lp"]["atoms"],
-        "clingoRules": solver.statistics["problem"]["lp"]["rules"],
-        "clingoCpuTime": solver.statistics["summary"]["times"]["cpu"],
-    }
+    stats.update(
+        {
+            "clingoAtoms": solver.statistics["problem"]["lp"]["atoms"],
+            "clingoRules": solver.statistics["problem"]["lp"]["rules"],
+            "clingoCpuTime": solver.statistics["summary"]["times"]["cpu"],
+        }
+    )
     log.debug(f"Solution: {solution}")
     log.debug(f'f_selected: {solution.get("f_selected", [])}')
     log.debug(f'f_distinguished: {solution.get("f_distinguished", [])}')
@@ -257,7 +279,11 @@ def solve_iteratively(
             problem_iterator.record_frontier_expansion(new_plans, dead_states)
             problem_iterator.set_last_result(result)
             continue
-        problem_iterator.set_last_result(result, cost=new_policy.cost if new_policy else None)
+        problem_iterator.set_last_result(
+            result,
+            cost=new_policy.cost if new_policy else None,
+            optimal=bool(stats.get("solveOptimal", True)),
+        )
         if result != Result.SUCCESS:
             continue
         policy = new_policy
@@ -381,6 +407,7 @@ def solve_step(
             plans=example_plans,
             dead_states=dead_states,
             allow_frontier=allow_frontier,
+            stats=stats,
         )
     except (RuntimeError, MemoryError) as e:
         log.warning(
@@ -441,5 +468,15 @@ def solve_step(
         stats["maxFeatureComplexity"] = complexity
         stats["bestSolveWallTime"] = stats["lastSolveWallTime"]
         stats["bestSolveCpuTime"] = stats["lastSolveCpuTime"]
+        stats["bestSolveOptimal"] = stats.get("solveOptimal", True)
         return Result.SUCCESS, policy, []
+    if stats.get("solveStatus") == SolveStatus.UNKNOWN.name:
+        # The solve ran out of its wall-clock budget without a model. That is not a refutation:
+        # reporting NO_SOLUTION would let the iterator record the complexity level as refuted
+        # and enable min_feature_complexity for every later round on this state space.
+        log.info(
+            f"Solve for {pnames(active_problems)} with max complexity {complexity} hit its time"
+            " budget without a model; the round refutes nothing"
+        )
+        return Result.TIMEOUT, None, []
     return Result.NO_SOLUTION, None, []

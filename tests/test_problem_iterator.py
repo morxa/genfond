@@ -338,3 +338,36 @@ def test_without_the_switch_success_climbs_complexity_on_the_same_problems():
     assert second["active_problems"] == first["active_problems"]
     assert second["complexity"] == first["complexity"] + 1
     assert iterator.last_step == LastStep.INC_COMPLEXITY
+
+
+def test_a_success_that_was_not_proven_optimal_refutes_nothing():
+    # Under a solve_time_limit a success can be a model that merely satisfies every constraint.
+    # Its cost is an upper bound, so it is still worth beating (max_cost tightens), but nothing
+    # rules out a cheaper policy at this very complexity -- so the level must not be refuted and
+    # min_feature_complexity must stay off.
+    iterator, first = iterator_with_plans(frontier_config())
+    iterator.set_last_result(Result.SUCCESS, cost=(9,), optimal=False)
+    assert iterator.max_cost == 8
+    assert iterator.refuted_complexity < first["complexity"]
+    iterator.set_solved(iterator.problems[0])
+    second = next(iterator)
+    assert second["complexity"] == first["complexity"] + 1
+    assert second["enforce_highest_complexity"] is False
+
+
+def test_a_timeout_refutes_nothing_but_still_escalates():
+    # A solve that ran out of its budget without a model says nothing about the complexity
+    # level; treating it like NO_SOLUTION would wrongly enable min_feature_complexity later.
+    iterator, first = iterator_with_plans(frontier_config(use_unrestricted_features=False))
+    iterator.set_last_result(Result.TIMEOUT)
+    assert iterator.refuted_complexity < first["complexity"]
+    second = next(iterator)
+    assert second["enforce_highest_complexity"] is False
+
+    # Escalation is otherwise identical to NO_SOLUTION; only the refutation differs.
+    refuting, _ = iterator_with_plans(frontier_config(use_unrestricted_features=False))
+    refuting.set_last_result(Result.NO_SOLUTION)
+    after_no_solution = next(refuting)
+    assert iterator.last_step == refuting.last_step
+    assert second["complexity"] == after_no_solution["complexity"]
+    assert after_no_solution["enforce_highest_complexity"] is True

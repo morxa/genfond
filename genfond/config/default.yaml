@@ -56,6 +56,26 @@ planners:
     max_nodes: null
 num_threads: null
 max_memory: null
+# How clingo optimises the #minimize over selected feature/concept/role complexity.
+# "bb" is clingo's own default: branch and bound, i.e. find a model, add the constraint that
+# the next one must be cheaper, repeat. It produces a stream of improving models, so it is the
+# strategy that gives an anytime solve something to keep, but on the hitting-set constraints of
+# the signature encoding it can spend hours proving that its last model is optimal.
+# "usc" is core-guided (unsatisfiable-core) optimisation: it raises a lower bound by extracting
+# cores instead of lowering an upper bound, and returns a model only once the two meet. That
+# often settles instances bb cannot close, but under a time budget it is all-or-nothing --
+# cancelled early it usually has no model at all. Qualified forms ("usc,oll", "bb,dec", ...)
+# are passed through verbatim.
+clingo_opt_strategy: bb
+# Extra raw clingo command-line options for the Control, e.g. ["--opt-usc-shrink=min",
+# "--heuristic=Domain"]. Experimental knob; nothing in the code inspects them.
+clingo_options: []
+# Wall-clock budget in seconds for a *single* clingo solve (one lazy-pair iteration counts as
+# one solve). null leaves the solve unbounded, which is the previous behaviour exactly. With a
+# budget the solve becomes anytime: it is cancelled when the budget is up and the best model
+# seen so far is kept. Such a model is still a valid policy -- it satisfies every constraint --
+# but its cost is only an upper bound, so the round no longer refutes its complexity level.
+solve_time_limit: null
 dump_failed_policies: false
 dump_clingo_program: null
 keep_going: false
