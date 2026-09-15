@@ -210,6 +210,8 @@ c2-unselect (`unselect_problems: true`), c2-frontier2 (`max_frontier_states_per_
 | 4133412 | c2-frontier2 (c2-combo + `max_frontier_states_per_round: 2`) | 29/95 (last policy) | 12 h TIMEOUT | – | 20 problems (≤7 blocks) | 11 h in one complexity-4 round: first model after 19 min, optimality never proven (eager pairs, bb) |
 | 4133419 | c3-combo (H2+H3+H5 lazy pairs+memory fix) | 29/95 (last policy) | 12 h TIMEOUT | – | 22 problems (≤7 blocks) | lazy iterations 3 and 4 took 2291 s and 6225 s (cost 26 → 28), iteration 5 never returned |
 | 4133421 | c3-r2c1 (c3-combo + role offset 2, concept offset 1) | **33/95** (last policy) | 12 h TIMEOUT | – | 27 problems incl. 8-block (08-1, 08-3, 08-4, 08-5) | 11 h in lazy iteration 2 of a round |
+| 4133890 | c3-grammar (H7 grammar restriction) | 28/95 (last policy) | 12 h TIMEOUT | – | 21 problems (≤7 blocks) | still progressing at the end (lazy iteration 2 in 241 s); no gain over c3-combo |
+| 4133891 | c3-grammar-r2c1 (H7 + role caps) | 33/95 (last policy) | 12 h TIMEOUT | – | 26 problems incl. 8-block | 11 h in one lazy iteration; same coverage as c3-r2c1 |
 
 The eager distinguishing-set instance for 19 problems at complexity 4 exhausts 128 GB. This is the case the
 lazy pairs arm (c3-combo, job 4133419) targets.
