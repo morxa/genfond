@@ -330,3 +330,9 @@ concepts the cost-minimal selection still yields a training-fitted rule set, whe
 a 13-rule policy (cost 6, 5/12). Next: an Occam bias on the number of good signatures (H12, `hyp/min-rules`).
 Gotcha found: `scripts/eval_policy.py` run as a script imports the editable-installed genfond from the main
 checkout unless `PYTHONPATH=.` is set.
+
+**Is the add-problem switch now detrimental?** (Till's hypothesis: the post-success climb was the cost
+minimisation across complexity levels, and cheaper policies generalised better.) A/B on `hyp/goal-suffix`,
+workstation, blocks3ops-local, 4 threads: climb on → 10/10, 26 rules, 18 rounds, 19 s, held-out 0/12;
+switch on → 10/10, 26 rules, 14 rounds, 14 s, held-out 0/12. No difference at this scale. Full-95 arms
+gs-climb (4139572) and gs-noclimb (4139573) test it at scale.
