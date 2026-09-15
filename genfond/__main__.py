@@ -71,6 +71,12 @@ def main():
     )
     config_args.add_argument("--max-complexity", type=int, help="stop policy search with this max complexity")
     config_args.add_argument(
+        "--min-train-objects",
+        type=int,
+        help="never add a problem with fewer objects than this to the training set (it is still "
+        "required to be solved); unset never excludes a problem",
+    )
+    config_args.add_argument(
         "--concept-complexity-offset",
         type=int,
         help="cap concept complexity at max(1, complexity - offset) instead of the full per-round complexity",

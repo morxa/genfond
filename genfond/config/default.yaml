@@ -1,5 +1,16 @@
 min_complexity: 2
 max_complexity: 15
+# Problems with fewer objects than this are never added to the training set (`active_problems`):
+# they are skipped by the add-problem logic (`ProblemIterator._next_addable_problem`) but are
+# still evaluated on every success, same as any other problem, and the final verification pass
+# in iterative_solver.solve_iteratively still requires the policy to solve them. Motivation:
+# small instances admit many cheap policies that overfit their signature and do not generalize,
+# so keeping them out of training (while still requiring the policy to solve them) favors
+# policies discovered on -- and shaped by -- larger, more representative instances. null (the
+# default) never excludes a problem, reproducing the previous behaviour exactly. If no problem
+# in the run meets the threshold, it is ignored with a warning instead of stalling the run before
+# a single problem is ever added.
+min_train_objects: null
 # Roles cost n*m^2 grounded values per state and concepts n*m, against n for plain features, so
 # at high complexity roles dominate the ground program size (see docs/role-caps-results.md).
 # These subtract from the per-round max_complexity to cap the concept/role complexity limits

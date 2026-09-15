@@ -17,6 +17,7 @@ from genfond.problem_iterator import (
 class DummyProblem:
     name: str
     init: frozenset[str]
+    objects: tuple = ()
 
 
 def test_one_shot_problem_iterator_returns_single_max_complexity_item():
@@ -353,6 +354,74 @@ def test_a_success_that_was_not_proven_optimal_refutes_nothing():
     second = next(iterator)
     assert second["complexity"] == first["complexity"] + 1
     assert second["enforce_highest_complexity"] is False
+
+
+def test_min_train_objects_starts_the_training_set_above_the_threshold():
+    # p1 is smaller than the threshold, so the training set must skip straight to p2 even
+    # though p1 is the first candidate in object-count order.
+    a, b = constants("a b")
+    problems = [
+        DummyProblem("p1", frozenset({Predicate("at", a)}), objects=(a,)),
+        DummyProblem("p2", frozenset({Predicate("at", b)}), objects=(a, b)),
+    ]
+    config = frontier_config(min_train_objects=2)
+    iterator = iter(ProblemIterator(problems, config))
+    first = next(iterator)
+    assert first["active_problems"] == [problems[1]]
+    # p1 stays a live obligation: a success is still checked against it, and the run keeps
+    # going until it (or a policy that happens to solve it) is accounted for.
+    assert iterator.solved["p1"] is False
+    assert iterator._next_addable_problem() is None  # nothing else clears the threshold
+
+
+def test_min_train_objects_never_adds_a_below_threshold_problem_later_either():
+    # add_problem_after_success drives the same _next_addable_problem/_add_next_problem path;
+    # a below-threshold problem must stay excluded there too.
+    a, b, c = constants("a b c")
+    problems = [
+        DummyProblem("p1", frozenset({Predicate("at", a)}), objects=(a,)),
+        DummyProblem("p2", frozenset({Predicate("at", b)}), objects=(a, b)),
+        DummyProblem("p3", frozenset({Predicate("at", c)}), objects=(a, b, c)),
+    ]
+    config = frontier_config(min_train_objects=2, add_problem_after_success=True)
+    iterator = iter(ProblemIterator(problems, config))
+    first = next(iterator)
+    assert first["active_problems"] == [problems[1]]
+
+    iterator.set_last_result(Result.SUCCESS, cost=(9,))
+    iterator.set_solved(problems[1])
+    second = next(iterator)
+    assert second["active_problems"] == [problems[1], problems[2]]
+    assert problems[0] not in second["active_problems"]
+
+
+def test_min_train_objects_falls_back_when_no_problem_meets_it():
+    # A threshold above every problem's object count would otherwise leave
+    # _next_addable_problem returning None forever, so __next__ would raise StopIteration
+    # before a single problem is ever added. Falling back to the old behaviour instead.
+    a, b = constants("a b")
+    problems = [
+        DummyProblem("p1", frozenset({Predicate("at", a)}), objects=(a,)),
+        DummyProblem("p2", frozenset({Predicate("at", b)}), objects=(a, b)),
+    ]
+    config = frontier_config(min_train_objects=10)
+    iterator = iter(ProblemIterator(problems, config))
+    assert iterator.min_train_objects is None
+    first = next(iterator)
+    assert first["active_problems"] == [problems[0]]
+
+
+def test_min_train_objects_null_is_byte_identical_to_unset():
+    a, b = constants("a b")
+    problems = [
+        DummyProblem("p1", frozenset({Predicate("at", a)}), objects=(a,)),
+        DummyProblem("p2", frozenset({Predicate("at", b)}), objects=(a, b)),
+    ]
+    config = frontier_config(min_train_objects=None)
+    iterator = iter(ProblemIterator(problems, config))
+    assert iterator.min_train_objects is None
+    first = next(iterator)
+    assert first["active_problems"] == [problems[0]]
 
 
 def test_a_timeout_refutes_nothing_but_still_escalates():

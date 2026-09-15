@@ -110,7 +110,33 @@ class ProblemIterator:
         # restarts the sweep; without it the guard is vacuous.
         self.sweep_target = self.complexity
         self.solved = {problem.name: False for problem in self.problems}
+        self.min_train_objects = self._resolve_min_train_objects()
         return self
+
+    def _resolve_min_train_objects(self) -> Optional[int]:
+        """The effective `min_train_objects` threshold, or None if it is off or unusable.
+
+        null (the default) disables the feature entirely: every problem stays addable, exactly
+        as before this was added. If it is set but no problem in this run meets it, honouring it
+        would leave `_next_addable_problem` returning None forever -- `__next__` would raise
+        `StopIteration` on its very first call, before a single problem was ever added. That is
+        strictly worse than ignoring the setting, so fall back to the old behaviour and warn.
+        """
+        threshold = self.config.get("min_train_objects")
+        if threshold is None:
+            return None
+        if not any(len(problem.objects) >= threshold for problem in self.problems):
+            log.warning(
+                "min_train_objects=%d excludes every given problem (largest has %d objects); ignoring it",
+                threshold,
+                max((len(problem.objects) for problem in self.problems), default=0),
+            )
+            return None
+        log.info(
+            "min_train_objects=%d: problems with fewer objects are never added to the training set",
+            threshold,
+        )
+        return threshold
 
     def enforce_highest_complexity(self) -> bool:
         """Whether the solver may require a selected feature of at least `complexity`.
@@ -279,12 +305,21 @@ class ProblemIterator:
         return [problem for problem in self.problems if not self.solved[problem.name]]
 
     def _next_addable_problem(self) -> Optional[Problem]:
-        """The next unsolved problem that is not already in the training set, if any."""
+        """The next unsolved problem that is not already in the training set, if any.
+
+        With `min_train_objects` set, a problem below the threshold is skipped here -- it never
+        enters the training set -- but stays in `self.solved` like any other problem: a success
+        is still tested against it (`iterative_solver.solve_iteratively` tests every problem,
+        not just the active ones) and the run does not stop while it remains unsolved and some
+        other problem is still addable.
+        """
         return next(
             (
                 problem
                 for problem in self.problems
-                if not self.solved[problem.name] and problem not in self.active_problems
+                if not self.solved[problem.name]
+                and problem not in self.active_problems
+                and (self.min_train_objects is None or len(problem.objects) >= self.min_train_objects)
             ),
             None,
         )
@@ -305,6 +340,13 @@ class ProblemIterator:
         self.last_step = LastStep.START
         next_problem = self._next_addable_problem()
         assert next_problem is not None
+        if not self.active_problems and self.min_train_objects is not None:
+            log.info(
+                "min_train_objects=%d: starting the training set at %s (%d objects)",
+                self.min_train_objects,
+                next_problem.name,
+                len(next_problem.objects),
+            )
         if (
             self.config["unselect_problems"]
             and self.active_problems
