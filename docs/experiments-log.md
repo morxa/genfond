@@ -419,3 +419,13 @@ full-95 cluster arms.
 The pass also runs when the loop ends without solving everything (exhausted iterator), verified by tests
 (a8df8dc). Cluster arms with the full configuration (add-problem, budget 300 s, role caps, final pass):
 fc-cpu (4144318, `rleap_cpu`, 12 h) and fc-mod (4144319, `rleap_cpu_modern`, 4 h).
+
+## H15: data-driven grammar (Till's suggestion)
+
+Constructor usage over the selected elements of the final rules of 115 blocks3ops run logs (26 202 rules,
+occurrence counts): c_primitive 370 k, r_primitive 311 k, c_not 184 k, c_some 137 k, c_all 120 k, b_empty 53 k,
+c_and 26 k, c_equal 21 k, r_inverse 13 k; rare: r_not 5 k, r_transitive_closure 4 k, r_til_c 1.6 k,
+r_identity 121; never: c_or, c_diff, c_one_of, c_projection, c_subset, r_and, r_restrict, r_compose,
+nullary/inclusion booleans. Caveat: circular (usage reflects what was offered and what cost minimisation picks).
+Mined grammar = default minus one_of/bot/top concepts, identity/restrict/and/til_c roles, nullary/inclusion
+booleans. Arms on `rleap_cpu_modern`, 4 h: m-mined (`hyp/min-count` config) and m-mined-fc (+ final pass).
