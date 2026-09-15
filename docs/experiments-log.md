@@ -515,3 +515,8 @@ full2-mod (4144791, modern, 4 h, full configuration incl. forced labels): queued
 last policy **33/95**; killed by SLURM rather than stopping gracefully — the final pass started within the
 budget but its climb rounds (118 s, 392 s solves) ran past the 300 s reserve, so no stats row or policy was
 written. Fix in progress (`hyp/final-pass-deadline`: the pass gets its own budget and respects the deadline).
+
+m2 results (modern, 4 h, full configuration + restarts 1, graceful stop worked, stats written):
+m2-plans1-r1 (`min_number_of_plans: 1`) **35/95**, 27 training problems ≤9 blocks, final pass 41 → 41;
+m2-r1-nobranch (`branch: false`) **36/95**, 28 problems ≤9 blocks, pass 39 → 39. Both below the plain
+siw-r1 arm (43) on the earlier branch; the m6 seed arms will show how much of that is variance.
