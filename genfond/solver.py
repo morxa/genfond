@@ -62,6 +62,7 @@ class Solver:
         minimize_good_signatures: str = "none",
         minimize_selected_count: str = "none",
         wall_deadline: Optional[float] = None,
+        plan_label_heuristic: bool = False,
     ):
         self.asp_code = asp_code
         self.minimize_good_signatures = minimize_good_signatures
@@ -75,6 +76,11 @@ class Solver:
         # wall budget shrinks between those calls even though `wall_deadline` itself does not).
         self.wall_deadline = wall_deadline
         options = list(clingo_options or [])
+        if plan_label_heuristic:
+            # #heuristic directives are inert unless clingo's domain heuristic is switched on.
+            # A decision heuristic biases the search only; the set of models and the optimum are
+            # unchanged, so this is safe to add whenever the part is grounded.
+            options.append("--heuristic=Domain")
         if self.opt_strategy != "bb":
             # "bb" is clingo's own default, so leaving the option off reproduces the previous
             # command line exactly; anything else is passed through verbatim (clingo accepts
@@ -102,6 +108,8 @@ class Solver:
             parts.append(("minimize_selected_count_above", []))
         elif minimize_selected_count != "none":
             raise ValueError(f"Unknown minimize_selected_count: {minimize_selected_count!r}")
+        if plan_label_heuristic:
+            parts.append(("plan_heuristic", []))
         self.control.ground(parts)
         assert isinstance(self.control.configuration.solve, clingo.Configuration)
         self.control.configuration.solve.parallel_mode = num_threads or os.cpu_count()

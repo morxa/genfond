@@ -31,6 +31,13 @@
 % With lazy_pairs the same relation arrives one batch at a time, tagged with the batch index.
 #defined sig_pair/4.
 #defined dist/3.
+% Labels the graph layer fixes before search (fix_forced_labels; see forced_labels.py) and the
+% on-plan actions of the optional decision heuristic (plan_label_heuristic). Both families are
+% empty unless the config asks for them, and an empty #defined predicate is simplified away by
+% the grounder, so the default ground program is the one this file produced before.
+#defined forced_good/3.
+#defined forced_bad/3.
+#defined plan_action/3.
 
 { c_selected(C) } :- concept(C).
 c_selected(name).
@@ -39,9 +46,20 @@ c_selected(name).
 
 { r_selected(R) } :- role(R).
 
-1 { good_trans(I, S, A, S2) : trans(I, S, A, S2) } :- alive(I, S), not goal(I, S).
+% forced_bad(I,S,A) holds exactly for the actions that are bad in *every* model, so leaving them
+% out of the choice removes choice points, not models. Most of them are already excluded by the
+% constraint on the next line; the rest come from the cross-state propagation through the
+% signature classes (see forced_labels.py), which the grounder cannot see.
+1 { good_trans(I, S, A, S2) : trans(I, S, A, S2), not forced_bad(I, S, A) } :- alive(I, S), not goal(I, S).
 :- good_trans(I, S, A, _), trans(I, S, A, S2), not alive(I, S2), not pruned(I, S2).
 good_action(I, S, A) :- good_trans(I, S, A, _).
+
+% The mirror image: forced_good(I,S,A) holds exactly where good_action does in every model. This
+% is stated as a constraint rather than as a rule deriving good_action, because making
+% good_action true without a supporting good_trans would *add* models -- the good class would no
+% longer oblige the policy to actually take the action, and the obligations that come with taking
+% it (all outcomes safe, safe_state) would be dropped.
+:- forced_good(I, S, A), not good_action(I, S, A).
 
 frontier(I, S) :- good_trans(I, _, _, S), pruned(I, S).
 
@@ -154,3 +172,11 @@ sig_hit(D) :- dist(k, D, c(C)), c_selected(C).
 sig_hit(D) :- dist(k, D, r(R)), r_selected(R).
 :- good_sig(K1), bad_sig(K2), sig_pair(k, K1, K2, D), not sig_hit(D).
 :- good_sig(K2), bad_sig(K1), sig_pair(k, K1, K2, D), not sig_hit(D).
+
+% --------------------------------------------------------------- plan-based decision heuristic
+%
+% plan_label_heuristic: prefer to label a transition that lies on an example plan good. Purely a
+% search-order hint -- #heuristic changes no model and no cost -- and it needs clingo's
+% --heuristic=Domain, which Solver adds along with this part.
+#program plan_heuristic.
+#heuristic good_trans(I, S, A, S2) : trans(I, S, A, S2), plan_action(I, S, A). [1,true]
