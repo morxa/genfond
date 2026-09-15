@@ -393,6 +393,13 @@ def solve_iteratively(
             )
             problem_iterator.set_last_result(Result.NO_SOLUTION)
             stats["failureReason"] = "maxcomplexity"
+    # Normally seeded by solve_step's first round (`stats.get("totalSolveCpuTime", 0) + ...`);
+    # __main__ reads it unconditionally (unlike bestSolve*, which are guarded by `if policy:`).
+    # The wall-budget/stop-request break above can end this loop before solve_step ever runs a
+    # single round, which is the one way that invariant used to hold unconditionally -- every
+    # problem set is non-empty, so the loop's first solve_step call always ran before anything
+    # could stop it.
+    stats.setdefault("totalSolveCpuTime", 0)
     stats.update(
         {
             "trainProblems": len(problem_iterator.active_problems),

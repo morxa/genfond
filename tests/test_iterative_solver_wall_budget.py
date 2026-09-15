@@ -38,6 +38,9 @@ def test_an_already_exhausted_wall_budget_stops_before_the_first_round(monkeypat
     assert policy is None
     assert stats["stoppedBy"] == "wall_time"
     assert stats["wallBudgetUsed"] >= 0.0
+    # __main__ reads stats["totalSolveCpuTime"] unconditionally (see iterative_solver.py); it is
+    # normally seeded by solve_step's first round, which never runs on this path.
+    assert stats["totalSolveCpuTime"] == 0
 
 
 def test_a_generous_wall_budget_does_not_stop_the_first_round(monkeypatch, simple_blocks):
@@ -81,5 +84,6 @@ def test_a_pending_stop_request_stops_before_the_first_round(monkeypatch, simple
         assert calls == []
         assert policy is None
         assert stats["stoppedBy"] == "signal"
+        assert stats["totalSolveCpuTime"] == 0
     finally:
         reset_stop()
