@@ -520,3 +520,7 @@ m2 results (modern, 4 h, full configuration + restarts 1, graceful stop worked, 
 m2-plans1-r1 (`min_number_of_plans: 1`) **35/95**, 27 training problems ≤9 blocks, final pass 41 → 41;
 m2-r1-nobranch (`branch: false`) **36/95**, 28 problems ≤9 blocks, pass 39 → 39. Both below the plain
 siw-r1 arm (43) on the earlier branch; the m6 seed arms will show how much of that is variance.
+
+gs-climb / gs-noclimb (4139572/3, `hyp/goal-suffix`, no solve budget, 12 h): climb 16/95 (15 training
+problems ≤6 blocks, stuck from 16:09), switch 28/95 (22 problems ≤7 blocks, stuck from 19:55). Without a
+budget the climb loses badly at scale; the budgeted pair (gs-climb-tl / gs-noclimb-tl) is the fair test.
