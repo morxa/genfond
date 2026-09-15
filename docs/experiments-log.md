@@ -429,3 +429,19 @@ r_identity 121; never: c_or, c_diff, c_one_of, c_projection, c_subset, r_and, r_
 nullary/inclusion booleans. Caveat: circular (usage reflects what was offered and what cost minimisation picks).
 Mined grammar = default minus one_of/bot/top concepts, identity/restrict/and/til_c roles, nullary/inclusion
 booleans. Arms on `rleap_cpu_modern`, 4 h: m-mined (`hyp/min-count` config) and m-mined-fc (+ final pass).
+
+## H16: forced transition labels (`hyp/fixed-labels`, on `hyp/min-count`)
+
+Before search, a fixpoint derives the labels every model agrees on (an action whose outcome is neither alive
+nor pruned is bad; a bad class is bad at every occurrence; a state whose remaining candidates share one class
+forces it good; a good class is good everywhere) and emits `forced_good/3`, `forced_bad/3`; forced-bad actions
+leave the choice, forced-good become constraints, forced×forced pairs seed the lazy loop. Sound by
+construction (tests refute the opposite of each forced label on the unmodified program). Stall case
+(p005-1+p005-2+p006-1, c=4, 30 min, no budget): 2 lazy iterations / 1.68 M violated pairs left → 6 / 3 179.
+With the 300 s budget both arms are level (8 vs 9 iterations). Largest finishing one-shot: 5:31 → 2:50 at the
+same optimum. Coverage and cost identical everywhere. Forced-*bad* never fires: frontier expansion makes every
+off-plan successor `pruned`, which counts as safe, so only the forced-good rule acts. The optional plan
+heuristic cancels the gain and is left off. Merged into `hyp/combo` (6ac9f3f, 183 tests).
+
+Cluster: fc-wall arms (4144770 modern 4 h, 4144771 cpu 12 h: final pass + graceful wall budget, from the
+combo commit before forced labels) and full2 arms (modern 4 h, cpu 12 h: the same plus `fix_forced_labels`).
