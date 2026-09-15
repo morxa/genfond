@@ -80,6 +80,15 @@ def main():
         help="add the next unsolved problem right after a success instead of first climbing feature complexity",
     )
     config_args.add_argument(
+        "--final-cost-minimization",
+        action=argparse.BooleanOptionalAction,
+        # Must default to None, not False: ConfigHandler skips None overrides, so a False
+        # default would silently overrule the setting from --config on every run.
+        default=None,
+        help="with --add-problem-after-success, run the old complexity climb once more on the "
+        "final training set once the run has nothing left to add, to look for a cheaper policy",
+    )
+    config_args.add_argument(
         "-i",
         "--policy-iterations",
         type=int,

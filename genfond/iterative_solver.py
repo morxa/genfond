@@ -12,6 +12,7 @@ import tqdm
 from pddl.core import Domain, Plan, Problem
 from tqdm.contrib.logging import logging_redirect_tqdm
 
+from .cost_utils import feature_cost
 from .datalog_policy import DatalogPolicy
 from .execute_datalog_policy import CycleError, NoActionError
 from .execute_policy import execute_policy
@@ -257,6 +258,132 @@ def pnames(problems: Collection[Problem]) -> str:
     return ", ".join([p.name for p in problems])
 
 
+def _test_policy_on_problems(
+    domain: Domain, problems: Collection[Problem], policy: Policy | DatalogPolicy, config: Mapping
+) -> list[Problem]:
+    """Execute `policy` on every problem in `problems`, `policy_iterations` times each.
+
+    Unlike the main loop's testing block (which stops at the first problem it cannot solve,
+    since `problems` is sorted smallest-first and a miss there usually means every larger
+    problem misses too), this tests every one of them: `_final_cost_minimization_pass` compares
+    candidate policies by how many problems they solve, so silently undercounting a later
+    problem because an earlier one already failed would bias that comparison.
+    """
+    solved_problems = []
+    for problem in problems:
+        solved = True
+        for _ in range(config["policy_iterations"]):
+            try:
+                execute_policy(domain, problem, policy, config)
+            except (NoActionError, CycleError, RuntimeError):
+                solved = False
+                break
+        if solved:
+            solved_problems.append(problem)
+    return solved_problems
+
+
+def _final_cost_minimization_pass(
+    domain: Domain,
+    problems: list[Problem],
+    problem_iterator: ProblemIterator,
+    config: Mapping,
+    stats: MutableMapping[str, Any],
+    policy: Policy | DatalogPolicy,
+) -> tuple[Policy | DatalogPolicy, list[Problem]]:
+    """Look for a cheaper policy on the final training set, once the main loop has nothing left
+    to add.
+
+    `add_problem_after_success` (see its config comment and docs/no-cost-climb-results.md) skips
+    the complexity climb after every success so the loop grows the training set instead. When a
+    chain of successes solves every problem in a row -- which is exactly when the main loop's
+    `stop_after_first_solution` break fires -- that climb never runs at all, and the final policy
+    ends up priced at whatever complexity first solved the final training set rather than the
+    cheapest complexity that does. A cheaper policy has been observed to generalize further (the
+    c-base vs. c-combo rows in docs/experiments-log.md and their "Caution on reading these two
+    rows" paragraph): the base arm's cost-10 policy from 9 training problems out-generalized the
+    combo arm's cost-21 policy from 19.
+
+    This runs that climb exactly once more, standalone, on the frozen final training set
+    (`problem_iterator.active_problems`, with its final `active_plans`/`dead_states`): reset to
+    `succ_complexity`, tighten `max_cost` to `cost - 1`, and increment complexity while
+    `max_cost > complexity` and `complexity < max_complexity` -- the same condition as
+    `ProblemIterator`'s `INC_COMPLEXITY` branch, run here on its own instead of interleaved with
+    plan/problem escalation (`enforce_highest_complexity` and the frontier are both left off:
+    this pass does not track refutations the way the main loop does, and the training set is
+    already frozen, so there is nothing left for the frontier to expand). A round's ASP-level
+    `Result.SUCCESS` only proves the model satisfies the constraints, the same way the main
+    loop's own testing block treats it -- a training problem can still fail *execution* (e.g. a
+    cycle) -- so a candidate is only kept if it still solves every training problem, and only
+    when it beats the current best by (most problems solved overall, then lowest cost).
+    `Result.OUT_OF_RESOURCES`/`TIMEOUT` end the pass gracefully with the best policy found so
+    far, exactly like they end the main loop's own climb.
+    """
+    active_problems = problem_iterator.active_problems
+    example_plans = problem_iterator.active_plans
+    dead_states = problem_iterator.dead_states
+    complexity = problem_iterator.succ_complexity
+    active_problem_names = {p.name for p in active_problems}
+
+    assert policy.cost is not None, "the main loop only sets `policy` from a Result.SUCCESS, which always has a cost"
+    best_policy = policy
+    best_solved = _test_policy_on_problems(domain, problems, policy, config)
+    best_cost = feature_cost(
+        policy.cost, config.get("minimize_good_signatures", "none"), config.get("minimize_selected_count", "none")
+    )
+    stats["finalPassCostBefore"] = best_cost
+    max_cost = best_cost - 1
+    rounds = 0
+    log.info(f"Starting final cost minimization pass from complexity {complexity}, max cost {max_cost}")
+    while max_cost > complexity and complexity < config["max_complexity"]:
+        complexity += 1
+        rounds += 1
+        result, new_policy, _frontier_states = solve_step(
+            domain=domain,
+            config=config,
+            stats=stats,
+            example_plans=example_plans,
+            active_problems=active_problems,
+            complexity=complexity,
+            all_features=config["use_unrestricted_features"],
+            max_cost=max_cost,
+            enforce_highest_complexity=False,
+            dead_states=dead_states,
+            allow_frontier=False,
+        )
+        if result in (Result.OUT_OF_RESOURCES, Result.TIMEOUT):
+            break
+        if result != Result.SUCCESS:
+            # Nothing at this complexity beats max_cost; keep climbing, exactly like the
+            # INC_COMPLEXITY branch, which does not stop on NO_SOLUTION either.
+            continue
+        assert new_policy is not None, "solve_step must return a policy on Result.SUCCESS"
+        assert new_policy.cost is not None, "a Result.SUCCESS policy always has a cost"
+        new_cost = feature_cost(
+            new_policy.cost,
+            config.get("minimize_good_signatures", "none"),
+            config.get("minimize_selected_count", "none"),
+        )
+        # Tighten unconditionally on ASP-level success, before the execution check below --
+        # this mirrors set_last_result, which does the same regardless of whether the main
+        # loop's later testing block goes on to find an execution failure.
+        max_cost = new_cost - 1
+        solved = _test_policy_on_problems(domain, problems, new_policy, config)
+        solved_names = {p.name for p in solved}
+        if not (active_problem_names <= solved_names):
+            log.info(f"Candidate policy at complexity {complexity} does not solve every training problem, discarding")
+            continue
+        if (len(solved), -new_cost) > (len(best_solved), -best_cost):
+            best_policy, best_solved, best_cost = new_policy, solved, new_cost
+    stats["finalPassRounds"] = rounds
+    stats["finalPassCostAfter"] = best_cost
+    log.info(
+        f"Final cost minimization pass: {rounds} round(s), cost {stats['finalPassCostBefore']} ->"
+        f" {best_cost}, solves {len(best_solved)}/{len(problems)} problems"
+    )
+    return best_policy, best_solved
+
+
 def solve_iteratively(
     domain: Domain, problems: list[Problem], config: Mapping, one_shot: bool = False
 ) -> tuple[Optional[Policy | DatalogPolicy], list[Problem], dict[str, str | int | float]]:
@@ -365,7 +492,16 @@ def solve_iteratively(
             "maxTrainProblemSize": (max(len(p.objects) for p in problem_iterator.active_problems) if policy else 0),
         }
     )
-    return policy, [p for p in problems if problem_iterator.solved[p.name]], stats
+    solved_problems = [p for p in problems if problem_iterator.solved[p.name]]
+    if config.get("final_cost_minimization", False) and config["add_problem_after_success"] and policy is not None:
+        # Only meaningful together with add_problem_after_success: without it, the normal
+        # ladder already climbs complexity whenever a round is not an immediate success, so
+        # there is no gap for this pass to fill (see the config comment on
+        # final_cost_minimization).
+        policy, solved_problems = _final_cost_minimization_pass(
+            domain, problems, problem_iterator, config, stats, policy
+        )
+    return policy, solved_problems, stats
 
 
 def _release_round_memory() -> None:

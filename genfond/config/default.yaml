@@ -164,6 +164,17 @@ use_unrestricted_features: false
 # rounds that run out of memory or hit clingo's 32-bit ground-fact id ceiling. With this on, a
 # successful round adds the next unsolved problem immediately instead, skipping the climb.
 add_problem_after_success: false
+# Only meaningful together with add_problem_after_success (a no-op otherwise, since the normal
+# ladder already climbs complexity whenever a round is not an immediate success). Skipping the
+# climb after every success means a chain of successes that solves every problem in a row never
+# minimizes feature cost at all -- the final policy is priced at whatever complexity first
+# solved the final training set, not the cheapest complexity that does, and a cheaper policy has
+# been observed to generalize better (see the c-base vs. c-combo rows in
+# docs/experiments-log.md and their "Caution on reading these two rows" paragraph). With this
+# on, once the run has nothing left to add (every problem solved, so the main loop's
+# stop_after_first_solution break fires without ever climbing), it runs the old climb exactly
+# once more on the frozen final training set -- see docs/final-climb-results.md.
+final_cost_minimization: false
 unselect_problems: false
 visualize_state_graphs: false
 unrestricted_feature_generator:
