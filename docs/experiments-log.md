@@ -415,3 +415,7 @@ Two things to note: this configuration (goal suffix + role caps + budget) alread
 the pass, the first synthesised-pool policy to transfer at all; and the cheaper policy transfers twice as far.
 The pass triggered only when all problems were solved; the end-of-run trigger is being added before the
 full-95 cluster arms.
+
+The pass also runs when the loop ends without solving everything (exhausted iterator), verified by tests
+(a8df8dc). Cluster arms with the full configuration (add-problem, budget 300 s, role caps, final pass):
+fc-cpu (4144318, `rleap_cpu`, 12 h) and fc-mod (4144319, `rleap_cpu_modern`, 4 h).
