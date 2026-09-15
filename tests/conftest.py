@@ -66,6 +66,11 @@ def blocks3ops():
 
 
 @pytest.fixture
+def blocks3ops_small():
+    return load("blocks3ops", "p003-1.pddl")
+
+
+@pytest.fixture
 def gripper():
     return load("gripper", "problem-2-1.pddl")
 

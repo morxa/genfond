@@ -114,6 +114,10 @@ def solve(
     dead_states: Optional[Mapping[str, set[State]]] = None,
     allow_frontier: bool = True,
     stats: Optional[MutableMapping[str, Any]] = None,
+    # Every problem of the run, not just this round's training set. Only the feature sample
+    # uses it (feature_sample.problems: all); the state graphs and the ASP instance are still
+    # built from `problems` alone.
+    all_problems: Optional[Collection[Problem]] = None,
 ) -> Optional[tuple[DatalogPolicy | Policy, MutableMapping[str, Any], list[FrontierState]]]:
     # The caller may hand in the run-level stats dict so that the keys describing *why* a round
     # produced no policy (solveStatus, solveOptimal) survive a `return None`; the returned
@@ -133,6 +137,7 @@ def solve(
         all_generators=all_generators,
         plans=plans,
         dead_states=dead_states,
+        all_problems=all_problems,
     )
     stats["featurePoolSize"] = len(feature_pool.features)
     log.debug("Generating ASP instance ...")
@@ -263,6 +268,7 @@ def solve_iteratively(
             domain=domain,
             stats=stats,
             config=config,
+            all_problems=problems,
         )
         if result == Result.FRONTIER:
             # Expand the unexpanded states the model relied on, then retry the same
@@ -390,6 +396,7 @@ def solve_step(
     enforce_highest_complexity: bool = False,
     dead_states: Optional[Mapping[str, set[State]]] = None,
     allow_frontier: bool = True,
+    all_problems: Optional[Collection[Problem]] = None,
 ) -> tuple[Result, Optional[Policy | DatalogPolicy], list[FrontierState]]:
     log_memory(f"round start complexity={complexity}")
     try:
@@ -408,6 +415,7 @@ def solve_step(
             dead_states=dead_states,
             allow_frontier=allow_frontier,
             stats=stats,
+            all_problems=all_problems,
         )
     except (RuntimeError, MemoryError) as e:
         log.warning(

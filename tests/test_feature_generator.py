@@ -332,3 +332,88 @@ def test_concept_and_role_complexity_offsets_are_floored_at_one(simple_blocks, m
     concept_limit, role_limit = captured_args["limits"][:2]
     assert concept_limit == 1
     assert role_limit == 1
+
+
+# The concept "has a goal support", i.e. is not ontable in the goal. On the state space of a
+# single 3-block instance it has the same denotation as a shallower concept, so dlplan drops it;
+# with the sample it survives. See docs/rich-sample-results.md.
+SAMPLE_ONLY_CONCEPT = "c_some(r_primitive(on_G,0,1),c_top)"
+
+
+def _denotations(concept, states):
+    return [tuple(concept.evaluate(state).to_sorted_vector()) for state in states]
+
+
+def _sample_pool(domain, train, all_problems, enabled, max_complexity=3, **kwargs):
+    config = ConfigHandler(type="datalog-sig")
+    config["feature_sample"]["enabled"] = enabled
+    config["feature_sample"]["walks_per_problem"] = 3
+    config["feature_sample"]["walk_length"] = 20
+    config.update(kwargs)
+    return FeaturePool(
+        domain,
+        train,
+        config=config,
+        max_complexity=max_complexity,
+        all_generators=False,
+        all_problems=all_problems,
+    )
+
+
+def test_feature_sample_keeps_concept_that_coincides_on_training_states(blocks3ops_small, blocks3ops):
+    """A concept dlplan deduplicates away on the training states survives with the sample."""
+    domain, small = blocks3ops_small
+    _, large = blocks3ops
+    without = _sample_pool(domain, [small], [small, large], enabled=False)
+    with_sample = _sample_pool(domain, [small], [small, large], enabled=True)
+
+    assert not without.sample_states
+    assert with_sample.sample_states
+    assert SAMPLE_ONLY_CONCEPT not in without.concepts
+    assert SAMPLE_ONLY_CONCEPT in with_sample.concepts
+    assert set(without.concepts) < set(with_sample.concepts)
+
+    # ... and it is dropped *because* it coincides on the training states: some other concept
+    # of the pool has the same denotation there, and differs once the sample is included.
+    target = with_sample.concepts[SAMPLE_ONLY_CONCEPT]
+    states = with_sample._dedup_states()
+    training_states = states[: len(states) - len(with_sample.sample_states)]
+    target_on_training = _denotations(target, training_states)
+    twins = {
+        name: concept
+        for name, concept in with_sample.concepts.items()
+        if name != SAMPLE_ONLY_CONCEPT and _denotations(concept, training_states) == target_on_training
+    }
+    assert twins, "the concept should be indistinguishable from another one on the training states"
+    target_everywhere = _denotations(target, states)
+    assert all(_denotations(twin, states) != target_everywhere for twin in twins.values())
+
+
+def test_redundant_concept_pruning_uses_the_sample(blocks3ops_small, blocks3ops):
+    """compute_redundant_concepts separates two concepts the training states cannot separate.
+
+    Preset concepts bypass dlplan's own deduplication, so this exercises genfond's pruning
+    directly: the two below have the same extension on every state of the 3-block instance.
+    """
+    domain, small = blocks3ops_small
+    _, large = blocks3ops
+    presets = {"concepts": [SAMPLE_ONLY_CONCEPT, "c_not(c_primitive(ontable_G,0))"], "booleans": [], "roles": []}
+    without = _sample_pool(domain, [small], [small, large], enabled=False, preset_features=presets)
+    with_sample = _sample_pool(domain, [small], [small, large], enabled=True, preset_features=presets)
+
+    assert len(without.compute_redundant_concepts()) == 1
+    assert without.compute_redundant_concepts() < set(without.concepts)
+    assert with_sample.compute_redundant_concepts() == set()
+
+
+def test_feature_sample_leaves_the_asp_instance_alone(blocks3ops_small, blocks3ops):
+    """Sample states never become state/2 facts."""
+    domain, small = blocks3ops_small
+    _, large = blocks3ops
+    with_sample = _sample_pool(domain, [small], [small, large], enabled=True)
+    instance = with_sample.to_clingo()
+    num_states = sum(len(graph.nodes) for graph in with_sample.state_graphs.values())
+    assert instance.count("state(") - instance.count("aug_state(") == num_states
+    # The extra instance built for the sample-only problem is not addressable from the ASP.
+    assert with_sample.sample_instances
+    assert set(with_sample.sample_instances) & set(with_sample.problem_name_to_id) == set()

@@ -115,6 +115,34 @@ prune_concepts: true
 prune_features: true
 prune_static_concepts: false
 prune_static_roles: false
+# Synthesise and deduplicate features over a richer state sample.
+#
+# dlplan's generate_features deduplicates the elements it generates by their denotation on the
+# states it is handed, and genfond's own prune_redundant_* does the same over the training
+# states. Both only ever see the (plan-restricted) states of the current training problems,
+# which are few and small, so a *general* element coincides there with a shallower accidental
+# one and is dropped before the solver ever sees it: on blocks3ops p003-1 + p004-1 the
+# complexity-3 pool has no c_equal concept at all, although c_equal(on, on_G) ("a block sits on
+# its goal support") has complexity 3 and is exactly what a general policy needs. See
+# docs/rich-sample-results.md and the H9 entry in docs/experiments-log.md.
+#
+# With this on, random-walk states from the initial state of each problem are added to the set
+# of states used for *synthesis and deduplication only*. The ASP instance is unchanged: sample
+# states never become state/2 facts, so the grounded program does not grow with the sample.
+feature_sample:
+  enabled: false
+  # Random walks per problem and steps per walk. Cost is walks * length * |ground actions|,
+  # independent of the size of the state space.
+  walks_per_problem: 5
+  walk_length: 30
+  # "all" samples every problem given on the command line, including the large ones that are
+  # not (yet) in the training set -- that is the point, since those are the states on which the
+  # general element stops coinciding with the shallow one. "active" restricts the sample to the
+  # current training set.
+  problems: all
+  # Seeds the walks. Independent of the global `seed`, so the pool is the same across runs that
+  # differ only in the execution seed.
+  seed: 0
 prune_redundant_features: true
 prune_redundant_concepts: true
 prune_redundant_roles: true

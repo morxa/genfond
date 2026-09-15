@@ -1,6 +1,8 @@
 import itertools
 import logging
-from typing import Collection, Mapping, MutableMapping, Optional, Tuple
+import random
+import time
+from typing import Collection, Mapping, MutableMapping, Optional, cast
 
 import dlplan.core
 import dlplan.generator as dlplan_gen
@@ -21,6 +23,7 @@ from .state_space_generator import (
     apply_effects,
     check_formula,
     generate_state_space,
+    random_walk_states,
 )
 
 type Feature = Boolean | Numerical
@@ -28,6 +31,37 @@ type Feature = Boolean | Numerical
 log = logging.getLogger("genfond.feature_generation")
 
 MAX_ACTION_PARAMETERS = 4
+
+
+# Random walks are independent of the training set, so the same problem yields the same sample
+# in every round of a run. FeaturePool is rebuilt from scratch each round, so without this the
+# grounding and the walks would be redone every time -- with `problems: all` that is every
+# problem on the command line, per round.
+_walk_state_cache: dict[tuple, list[State]] = dict()
+
+
+def sample_walk_states(domain: Domain, problem: Problem, sample_config: Mapping) -> list[State]:
+    key = (
+        domain.name,
+        problem.name,
+        sample_config["walks_per_problem"],
+        sample_config["walk_length"],
+        sample_config["seed"],
+    )
+    states = _walk_state_cache.get(key)
+    if states is None:
+        # Seeded per problem so that the sample of a given problem does not depend on which
+        # other problems are on the command line or in which order they are walked.
+        rng = random.Random(f'{sample_config["seed"]}:{problem.name}')
+        states = random_walk_states(
+            domain,
+            problem,
+            sample_config["walks_per_problem"],
+            sample_config["walk_length"],
+            rng,
+        )
+        _walk_state_cache[key] = states
+    return states
 
 
 def get_aparam_predicate_name(i: int) -> str:
@@ -122,6 +156,10 @@ class FeaturePool:
         selected_states: Optional[Mapping[str, Collection[State]]] = None,
         plans: Optional[Mapping[str, Collection[Plan]]] = None,
         dead_states: Optional[Mapping[str, Collection[State]]] = None,
+        # Every problem given on the command line, not just the current training set. Only used
+        # by the feature sample (feature_sample.problems: all); the state graphs, the ASP
+        # instance and everything downstream still see `problems` alone.
+        all_problems: Optional[Collection[Problem]] = None,
     ):
         assert len({problem.name for problem in problems}) == len(problems), "Problem names must be unique."
         self.domain = domain
@@ -141,6 +179,10 @@ class FeaturePool:
         self.instances: dict[str, InstanceInfo] = dict()
         self.mappings = dict()
         self.next_state_id = 0
+        # Sample states used for synthesis and deduplication only; see _build_sample_states.
+        self.sample_states: list[dlplan.core.State] = []
+        self.sample_instances: dict[str, InstanceInfo] = dict()
+        self._dedup_state_cache: Optional[list[dlplan.core.State]] = None
         # Action signatures: see _emit_action_signatures. Only populated when the config asks
         # for them; the key is everything the datalog separation constraint can observe.
         self.signature_ids: dict[ActionSignature, int] = dict()
@@ -173,6 +215,13 @@ class FeaturePool:
                     self.node_to_param_augmented_state(problem, node)
                 if config["include_pristine_states"]:
                     self.node_to_state(problem, node)
+        sample_config = config.get("feature_sample") or {}
+        if sample_config.get("enabled", False):
+            if sample_config.get("problems", "all") == "active" or not all_problems:
+                sample_problems: Collection[Problem] = problems
+            else:
+                sample_problems = all_problems
+            self._build_sample_states(domain, vocabulary, sample_problems, sample_config)
         factory = SyntacticElementFactory(vocabulary)
         if config.get("preset_features", None):
             booleans = [factory.parse_boolean(f) for f in config["preset_features"].get("booleans", [])]
@@ -197,9 +246,10 @@ class FeaturePool:
                 f"boolean={max_complexity}, count_numerical={max_complexity}, "
                 f"distance_numerical={max_complexity}"
             )
+            generation_start = time.perf_counter()
             booleans, numericals, concepts, roles = dlplan_gen.generate_features(
                 factory,
-                list(self.states.values()),
+                list(self.states.values()) + self.sample_states,
                 concept_complexity_limit,
                 role_complexity_limit,
                 max_complexity,
@@ -208,6 +258,18 @@ class FeaturePool:
                 3600,
                 10000,
                 **feature_generator_kwargs,
+            )
+            log.info(
+                "Synthesised %d boolean(s), %d numerical(s), %d concept(s) and %d role(s) over %d state(s)"
+                " (%d training + %d sample) in %.1f s",
+                len(booleans),
+                len(numericals),
+                len(concepts),
+                len(roles),
+                len(self.states) + len(self.sample_states),
+                len(self.states),
+                len(self.sample_states),
+                time.perf_counter() - generation_start,
             )
         self.features = {}
         self.concepts = {}
@@ -225,6 +287,79 @@ class FeaturePool:
         log.debug(f'generated concepts: {", ".join(self.concepts.keys())}')
         log.debug(f'generated roles: {", ".join(self.roles.keys())}')
         log.debug(f'generated features: {", ".join(self.features.keys())}')
+
+    def _build_sample_states(
+        self,
+        domain: Domain,
+        vocabulary: VocabularyInfo,
+        sample_problems: Collection[Problem],
+        sample_config: Mapping,
+    ) -> None:
+        """Add random-walk states to the set of states used for synthesis and deduplication.
+
+        Both dlplan's `generate_features` and genfond's own `prune_redundant_*` identify two
+        elements that have the same denotation on every state they are shown. Shown only the
+        few small plan-restricted training states, a general element coincides with a shallow
+        accidental one and the general one is dropped (see docs/rich-sample-results.md). These
+        states widen that test; they are never turned into `state/2` facts, so the grounded
+        program is unaffected.
+
+        Problems outside the training set get their own `InstanceInfo` here, numbered above the
+        training ids so that nothing can confuse the two. They are kept out of `self.instances`
+        because that dict is what `evaluate_*_from_problem` (and therefore the ASP emission)
+        resolves problem names through.
+        """
+        start = time.perf_counter()
+        next_instance_id = max(self.problem_name_to_id.values(), default=-1) + 1
+        num_unmappable = 0
+        for problem in sample_problems:
+            if problem.name in self.instances:
+                instance = self.instances[problem.name]
+                mapping = self.mappings[problem.name]
+            else:
+                instance, mapping = construct_instance_info(vocabulary, domain, problem, next_instance_id, self.config)
+                next_instance_id += 1
+                self.sample_instances[problem.name] = instance
+            goal_atoms = _get_state_from_goal(problem.goal)
+            for state in sample_walk_states(domain, problem, sample_config):
+                try:
+                    atoms = [mapping[fact] for fact in state | goal_atoms]
+                except KeyError:
+                    # Facts construct_instance_info does not map, e.g. numeric fluents. Such a
+                    # state cannot be represented in dlplan at all, so drop it rather than
+                    # silently synthesising over a truncated state.
+                    num_unmappable += 1
+                    continue
+                state_id = self.next_state_id
+                self.next_state_id += 1
+                self.sample_states.append(dlplan.core.State(state_id, instance, atoms))
+        log.info(
+            "Sampled %d state(s) from %d problem(s) by random walk in %.1f s (%d unmappable)",
+            len(self.sample_states),
+            len(sample_problems),
+            time.perf_counter() - start,
+            num_unmappable,
+        )
+
+    def _dedup_states(self) -> list[dlplan.core.State]:
+        """The states two concepts or roles must agree on to count as the same element.
+
+        The training node states (goal-augmented, as `evaluate_concept_from_problem` sees them)
+        plus the feature sample when it is enabled. Without the sample this is exactly the set
+        the previous per-(problem, state) implementation ranged over; comparing raw dlplan
+        object indices instead of object names gives the same equivalence classes, because
+        index and name are in bijection within an instance and each list position belongs to a
+        fixed instance.
+        """
+        if self._dedup_state_cache is None:
+            states = [
+                self.get_augmented_dlplan_state(self.problems[problem_name], node.state)
+                for problem_name, state_graph in self.state_graphs.items()
+                for node in state_graph.nodes.values()
+            ]
+            states.extend(self.sample_states)
+            self._dedup_state_cache = states
+        return self._dedup_state_cache
 
     def node_to_action_augmented_state(self, problem: Problem, node: StateSpaceNode) -> None:
         self.node_id_to_action_aug_state_ids.setdefault((self.problem_name_to_id[problem.name], node.id), dict())
@@ -407,10 +542,13 @@ class FeaturePool:
         return has_true and has_false
 
     def compute_redundant_features(self) -> set[str]:
+        # The sample states widen the test: two features that only agree on the training states
+        # stay distinct. See _build_sample_states.
+        states = list(self.states.values()) + self.sample_states
         redundant_features = set()
         feature_evals = set()
         for feature_str, feature in self.features.items():
-            true_states = frozenset([state for state in self.states.values() if feature.evaluate(state)])
+            true_states = frozenset([state.get_index() for state in states if feature.evaluate(state)])
             if true_states in feature_evals:
                 redundant_features.add(feature_str)
             else:
@@ -420,38 +558,35 @@ class FeaturePool:
         return redundant_features
 
     def compute_redundant_concepts(self) -> set[str]:
-        evals: MutableMapping[str, Mapping[Tuple[str, State], Collection]] = dict()
+        if not self.concepts:
+            # _dedup_states cannot build a pristine goal-augmented state when include_actions
+            # is on, and with no concepts there is nothing to compare anyway.
+            return set()
+        states = self._dedup_states()
+        evals: dict[tuple, str] = dict()
         redundant_concepts = set()
-        for concept_str in self.concepts.keys():
-            eval: MutableMapping[Tuple[str, State], Collection[str]] = dict()
-            for problem, state_graph in self.state_graphs.items():
-                for node in state_graph.nodes.values():
-                    # eval[(problem, node.state)] = frozenset()
-                    eval[(problem, node.state)] = frozenset(
-                        self.evaluate_concept_from_problem(concept_str, self.problems[problem], node.state)
-                    )
-            if eval in evals.values():
+        for concept_str, concept in self.concepts.items():
+            key = tuple(tuple(concept.evaluate(state).to_sorted_vector()) for state in states)
+            if key in evals:
                 redundant_concepts.add(concept_str)
             else:
-                evals[concept_str] = eval
+                evals[key] = concept_str
         log.info(f"Found {len(redundant_concepts)} redundant concept(s)")
         log.debug(", ".join(redundant_concepts))
         return redundant_concepts
 
     def compute_redundant_roles(self) -> set[str]:
-        evals: MutableMapping[str, Mapping[Tuple[str, State], Collection]] = dict()
+        if not self.roles:
+            return set()
+        states = self._dedup_states()
+        evals: dict[tuple, str] = dict()
         redundant_roles = set()
-        for role_str in self.roles.keys():
-            eval: MutableMapping[Tuple[str, State], Collection[tuple[str, str]]] = dict()
-            for problem, state_graph in self.state_graphs.items():
-                for node in state_graph.nodes.values():
-                    eval[(problem, node.state)] = frozenset(
-                        self.evaluate_role_from_problem(role_str, self.problems[problem], node.state)
-                    )
-            if eval in evals.values():
+        for role_str, role in self.roles.items():
+            key = tuple(tuple(tuple(pair) for pair in role.evaluate(state).to_sorted_vector()) for state in states)
+            if key in evals:
                 redundant_roles.add(role_str)
             else:
-                evals[role_str] = eval
+                evals[key] = role_str
         log.info(f"Found {len(redundant_roles)} redundant role(s)")
         log.debug(", ".join(redundant_roles))
         return redundant_roles
@@ -751,6 +886,25 @@ class FeaturePool:
             ),
             "redundant_roles": (self.compute_redundant_roles() if self.config["prune_redundant_roles"] else set()),
         }
+
+        def kept(elements: Collection[str], *keys: str) -> int:
+            pruned: set[str] = set()
+            for key in keys:
+                pruned |= cast(set[str], stats[key])
+            return len(set(elements) - pruned)
+
+        log.info(
+            "Pool sizes (kept/generated): %d/%d feature(s), %d/%d concept(s), %d/%d role(s)"
+            " -- redundancy tested on %d training + %d sample state(s)",
+            kept(self.features, "uninformative_features", "redundant_features"),
+            len(self.features),
+            kept(self.concepts, "uninformative_concepts", "static_concepts", "redundant_concepts"),
+            len(self.concepts),
+            kept(self.roles, "uninformative_roles", "static_roles", "redundant_roles"),
+            len(self.roles),
+            len(self.states),
+            len(self.sample_states),
+        )
         clingo_program = ""
         for feature_str, feature in self.features.items():
             feature_str = f'"{feature_str}"'

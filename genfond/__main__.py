@@ -127,6 +127,16 @@ def main():
         help="how many violated pairs one lazy iteration may add",
     )
     config_args.add_argument(
+        "--feature-sample",
+        # dest is deliberately *not* "feature_sample": ConfigHandler merges every CLI key that
+        # already exists in the config, and feature_sample is a dict there -- a bare bool would
+        # replace the whole block. It is applied by hand below instead.
+        dest="feature_sample_enabled",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="synthesise and deduplicate features over random-walk states as well as the training states",
+    )
+    config_args.add_argument(
         "--seed",
         type=int,
         help="seed the global RNG, which policy execution draws on; needed to compare two runs",
@@ -153,6 +163,8 @@ def main():
     )
     signal.signal(signal.SIGINT, signal_handler)
     config = ConfigHandler(args.config, args.type, vars(args))
+    if args.feature_sample_enabled is not None:
+        config["feature_sample"]["enabled"] = args.feature_sample_enabled
     if args.dump_config:
         with open(args.dump_config, "w") as f:
             f.write(config.dump())

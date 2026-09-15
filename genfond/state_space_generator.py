@@ -477,3 +477,40 @@ def random_walk(domain: Domain, problem: Problem, initial_states: set[State], ma
             states.append(succ)
             state = succ
             state = succ
+
+
+def random_walk_states(
+    domain: Domain,
+    problem: Problem,
+    walks: int,
+    length: int,
+    rng: random.Random,
+) -> list[State]:
+    """Sample states by random walks from `problem.init`.
+
+    Unlike `StateSpaceGraph` this never enumerates a state space: it grounds the actions once
+    and then follows `walks` independent trajectories of at most `length` steps each, so the
+    cost is linear in walks * length * |ground actions| and a 30-object instance is as cheap as
+    a 3-object one. Used to give dlplan's `generate_features` (and genfond's own redundancy
+    pruning) states that the training set does not contain -- see docs/rich-sample-results.md.
+
+    Nondeterministic actions are handled by picking one outcome at random, exactly as policy
+    execution does. The returned list is deduplicated but keeps insertion order so that the
+    result is reproducible for a given `rng` seed.
+    """
+    grounded_actions = ground(domain, problem)
+    seen: dict[State, None] = dict()
+    for _ in range(walks):
+        state = problem.init
+        seen.setdefault(state, None)
+        for _ in range(length):
+            applicable = [action for action in grounded_actions if check_formula(state, action.precondition)]
+            if not applicable:
+                break
+            action = rng.choice(applicable)
+            successors = sorted(apply_action_effects(state, action), key=lambda s: sorted(str(f) for f in s))
+            if not successors:
+                break
+            state = rng.choice(successors)
+            seen.setdefault(state, None)
+    return list(seen)
