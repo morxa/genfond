@@ -380,3 +380,20 @@ generalisation locally; both are cheap to test for coverage at scale.
 Cluster batch 6 on `hyp/min-count` (goal suffix `_g`, all H2–H8 machinery), all with
 `add_problem_after_success`, `solve_time_limit: 300`, role offset 2 / concept offset 1: gs-tl-r2c1 (no
 bias), mc-sigs (good-signature bias above), mc-count (selected-count bias above).
+
+## Faster cadence (from 2026-09-15 afternoon)
+
+Till: too few ideas at a time. Changes: exploration arms get a 4 h limit (`SBATCH_TIMELIMIT=4:00:00`) on the
+otherwise idle `rleap_cpu_modern` node (wall times there are not comparable to `rleap_cpu`, coverage is), and
+four implementation agents run in parallel.
+
+Batch 7 (`m-*`, jobs 4143934–4143941, `hyp/min-count`, all with add-problem, role offset 2 / concept offset 1,
+`solve_time_limit: 300` unless stated): tl60, tl900 (budget sweep), siw-r1, siw-r10, siw-nobranch (planner
+diversity), unrestricted (all DLPlan generators), frontier2 (≤2 frontier states per round), preset (hand-crafted
+pool with `_g`, + frontier2).
+
+In implementation (own branches from `hyp/min-count`): fixed-labels (precompute forced good/bad transitions so
+pair constraints between forced classes carry no labelling choice; optional plan heuristic), plan-cap (cap and
+state-set dedupe of example plans; the preset arm hit 1 423 plans on one problem), final-climb (one cost
+minimisation pass at the end instead of after every success), wall-budget (graceful `max_wall_time`/SIGTERM
+handling so killed runs still write stats and policy).
