@@ -214,6 +214,10 @@ c2-unselect (`unselect_problems: true`), c2-frontier2 (`max_frontier_states_per_
 | 4133891 | c3-grammar-r2c1 (H7 + role caps) | 33/95 (last policy) | 12 h TIMEOUT | – | 26 problems incl. 8-block | 11 h in one lazy iteration; same coverage as c3-r2c1 |
 | 4135666 | x32-combo (c3-combo, 32 threads, not comparable) | 31/95 (last policy) | 12 h TIMEOUT | – | 23 incl. 8-block | lazy iteration 3 took 62 min, iteration 4 never returned |
 | 4135667 | x32-r2c1 (c3-r2c1, 32 threads) | 33/95 (last policy) | 12 h TIMEOUT | – | 26 incl. 8-block | iteration 3 took 3 h; threads do not remove the stall |
+| 4136480 | c4-usc (combo + usc) | 27/95 (last policy) | 12 h TIMEOUT | – | 17 (≤7 blocks) | stuck from 09:02 in lazy iteration 2 |
+| 4136481 | c4-tl300 (combo + 300 s solve budget) | 34/95 (last policy) | 12 h TIMEOUT | – | 27 incl. 8-block | still progressing at the end (last round 17:40) |
+| 4136482 | c4-usc-r2c1 (usc + role caps) | 33/95 (last policy) | 12 h TIMEOUT | – | 24 incl. 8-block | stuck from 08:54 |
+| 4136483 | c4-tl300-r2c1 (300 s budget + role caps) | **40/95** (last policy) | 12 h TIMEOUT | – | 29+ incl. 8-block | still progressing at the end (last round 20:00) |
 
 The eager distinguishing-set instance for 19 problems at complexity 4 exhausts 128 GB. This is the case the
 lazy pairs arm (c3-combo, job 4133419) targets.
