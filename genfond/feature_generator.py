@@ -12,6 +12,7 @@ from pddl.logic import Predicate
 from genfond.state_space_vis import draw_state_graph
 
 from .action_signatures import ActionSignature, iter_dist_set_facts
+from .forced_labels import ActionOccurrence, ForcedLabels, compute_forced_labels
 from .ground import ground, ground_domain_predicates
 from .state_space_generator import (
     Alive,
@@ -144,6 +145,13 @@ class FeaturePool:
         # Action signatures: see _emit_action_signatures. Only populated when the config asks
         # for them; the key is everything the datalog separation constraint can observe.
         self.signature_ids: dict[ActionSignature, int] = dict()
+        # The asig/4 occurrences at alive non-goal states, collected while writing the per-node
+        # facts and handed to forced_labels.compute_forced_labels once they are all known.
+        self._occurrences: list[ActionOccurrence] = []
+        # (instance, state, action) triples whose action starts an example plan suffix at that
+        # state; only collected for the plan_label_heuristic.
+        self._plan_actions: list[tuple[int, int, str]] = []
+        self.forced_labels: Optional[ForcedLabels] = None
         if not max_complexity:
             max_complexity = config["max_complexity"]
         for problem in problems:
@@ -541,10 +549,14 @@ class FeaturePool:
             clingo_program += f"alive({problem_id}, {node.id}).\n"
         if node.alive != Alive.ALIVE and not self.config["include_dead_states"]:
             return clingo_program
-        if check_formula(node.state, problem.goal):
+        is_goal = check_formula(node.state, problem.goal)
+        if is_goal:
             clingo_program += f"goal({problem_id}, {node.id}).\n"
             if not self.config["include_goal_states"]:
                 return clingo_program
+        # Exactly the states the good_trans choice rule and the good_sig/bad_sig rules range
+        # over (`alive(I,S), not goal(I,S)`); see forced_labels.
+        selectable_state = node.alive == Alive.ALIVE and not is_goal
         if self.config["include_actions"]:
             for action, aug_state in self.node_id_to_action_aug_state_ids[(problem_id, node.id)].items():
                 aug_state_id = self.states[aug_state].get_index()
@@ -691,6 +703,22 @@ class FeaturePool:
                 )
                 signature_id = self.signature_ids.setdefault(signature, len(self.signature_ids))
                 clingo_program += f"asig({problem_id}, {node.id}, {action_str}, {signature_id}).\n"
+                if selectable_state:
+                    self._occurrences.append(
+                        ActionOccurrence(
+                            problem_id,
+                            node.id,
+                            action_str,
+                            signature_id,
+                            # good_trans is unselectable for an action with an outcome that is
+                            # neither alive nor pruned; those are the only two node kinds that
+                            # emit alive/2 or pruned/2 above.
+                            all(child.alive in (Alive.ALIVE, Alive.PRUNED) for child in children),
+                        )
+                    )
+            if selectable_state and self.config.get("plan_label_heuristic", False):
+                if any(suffix and suffix[0] == action for suffix in node.plan_suffixes):
+                    self._plan_actions.append((problem_id, node.id, action_str))
             for child in children:
                 clingo_program += f"trans({problem_id}, {node.id}, {action_str}, {child.id}).\n"
                 if emit_object_facts and (self.concepts or self.roles):
@@ -725,6 +753,48 @@ class FeaturePool:
         if self.config.get("lazy_pairs", False):
             return ""
         return "".join(iter_dist_set_facts(self.signatures))
+
+    def _emit_forced_labels(self) -> str:
+        """Emit ``forced_good/3`` and ``forced_bad/3`` for the labels fixed by the graph layer.
+
+        See `forced_labels`: these are the (instance, state, action) occurrences whose good/bad
+        label is the same in every model of the program, so pinning them removes choice points
+        without removing models. `solve_datalog_sig.lp` drops the forced-bad ones from the
+        ``good_trans`` choice and adds ``:- forced_good(I,S,A), not good_action(I,S,A).``
+
+        Both predicates are ``#defined`` there, so with the flag off nothing is emitted and the
+        ground program is exactly the one produced before.
+        """
+        forced = compute_forced_labels(self._occurrences)
+        self.forced_labels = forced
+        log.info(f"Forced labels: {forced.summary()}")
+        if forced.inconsistent:
+            log.warning(
+                "The forced-label fixpoint is contradictory: this instance has no policy at all."
+                " The facts are emitted anyway, so clingo reports the refutation itself."
+            )
+        return "".join(
+            [
+                f"forced_good({occurrence.instance}, {occurrence.state}, {occurrence.action}).\n"
+                for occurrence in sorted(forced.good)
+            ]
+            + [
+                f"forced_bad({occurrence.instance}, {occurrence.state}, {occurrence.action}).\n"
+                for occurrence in sorted(forced.bad)
+            ]
+        )
+
+    def _emit_plan_actions(self) -> str:
+        """Emit ``plan_action/3`` for the actions that start an example-plan suffix at a state.
+
+        Consumed only by the ``plan_heuristic`` part of `solve_datalog_sig.lp`, a ``#heuristic``
+        directive that biases the ``good_trans`` decision towards the plan. A heuristic changes
+        the order of the search, never its solution space, so the optimum is unaffected.
+        """
+        log.info(f"Plan-label heuristic: {len(self._plan_actions)} on-plan action(s)")
+        return "".join(
+            f"plan_action({instance}, {state}, {action}).\n" for instance, state, action in self._plan_actions
+        )
 
     def to_clingo(self) -> str:
         stats = {
@@ -770,6 +840,10 @@ class FeaturePool:
         if self.config.get("emit_action_signatures", False):
             clingo_program += self._emit_action_signatures()
             log.info(f"Collapsed the separation layer to {len(self.signature_ids)} action signature(s)")
+            if self.config.get("fix_forced_labels", False):
+                clingo_program += self._emit_forced_labels()
+        if self.config.get("plan_label_heuristic", False):
+            clingo_program += self._emit_plan_actions()
         log.info(
             f'Generated program with {stats["num_feature_evals"]} feature evaluations ({stats["num_skipped_feature_evals"]} skipped), '
             f'{stats["num_concept_evals"]} concept evaluations ({stats["num_skipped_concept_evals"]} skipped), '

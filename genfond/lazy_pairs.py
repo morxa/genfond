@@ -34,6 +34,7 @@ import time
 from typing import Any, Mapping, MutableMapping, Optional, Sequence
 
 from .action_signatures import ActionSignature, LazyPairs
+from .forced_labels import ForcedLabels
 from .solver import Solver, SolveStatus
 
 log = logging.getLogger("genfond.lazy_pairs")
@@ -45,11 +46,44 @@ def _selected(solution: Mapping[str, Any], key: str) -> set[str]:
     return {str(element).strip('"') for element in solution.get(key, set())}
 
 
+def _seed_forced_pairs(solver: Solver, pairs: LazyPairs, forced: ForcedLabels, batch_size: int) -> tuple[int, int]:
+    """Ground the pairs between a forced-good and a forced-bad class before the first solve.
+
+    These pairs constrain *every* model, because both of their classes carry the same label in
+    every model (see `forced_labels`), so they are exactly the part of the separation layer that
+    does not have to wait for a counterexample. Without them the first relaxed solve sees no
+    separation constraint at all and returns the cheapest possible selection, which then has to
+    be walked back one batch of violated pairs at a time.
+
+    Note that seeding is sound whatever the forced-label analysis concludes: a `sig_pair`/`dist`
+    fact is part of the full eager encoding regardless, and its constraint only fires on a model
+    that actually labels K1 good and K2 bad. Only the `forced_good`/`forced_bad` facts in the
+    instance itself rely on the analysis being right.
+
+    Returns (violated pairs found, pairs grounded).
+    """
+    if not forced.good_signatures or not forced.bad_signatures:
+        return 0, 0
+    # An empty selection separates nothing, so every good x bad pair of a class group counts as
+    # violated and the batch is the `batch_size` smallest distinguishing sets among them.
+    violated, batch = pairs.violated_pairs(
+        [], [], [], good=forced.good_signatures, bad=forced.bad_signatures, limit=batch_size
+    )
+    if batch:
+        solver.add_pairs(0, pairs.facts(0, batch))
+    log.info(
+        f"Lazy pairs: seeded batch 0 from the forced labels -- {violated} pair(s) between a forced"
+        f" good and a forced bad class, {len(batch)} grounded, {pairs.num_dist_facts} dist fact(s)"
+    )
+    return violated, len(batch)
+
+
 def solve_with_lazy_pairs(
     solver: Solver,
     signatures: Sequence[ActionSignature],
     batch_size: int = DEFAULT_BATCH,
     stats: Optional[MutableMapping[str, Any]] = None,
+    forced: Optional[ForcedLabels] = None,
 ) -> SolveStatus:
     """Solve, adding violated separation pairs until the model satisfies them all.
 
@@ -74,6 +108,11 @@ def solve_with_lazy_pairs(
     """
     pairs = LazyPairs(signatures)
     total_pairs = pairs.index.num_pairs()
+    if forced is not None:
+        seeded_violated, seeded = _seed_forced_pairs(solver, pairs, forced, batch_size)
+        if stats is not None:
+            stats["lazyPairsSeeded"] = seeded
+            stats["lazyPairsSeededViolated"] = seeded_violated
     for iteration in range(1, len(signatures) ** 2 + 2):
         start = time.perf_counter()
         solver.solve()

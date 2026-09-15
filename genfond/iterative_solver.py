@@ -139,6 +139,15 @@ def solve(
             f"minimize_selected_count={config['minimize_selected_count']!r} needs solve_prog="
             f"'solve_datalog_sig.lp' (--type datalog-sig), got {config['solve_prog']!r}"
         )
+    for key in ("fix_forced_labels", "plan_label_heuristic"):
+        # forced_good/3, forced_bad/3, plan_action/3 and the plan_heuristic #program part only
+        # exist in solve_datalog_sig.lp; asking for them elsewhere would either be silently
+        # ignored (the facts) or fail inside clingo (the part).
+        if config.get(key, False) and config["solve_prog"] != "solve_datalog_sig.lp":
+            raise ValueError(
+                f"{key}=True needs solve_prog='solve_datalog_sig.lp' (--type datalog-sig),"
+                f" got {config['solve_prog']!r}"
+            )
     log.debug("Generating feature pool ...")
     feature_pool = FeaturePool(
         domain,
@@ -196,13 +205,26 @@ def solve(
         time_limit=config["solve_time_limit"],
         minimize_good_signatures=config.get("minimize_good_signatures", "none"),
         minimize_selected_count=config.get("minimize_selected_count", "none"),
+        plan_label_heuristic=config.get("plan_label_heuristic", False),
     )
+    forced = feature_pool.forced_labels
+    if forced is not None:
+        stats["forcedGoodActions"] = len(forced.good)
+        stats["forcedBadActions"] = len(forced.bad)
+        stats["forcedGoodSignatures"] = len(forced.good_signatures)
+        stats["forcedBadSignatures"] = len(forced.bad_signatures)
+        stats["forcedOccurrences"] = forced.num_occurrences
+        stats["forcedInconsistent"] = forced.inconsistent
     if config.get("lazy_pairs", False) and config.get("emit_action_signatures", False):
         # The instance carries no separation pairs; they are added batch by batch in response to
         # the models that violate them. The loop wraps the solve of this one round only, so
         # max_cost, the min_feature_complexity program and the frontier machinery are untouched.
         status = solve_with_lazy_pairs(
-            solver, feature_pool.signatures, config.get("lazy_pairs_batch") or DEFAULT_BATCH, stats
+            solver,
+            feature_pool.signatures,
+            config.get("lazy_pairs_batch") or DEFAULT_BATCH,
+            stats,
+            forced=forced,
         )
     else:
         solver.solve()

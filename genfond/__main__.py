@@ -128,6 +128,20 @@ def main():
         help="how many violated pairs one lazy iteration may add",
     )
     config_args.add_argument(
+        "--fix-forced-labels",
+        action=argparse.BooleanOptionalAction,
+        # Must default to None, not False: ConfigHandler skips None overrides.
+        default=None,
+        help="pin the good/bad labels that every model agrees on before the search " "(solve_datalog_sig.lp only)",
+    )
+    config_args.add_argument(
+        "--plan-label-heuristic",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="bias clingo's decision heuristic towards the transitions on an example plan "
+        "(solve_datalog_sig.lp only)",
+    )
+    config_args.add_argument(
         "--minimize-good-signatures",
         choices=["none", "below", "above"],
         help="minimize the number of good signature classes (solve_datalog_sig.lp only): "

@@ -105,6 +105,22 @@ emit_object_facts: true
 lazy_pairs: false
 # How many violated pairs one lazy iteration may add (the smallest distinguishing sets first).
 lazy_pairs_batch: 5000
+# Compute, before the search, which (instance, state, action) occurrences are good in every
+# model and which are bad in every model, and pin them: the forced-bad ones are dropped from the
+# good_trans choice and the forced-good ones get a constraint (solve_datalog_sig.lp only; needs
+# emit_action_signatures). A transition into a state that is neither alive nor pruned can never
+# be good, a bad signature class makes every occurrence of that class bad wherever it occurs, a
+# state whose surviving candidates all share one class forces that class good, and a good class
+# makes all its occurrences good -- run to a fixpoint (see forced_labels.py for the soundness
+# argument). With lazy_pairs this also seeds batch 0 of the lazy loop with the pairs between a
+# forced-good and a forced-bad class, which constrain every model and therefore need no
+# counterexample. false (default) reproduces the previous ground program exactly.
+fix_forced_labels: false
+# Bias clingo's decision heuristic towards labelling the transitions that lie on an example plan
+# good (a #heuristic directive plus --heuristic=Domain; solve_datalog_sig.lp only, and only
+# meaningful with use_example_plans). Search order only -- the models and the optimum are
+# unchanged. Independent of fix_forced_labels.
+plan_label_heuristic: false
 # Occam bias for the signature-quotiented encoding (solve_datalog_sig.lp only; a no-op for
 # every other solve_prog): whether to additionally minimize the number of good signature
 # classes selected. A datalog rule is the projection of one good signature onto the selected
