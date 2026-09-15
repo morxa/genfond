@@ -504,3 +504,9 @@ grounded atoms 97 365 → 24 346, wall 28.7 s → 13.7 s, identical policy cost;
 The unbounded-baseline driver on the workstation failed on a bind-path error, so no direct A/B there; the
 cluster arms provide it. Merged into `hyp/combo` (189 tests). Arms: m5-r1-cap8 (modern, 4 h) and c-r1-cap8
 (cpu, 12 h) = full configuration + restarts 1 + reserve 1800 + cap 8.
+
+Also on the modern node (4 h, full configuration + restarts 1 + cap 8 + reserve 1800): m6-s1 and m6-s2
+(seeds 1 and 2 incl. `PYTHONHASHSEED`, to measure run-to-run variance of the best configuration) and
+m6-minc3 (`min_complexity: 3`, skipping the complexity-2 rounds). In implementation: `hyp/min-train-size`
+(`min_train_objects`: never train on instances below a size threshold; small instances may induce the
+overfitted rule sets).
