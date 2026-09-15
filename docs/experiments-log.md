@@ -236,3 +236,18 @@ lazy solve finishes in 0.2–100 s, then the second solve, after grounding the f
 (400 k `dist` facts on c3-combo), never returns. The optimisation (minimise feature cost subject to hitting-set
 constraints) is now the wall, not grounding and not memory. Exploration copies with 32 clingo threads were
 submitted as x32-combo (4135666) and x32-r2c1 (4135667); they are not comparable to the seeded 1-thread arms.
+
+## H6: emit only the facts the sig program reads (`hyp/lean-facts`, on `hyp/combo`)
+
+`solve_datalog_sig.lp` never references `c_eval/4`, `r_eval/5`, `aname/2`, `aparam/3` (the Python side owns
+the memberships since H3), yet the instance emitted all of them: n·|C|·m and n·|R|·m² ground atoms for nothing.
+New key `emit_object_facts` (true by default, false in `default_datalog-sig.yaml`) gates the text emission only.
+One-shot p005-1 / p006-1: identical cost and outcome; 1.3–1.8× fewer atoms, 9–13× smaller instance text,
+7–32 % less peak memory, growing with instance size. p007-1 at complexity 4 (6 GB cap, 40 min) now passes
+expansion (18 min), feature generation (9 min), grounding and one lazy iteration before the time limit; it died
+in `bad_alloc` before the first grounding without this. Regression suites identical. Merged into `hyp/combo`.
+
+## H8 (in progress): core-guided / anytime optimisation (`hyp/anytime-solve`)
+
+Targets the optimisation stall above: `--opt-strategy=usc` as a config knob, and a per-solve time budget that
+keeps the best model and tells the iterator when a cost is not proven optimal (no level refutation from it).
