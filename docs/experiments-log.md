@@ -205,6 +205,8 @@ c2-unselect (`unselect_problems: true`), c2-frontier2 (`max_frontier_states_per_
 | 4133411 | c2-unselect (c2-combo + `unselect_problems`) | 27/95 | 2 h 04 min | 102 GB | 11 problems (≤7 blocks), cost 19 | complexity 6 refuted too; memory error at complexity 7 |
 | 4133177 | c-r2c1 (H1 alone: role offset 2, concept offset 1) | 24/95 | 3 h 06 min | 116 GB | 7 problems (≤6 blocks), cost 12 | 3× `bad_alloc` in the climb (complexity 6–7) |
 | 4133178 | c-noroles (H1 alone: no roles) | 22/95 | 7 h 38 min | 115 GB | 12 problems (≤6 blocks), cost 14 | 6× `bad_alloc`, incl. a 29-concept complexity-3 round right after a failed one (memory retention, no fix on this branch) |
+| 4133179 | c-noclimb (H2 alone, eager sig encoding) | 25/95 (last policy) | 12 h TIMEOUT | – | 18 problems (≤7 blocks) | stuck 4 h in a complexity-3 round on 18 problems (eager separation layer) |
+| 4133180 | c-distsets (H3 alone) | – (no policy test in the last 200 MB) | 12 h TIMEOUT | – | 15 problems (≤6 blocks) | entire budget in the post-success climb at complexity 6 (858 / 617); 30 GB log |
 
 The eager distinguishing-set instance for 19 problems at complexity 4 exhausts 128 GB. This is the case the
 lazy pairs arm (c3-combo, job 4133419) targets.
