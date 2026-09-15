@@ -121,10 +121,21 @@ the guard is built into the pass itself.
   to unrestricted if that fails, then increment complexity) — a simplification, documented in
   the function's docstring, that trades a small amount of missed cost reduction for not needing
   a second piece of state-machine bookkeeping in a pass that only runs once.
-- Only exercised through the `stop_after_first_solution`-break trigger (every problem solved
-  immediately after training-set growth stops); the `_next_addable_problem() is None` /
-  `final_pass_after_rounds` triggers the task description raised as options were not needed for
-  any of these three suites and are not implemented — the current code only calls the pass from
-  that one exit point in `solve_iteratively`. A run that stalls with unsolved problems still
-  remaining in the training set (the c-noclimb pattern in `docs/experiments-log.md`) does not
-  currently get a final pass at all.
+- **Update (post-review):** the workstation runs above only exercised the
+  `stop_after_first_solution`-break trigger (every problem solved immediately after training-set
+  growth stops), which understated what the code actually does. `_final_cost_minimization_pass`
+  is called unconditionally after `solve_iteratively`'s main loop, so it already runs whether
+  that loop ends via the break *or* via the `for` loop exhausting `problem_iterator`
+  (`StopIteration` — e.g. `OUT_OF_RESOURCES`/`TIMEOUT` closing off every escalation branch, or
+  the ladder reaching `max_complexity` with problems still unsolved), as long as a policy exists;
+  it is not reached after an unhandled exception. This is now covered by
+  `test_final_pass_runs_when_the_iterator_exhausts_without_solving_everything` and
+  `test_final_pass_does_not_run_after_an_unhandled_exception` in
+  `tests/test_final_cost_minimization.py`, which drive `solve_iteratively` itself (with
+  `solve_step`/`execute_policy` mocked) through a scripted SUCCESS → NO_SOLUTION →
+  `OUT_OF_RESOURCES` sequence that never satisfies `stop_after_first_solution` and confirm the
+  pass still runs on the frozen final training set. So a run that stalls with unsolved problems
+  still remaining in the training set (the c-noclimb pattern in `docs/experiments-log.md`) *does*
+  get a final pass, on whatever training set and cost it stopped at — no separate
+  `final_pass_after_rounds` trigger was needed. No production code changed for this; only the
+  docstring/comments were corrected to describe it accurately.

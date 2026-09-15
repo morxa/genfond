@@ -294,10 +294,20 @@ def _final_cost_minimization_pass(
     """Look for a cheaper policy on the final training set, once the main loop has nothing left
     to add.
 
+    Called unconditionally after `solve_iteratively`'s main `for` loop ends, for any reason that
+    lets it return normally: the `stop_after_first_solution` break (every problem solved), or
+    the loop's `for` exhausting `problem_iterator` (`StopIteration` -- e.g. every escalation
+    branch closed off after an `OUT_OF_RESOURCES`/`TIMEOUT`, or the ladder reached
+    `max_complexity` with problems still unsolved, which is the common case on a suite too large
+    to solve in full, where `stop_after_first_solution`'s break never fires at all). It is *not*
+    reached after an unhandled exception, since that propagates out of the loop instead of
+    letting it return. The only gate that matters here is `policy is not None`: some round
+    succeeded at some point, regardless of how the run subsequently ended.
+
     `add_problem_after_success` (see its config comment and docs/no-cost-climb-results.md) skips
     the complexity climb after every success so the loop grows the training set instead. When a
-    chain of successes solves every problem in a row -- which is exactly when the main loop's
-    `stop_after_first_solution` break fires -- that climb never runs at all, and the final policy
+    chain of successes solves every problem in a row -- or more generally, whenever the run ends
+    with at least one success behind it -- that climb never runs at all, and the final policy
     ends up priced at whatever complexity first solved the final training set rather than the
     cheapest complexity that does. A cheaper policy has been observed to generalize further (the
     c-base vs. c-combo rows in docs/experiments-log.md and their "Caution on reading these two
@@ -497,7 +507,12 @@ def solve_iteratively(
         # Only meaningful together with add_problem_after_success: without it, the normal
         # ladder already climbs complexity whenever a round is not an immediate success, so
         # there is no gap for this pass to fill (see the config comment on
-        # final_cost_minimization).
+        # final_cost_minimization). Reached whenever the loop above returns normally with a
+        # policy in hand, whether that was via the stop_after_first_solution break or the for
+        # loop exhausting problem_iterator (StopIteration, e.g. an unsolved-but-unaddable suite
+        # that hits OUT_OF_RESOURCES/TIMEOUT or max_complexity) -- see the docstring of
+        # _final_cost_minimization_pass. Not reached after an unhandled exception, which
+        # propagates out of the loop instead.
         policy, solved_problems = _final_cost_minimization_pass(
             domain, problems, problem_iterator, config, stats, policy
         )
