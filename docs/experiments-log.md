@@ -483,3 +483,8 @@ full-mod (4144770, 4 h, combo before forced labels, graceful budget 13 200 s): f
 `stoppedBy=wall_time`, stats row and policy written, final pass ran (1 round, cost 37 → 37; the 300 s reserve
 leaves no room for it). 30/95, 24 training problems incl. 10-block. Future arms set `wall_time_reserve: 1800`
 so the pass has half an hour.
+
+H15 result (4 h, modern node): m-mined **36/95** (31 training problems, ≤9 blocks; pool 89 features /
+221 concepts / 8 roles at the last round) against 33 for tl900/frontier2 with the default grammar in the same
+4 h; m-mined-fc 33/95 (27 problems, killed before the pass; no graceful budget on that branch). A modest but
+consistent gain; combined with `restarts: 1` next (m4-mined-r1).
