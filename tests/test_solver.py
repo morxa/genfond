@@ -1,7 +1,11 @@
+import time
+
 import pytest
 
+import genfond.solver as solver_module
 from genfond.generate_policy import generate_policy
 from genfond.rule_policy import Cond, Effect, PolicyRule
+from genfond.shutdown import request_stop, reset_stop
 from genfond.solver import Solver, SolveStatus
 
 
@@ -417,6 +421,97 @@ def test_a_time_limit_too_short_for_any_model_is_unknown_not_unsatisfiable():
 def test_the_opt_strategy_reaches_the_clingo_control():
     default = Solver("state(0, 0).")
     assert str(default.control.configuration.solver[0].opt_strategy).startswith("bb")
+
+
+# --max-wall-time / genfond.shutdown: Solver.solve() must respond to an already-past
+# wall_deadline and to an external stop request the same way it responds to a short
+# solve_time_limit -- cut off, keep the best model found so far, and mark the round not proved
+# optimal. These tests set POLL_INTERVAL very low so the polling loop notices promptly without
+# slowing the test suite down.
+
+
+def test_a_wall_deadline_keeps_the_best_model_and_marks_it_not_optimal(monkeypatch):
+    monkeypatch.setattr(solver_module, "POLL_INTERVAL", 0.05)
+    solver = Solver(HARD_OPTIMISATION_PROGRAM, num_threads=1, wall_deadline=time.perf_counter() + 0.5)
+    assert solver.solve(), "the budget must be long enough for clingo to report some model"
+    assert solver.timed_out is True
+    assert solver.status == SolveStatus.SATISFIABLE
+    assert solver.optimal is False
+    assert solver.solution
+    assert solver.cost and solver.cost[-1] >= 10000000
+
+
+def test_a_wall_deadline_already_past_cuts_the_solve_off_immediately(monkeypatch):
+    monkeypatch.setattr(solver_module, "POLL_INTERVAL", 0.05)
+    solver = Solver(HARD_OPTIMISATION_PROGRAM, num_threads=1, wall_deadline=time.perf_counter())
+    solver.solve()
+    assert solver.timed_out is True
+    assert solver.optimal is False
+    # Whether clingo's background search thread reports a trivial first model before our very
+    # first (zero-length) wait() call returns is a genuine race, exactly as for the equivalent
+    # solve_time_limit=0.0 case (test_a_time_limit_too_short_for_any_model_is_unknown_not_
+    # unsatisfiable above): either outcome proves the cutoff fired without ever proving
+    # optimality or unsatisfiability.
+    assert solver.status in (SolveStatus.SATISFIABLE, SolveStatus.UNKNOWN)
+
+
+def test_wall_deadline_and_time_limit_compose_as_whichever_is_sooner(monkeypatch):
+    monkeypatch.setattr(solver_module, "POLL_INTERVAL", 0.05)
+    # time_limit alone would let this run for 600s; wall_deadline is the tighter of the two and
+    # must be the one that actually cuts it off.
+    solver = Solver(HARD_OPTIMISATION_PROGRAM, num_threads=1, time_limit=600, wall_deadline=time.perf_counter() + 0.5)
+    start = time.perf_counter()
+    assert solver.solve()
+    assert time.perf_counter() - start < 60, "wall_deadline should have cut the solve off long before time_limit"
+    assert solver.timed_out is True
+    assert solver.status == SolveStatus.SATISFIABLE
+
+
+def test_a_generous_wall_deadline_still_proves_optimality(monkeypatch):
+    monkeypatch.setattr(solver_module, "POLL_INTERVAL", 0.05)
+    solver = Solver(
+        "feature(f). feature_complexity(f, 1). state(0, 0). alive(0, 0). goal(0, 0).",
+        wall_deadline=time.perf_counter() + 600,
+    )
+    assert solver.solve()
+    assert solver.timed_out is False
+    assert solver.status == SolveStatus.OPTIMAL
+    assert solver.optimal is True
+
+
+def test_a_wall_deadline_does_not_turn_unsatisfiability_into_unknown(monkeypatch):
+    monkeypatch.setattr(solver_module, "POLL_INTERVAL", 0.05)
+    solver = Solver(
+        "state(0, 0). alive(0, 0). goal(0, 0). :- goal(0, 0).",
+        wall_deadline=time.perf_counter() + 600,
+    )
+    assert not solver.solve()
+    assert solver.status == SolveStatus.UNSATISFIABLE
+    assert solver.optimal is True
+
+
+def test_a_stop_request_cuts_an_unbounded_solve_off_like_a_short_time_limit(monkeypatch):
+    # No time_limit, no wall_deadline: without genfond.shutdown's stop flag this would run to
+    # completion (the whole point of always polling instead of a single blocking solve() call).
+    monkeypatch.setattr(solver_module, "POLL_INTERVAL", 0.05)
+    try:
+        request_stop()
+        solver = Solver(HARD_OPTIMISATION_PROGRAM, num_threads=1)
+        assert solver.solve(), "the poll loop must give clingo at least one interval to find a model"
+        assert solver.timed_out is True
+        assert solver.status == SolveStatus.SATISFIABLE
+        assert solver.optimal is False
+    finally:
+        reset_stop()
+
+
+def test_no_stop_request_leaves_an_unbounded_solve_to_finish_normally(monkeypatch):
+    monkeypatch.setattr(solver_module, "POLL_INTERVAL", 0.05)
+    solver = Solver("feature(f). feature_complexity(f, 1). state(0, 0). alive(0, 0). goal(0, 0).")
+    assert solver.solve()
+    assert solver.status == SolveStatus.OPTIMAL
+    assert solver.optimal is True
+    assert solver.timed_out is False
     usc = Solver("state(0, 0).", opt_strategy="usc")
     assert str(usc.control.configuration.solver[0].opt_strategy).startswith("usc")
 

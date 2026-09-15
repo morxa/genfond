@@ -16,6 +16,8 @@
 #   THREADS      -n for clingo (default 1; anything else makes runs non-reproducible)
 #   MAX_MEMORY   --max-memory in MB (default 24000)
 #   TIME_LIMIT   wall-clock limit per suite x type, passed to timeout(1) (default 2h)
+#   WALL_TIME    seconds passed to --max-wall-time (default unset -- genfond's own budget stays
+#                unbounded and TIME_LIMIT/timeout(1) remains the only cutoff, exactly as before)
 #   CONFIG       extra --config file
 #   RUNNER       how to invoke python; "poetry run" locally, or
 #                "apptainer run --bind $PWD genfond_env.sif" on a machine with the image
@@ -31,6 +33,8 @@ export PYTHONHASHSEED="${PYTHONHASHSEED:-$SEED}"
 THREADS="${THREADS:-1}"
 MAX_MEMORY="${MAX_MEMORY:-24000}"
 TIME_LIMIT="${TIME_LIMIT:-2h}"
+WALL_TIME="${WALL_TIME:-}"
+MAX_WALL_TIME_ARGS="${WALL_TIME:+--max-wall-time $WALL_TIME}"
 CONFIG="${CONFIG:+--config $CONFIG}"
 RUNNER="${RUNNER:-poetry run}"
 EXTRA_ARGS="${EXTRA_ARGS:-}"
@@ -44,7 +48,7 @@ mkdir -p "$RESDIR/out"
   echo "host: $(hostname)"
   echo "suites: $SUITES"
   echo "policy_type: $POLICY_TYPE"
-  echo "seed: $SEED threads: $THREADS max_memory: $MAX_MEMORY time_limit: $TIME_LIMIT"
+  echo "seed: $SEED threads: $THREADS max_memory: $MAX_MEMORY time_limit: $TIME_LIMIT wall_time: ${WALL_TIME:-unset}"
   echo "config: $CONFIG extra_args: $EXTRA_ARGS"
   echo "dirty:"
   git status --short | grep -v '^??'
@@ -62,7 +66,7 @@ for suite in $SUITES; do
     start=$(date +%s)
     timeout --signal=INT --kill-after=60 "$TIME_LIMIT" \
       $RUNNER python -m genfond -v --name "$suite" -n "$THREADS" --seed "$SEED" \
-        --max-memory "$MAX_MEMORY" --type "$ptype" $CONFIG $EXTRA_ARGS \
+        --max-memory "$MAX_MEMORY" --type "$ptype" $MAX_WALL_TIME_ARGS $CONFIG $EXTRA_ARGS \
         --dump-config "$RESDIR/$name.yaml" -o "$RESDIR/$name.policy" \
         --stats "$RESDIR/stats.csv" $domainfile $problemfiles > "$log" 2>&1
     rc=$?

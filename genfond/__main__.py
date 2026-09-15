@@ -19,13 +19,30 @@ from genfond.cost_utils import feature_cost
 from genfond.execute_policy import execute_policy
 
 from .iterative_solver import pnames, solve_iteratively
+from .shutdown import request_stop, stop_requested
 
 log = logging.getLogger("genfond")
 
 
 def signal_handler(sig, frame):
-    log.info(f"Received {signal.Signals(sig).name}, exiting ...")
-    os.kill(os.getpid(), signal.SIGTERM)
+    """Request a graceful stop for SIGINT and SIGTERM alike.
+
+    SLURM sends SIGTERM ahead of the hard kill when a job's time limit is reached (see
+    genfond.bash's `--signal=B:TERM@600`), and this is also where Ctrl+C (SIGINT) lands. Both
+    set the same flag (genfond.shutdown): the iterative solver's round loop stops starting new
+    rounds and a clingo solve already in flight is cancelled (Solver.solve polls for exactly
+    this), after which main() falls through to the same pickling/verification/stats-writing tail
+    as a normal end, just as a --max-wall-time stop does.
+
+    A second signal means the graceful path is not making progress (e.g. stuck outside any
+    clingo solve, which is the only place the flag is polled); exit immediately rather than
+    leave the job to be SIGKILLed with nothing written.
+    """
+    if stop_requested():
+        log.warning(f"Received {signal.Signals(sig).name} again, exiting immediately ...")
+        os._exit(1)
+    log.info(f"Received {signal.Signals(sig).name}, requesting a graceful stop ...")
+    request_stop()
 
 
 def main():
@@ -125,6 +142,13 @@ def main():
         help="wall-clock budget in seconds for a single clingo solve; keeps the best model found so far",
     )
     config_args.add_argument(
+        "--max-wall-time",
+        type=float,
+        help="wall-clock budget in seconds for the whole run (minus wall_time_reserve); stops "
+        "starting new rounds and cuts off a running solve once exhausted, then finishes "
+        "gracefully (pickles the last policy, verifies it, writes stats) same as a normal end",
+    )
+    config_args.add_argument(
         "--lazy-pairs",
         action=argparse.BooleanOptionalAction,
         # Must default to None, not False: ConfigHandler skips None overrides.
@@ -175,6 +199,7 @@ def main():
         format="%(asctime)s %(levelname)-8s %(message)s",
     )
     signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
     config = ConfigHandler(args.config, args.type, vars(args))
     if args.dump_config:
         with open(args.dump_config, "w") as f:
