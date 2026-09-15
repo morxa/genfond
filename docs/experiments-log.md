@@ -211,3 +211,18 @@ Caution on reading these two rows: the base arm's cheaper policy (cost 10) gener
 cost-21 policy learned from twice the training set, so coverage is not monotone in training-set size. Policy
 cost matters for generalisation, and the add-problem switch trades the climb's cost minimisation for training
 growth. The remaining arms decide whether a bounded climb or a final minimisation pass is needed.
+
+## H7: restricted feature grammar (config only, on `hyp/combo`)
+
+The complexity-6 pool (858 concepts / 617 roles) is what every combo arm dies on, and a blocks policy needs a
+handful of constructors. DLPlan's defaults enable and/all/some/not/equal/one_of/bot/top concepts and
+primitive/inverse/transitive-closure/restrict/identity/and roles (plus `til_c` from the datalog config).
+Arms keep primitive, not, some, all, and concepts and primitive, inverse, transitive-closure roles:
+
+| job | tag | config |
+|---|---|---|
+| 4133890 | c3-grammar | grammar restriction + add-problem switch |
+| 4133891 | c3-grammar-r2c1 | same + role offset 2, concept offset 1 |
+
+Also pending: 4133419 c3-combo (lazy pairs), 4133421 c3-r2c1 (lazy pairs + role caps), 4133412 c2-frontier2,
+4133177–4133180 (batch 1 single hypotheses).
