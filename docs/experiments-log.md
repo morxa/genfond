@@ -247,7 +247,20 @@ One-shot p005-1 / p006-1: identical cost and outcome; 1.3–1.8× fewer atoms, 9
 expansion (18 min), feature generation (9 min), grounding and one lazy iteration before the time limit; it died
 in `bad_alloc` before the first grounding without this. Regression suites identical. Merged into `hyp/combo`.
 
-## H8 (in progress): core-guided / anytime optimisation (`hyp/anytime-solve`)
+## H8: core-guided / anytime optimisation (`hyp/anytime-solve`, on `hyp/combo`)
 
-Targets the optimisation stall above: `--opt-strategy=usc` as a config knob, and a per-solve time budget that
-keeps the best model and tells the iterator when a cost is not proven optimal (no level refutation from it).
+Knobs: `clingo_opt_strategy` (`bb` default, `usc`), `clingo_options`, `solve_time_limit` (seconds). With a
+limit, the best model found is kept; a not-proven-optimal success keeps `max_cost = cost − 1` but refutes no
+complexity level, and a cut-off solve without a model is a new `Result.TIMEOUT` (escalates like NO_SOLUTION).
+The lazy loop still terminates only on zero violated pairs, so every returned policy is feasible.
+
+| case | bb | usc | bb + 60 s limit |
+|---|---|---|---|
+| five local suites | all identical, every solve ≤ 0.2 s | same (one equal-cost model swap on blocks3ops-local) | same |
+| p006-1 one-shot c=4 | 10 iterations, 142.6 s clingo, 210.7 s wall, cost 4 | 9 iterations, **11.2 s clingo, 79.3 s wall**, cost 4 | 7 iterations, 115.3 s, cost 4 |
+| p005-1 + p005-2 + p006-1, c=4, 25 min | 4 solves, then hangs 21 min (80 k violated pairs left) | 2 solves, then 24 min with **no model** (1.41 M left) | **24 iterations**, 22 cut off, 277 violated pairs left, models cost 16–48 |
+
+usc is 12.7× faster on the solving part when it works and useless when the core extraction does not converge;
+the time budget keeps the loop progressing at the price of policy cost. Merged into `hyp/combo` (6f2d2cf).
+
+Cluster batch 4 on that commit (`c4-*`, jobs 4136480–4136483): usc, time limit 300 s, and both with the role caps.
