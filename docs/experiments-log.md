@@ -158,3 +158,34 @@ Combo, full 95 **locally** (16 GB cap, 2 h limit): **29/95** in 1641 s, cost 21,
 instance (88 concepts / 73 roles × 21 problems) and a failed complexity-5 round. Baseline died with 8 training
 problems. Weak signal on the memory end, strong on coverage: every ≤7-block instance except blocks-007-4 is
 solved. Note the frontier loop: blocks-007-1 accumulated 19 example plans.
+
+## H10: synthesise and deduplicate features over a richer state sample (`hyp/rich-sample`)
+
+Mechanism: random-walk states from every problem on the command line (including the large unsolved
+ones) are added to the states dlplan's `generate_features` and genfond's `prune_redundant_*`
+deduplicate over. The ASP instance is unchanged -- sample states never become `state/2` facts.
+Config block `feature_sample` + `--feature-sample`.
+
+**Null result, and it refutes the premise.** `c_equal(r_primitive(on,0,1),r_primitive(on_G,0,1))`
+is not a deduplication victim: it has the same denotation as *no* generated concept, on the
+training states or on 9403 sample states, and `dlplan.generator.generate_features` does not emit
+`c_equal` even on a synthetic two-role vocabulary with all limits at 5. dlplan's EqualConcept rule
+does not fire in this build, so the "Why the synthesised pool cannot express the preset policy"
+paragraph under H9 above is wrong about the reason.
+
+The sample does widen the pool, but only where the training set is a *single* problem (all goal
+concepts are static there): p003-1 alone goes 26 -> 29 concepts at complexity 3 and 80 -> 88 at
+complexity 4. With two training problems the pools are identical up to complexity 4 (29/28 and
+88/73 either way), and the iterative loop reaches two problems within a couple of rounds.
+blocks3ops-local: 10/10 both arms, same two outcomes in the same proportion; regression suites
+(gripper, miconic, blocks4ops-clear, delivery) unchanged. Cost: 45 s of walks for 95 problems
+(cached), +1-11 s per round of redundancy pruning, +46 MB RSS, ASP instance unchanged.
+
+**Protocol finding:** `--seed 0 -n 1` is *not* enough to make two blocks3ops-local runs
+comparable. `State` is a `frozenset` of `pddl` atoms, so iteration order -- and with it the
+frontier loop's choice of plans and training problems -- follows `PYTHONHASHSEED`. Flipping it
+flips this suite between (cost 5, complexity 2, 30 rules, 1/12 held-out) and (cost 9, complexity 3,
+40 rules, 0/12) in *both* arms. Single-run local A/Bs in this log should be re-read with that in
+mind.
+
+Details: `docs/rich-sample-results.md`.
