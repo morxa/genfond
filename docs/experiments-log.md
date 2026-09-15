@@ -397,3 +397,21 @@ pair constraints between forced classes carry no labelling choice; optional plan
 state-set dedupe of example plans; the preset arm hit 1 423 plans on one problem), final-climb (one cost
 minimisation pass at the end instead of after every success), wall-budget (graceful `max_wall_time`/SIGTERM
 handling so killed runs still write stats and policy).
+
+## H14: one final cost-minimisation pass (`hyp/final-climb`, on `hyp/min-count`)
+
+`final_cost_minimization: true`: after the fast add-problem loop ends, run the old complexity climb once on the
+frozen final training set and keep the candidate that solves the most problems, ties by lowest cost.
+Workstation, `--type datalog-sig -n 1 --seed 0`, add-problem, `solve_time_limit: 300`, role offset 2 /
+concept offset 1, goal suffix `_g`:
+
+| suite | pass off | pass on |
+|---|---|---|
+| blocks3ops-local | 10/10, cost 9, 40 rules, 25 s, **held-out 4/12** | 10/10, cost 7, 27 rules, 49 s, **held-out 8/12** |
+| gripper-local | 5/5, cost 7 | unchanged (a cheaper cost-6 candidate solved fewer problems and was rejected) |
+| miconic-local | 4/4, cost 11 | 4/4, cost 8 |
+
+Two things to note: this configuration (goal suffix + role caps + budget) already generalises to 4/12 without
+the pass, the first synthesised-pool policy to transfer at all; and the cheaper policy transfers twice as far.
+The pass triggered only when all problems were solved; the end-of-run trigger is being added before the
+full-95 cluster arms.
