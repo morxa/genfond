@@ -301,3 +301,14 @@ states. This is the mechanism behind 0/12 held-out: the learner can only combine
 the training states. Hypothesis H10: synthesise (and deduplicate) features over a richer state sample, e.g.
 random-walk states from all problems including the large unsolved ones, while the ASP instance keeps only the
 training states.
+
+**Correction to the paragraph above (H10 result, `hyp/rich-sample`):** `c_equal(on, on_G)` is not lost to
+deduplication. Its denotation matches no generated concept on 86 training states or on 9 489 training+sample
+states, and DLPlan's generator emits no `c_equal` at all in this build, at any complexity, even on a synthetic
+two-role vocabulary with `generate_equal_concept=True`. The richer sample changes nothing on blocks3ops
+(pool sizes identical at complexity 3 and 4; held-out 0–1/12 either way) and stays unmerged. The missing
+constructor is a DLPlan issue (or needs a genfond-side goal-comparison augmentation).
+
+**Protocol correction:** `State` is a `frozenset` of pddl atoms, so iteration order and the frontier loop's
+choices follow `PYTHONHASHSEED`; `--seed 0 -n 1` alone does not make two runs identical. Both benchmark scripts
+now pin `PYTHONHASHSEED`. Earlier single-run A/Bs carry that noise.

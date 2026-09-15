@@ -25,6 +25,9 @@ TAG="${TAG:?set TAG to label this run}"
 SUITES="${SUITES:-blocks3ops-local gripper-local miconic-local blocks4ops-clear-local delivery-local}"
 POLICY_TYPE="${POLICY_TYPE:-datalog}"
 SEED="${SEED:-0}"
+# State is a frozenset of pddl atoms, so iteration order and hence the loop path follow the hash
+# seed; without pinning it two seeded runs still differ.
+export PYTHONHASHSEED="${PYTHONHASHSEED:-$SEED}"
 THREADS="${THREADS:-1}"
 MAX_MEMORY="${MAX_MEMORY:-24000}"
 TIME_LIMIT="${TIME_LIMIT:-2h}"
