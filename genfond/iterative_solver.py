@@ -22,6 +22,7 @@ from .lazy_pairs import DEFAULT_BATCH, solve_with_lazy_pairs
 from .policy import PolicyType
 from .problem_iterator import MAX_COST, OneShotProblemIterator, ProblemIterator, Result
 from .rule_policy import Policy
+from .shutdown import stop_requested
 from .solver import Solver, SolveStatus
 from .state_space_generator import State, check_formula
 
@@ -114,6 +115,7 @@ def solve(
     dead_states: Optional[Mapping[str, set[State]]] = None,
     allow_frontier: bool = True,
     stats: Optional[MutableMapping[str, Any]] = None,
+    wall_deadline: Optional[float] = None,
 ) -> Optional[tuple[DatalogPolicy | Policy, MutableMapping[str, Any], list[FrontierState]]]:
     # The caller may hand in the run-level stats dict so that the keys describing *why* a round
     # produced no policy (solveStatus, solveOptimal) survive a `return None`; the returned
@@ -196,6 +198,7 @@ def solve(
         time_limit=config["solve_time_limit"],
         minimize_good_signatures=config.get("minimize_good_signatures", "none"),
         minimize_selected_count=config.get("minimize_selected_count", "none"),
+        wall_deadline=wall_deadline,
     )
     if config.get("lazy_pairs", False) and config.get("emit_action_signatures", False):
         # The instance carries no separation pairs; they are added batch by batch in response to
@@ -263,6 +266,18 @@ def solve_iteratively(
     policy = None
     problems.sort(key=lambda p: len(p.objects))
     stats: dict[str, str | int | float] = dict()
+    # An absolute deadline (time.perf_counter()-based) for the whole run, `wall_time_reserve`
+    # seconds short of `max_wall_time` so that budget is left over for the final verification
+    # loop in __main__ after this function returns. The same deadline is handed to every round's
+    # Solver as `wall_deadline`, so a round already in flight when the budget runs out is cut off
+    # at this instant too, rather than only being prevented from starting the next one -- see
+    # docs/wall-budget-results.md. None (the default, `max_wall_time: null`) reproduces the
+    # previous behaviour exactly: no round is ever cut short and this loop never stops early.
+    wall_time_start = time.perf_counter()
+    max_wall_time = config.get("max_wall_time")
+    wall_deadline: Optional[float] = None
+    if max_wall_time is not None:
+        wall_deadline = wall_time_start + max_wall_time - (config.get("wall_time_reserve") or 0)
     example_plans: dict[str, Iterator[Plan]] = dict()
     planner_compute_plans: Optional[PlannerComputePlans] = None
     planner_config: dict[str, Any] = dict()
@@ -286,11 +301,30 @@ def solve_iteratively(
         problem_iterator = ProblemIterator(problems, config, plans=example_plans)
     problems_by_name = {problem.name: problem for problem in problems}
     for iter_kwargs in problem_iterator:
+        if wall_deadline is not None and time.perf_counter() >= wall_deadline:
+            log.warning(
+                "Wall-clock budget exhausted (%.1fs used of %.1fs, %.1fs reserve); stopping"
+                " without starting another round",
+                time.perf_counter() - wall_time_start,
+                max_wall_time,
+                config.get("wall_time_reserve") or 0,
+            )
+            stats["stoppedBy"] = "wall_time"
+            stats["wallBudgetUsed"] = time.perf_counter() - wall_time_start
+            break
+        if stop_requested():
+            # SIGINT/SIGTERM (see genfond.shutdown); a round already in flight was already cut
+            # off by the same flag inside Solver.solve, so there is nothing left running here.
+            log.warning("Stop requested; stopping without starting another round")
+            stats["stoppedBy"] = "signal"
+            stats["wallBudgetUsed"] = time.perf_counter() - wall_time_start
+            break
         result, new_policy, frontier_states = solve_step(
             **iter_kwargs,
             domain=domain,
             stats=stats,
             config=config,
+            wall_deadline=wall_deadline,
         )
         if result == Result.FRONTIER:
             # Expand the unexpanded states the model relied on, then retry the same
@@ -418,6 +452,7 @@ def solve_step(
     enforce_highest_complexity: bool = False,
     dead_states: Optional[Mapping[str, set[State]]] = None,
     allow_frontier: bool = True,
+    wall_deadline: Optional[float] = None,
 ) -> tuple[Result, Optional[Policy | DatalogPolicy], list[FrontierState]]:
     log_memory(f"round start complexity={complexity}")
     try:
@@ -436,6 +471,7 @@ def solve_step(
             dead_states=dead_states,
             allow_frontier=allow_frontier,
             stats=stats,
+            wall_deadline=wall_deadline,
         )
     except (RuntimeError, MemoryError) as e:
         log.warning(

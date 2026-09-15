@@ -76,6 +76,23 @@ clingo_options: []
 # seen so far is kept. Such a model is still a valid policy -- it satisfies every constraint --
 # but its cost is only an upper bound, so the round no longer refutes its complexity level.
 solve_time_limit: null
+# Wall-clock budget in seconds for the *whole run* (solve_iteratively's round loop), null
+# (default) leaves it unbounded -- the previous behaviour exactly. With a budget set,
+# solve_iteratively stops starting new rounds and cuts off a round already in flight
+# (Solver.wall_deadline, composing with solve_time_limit as whichever is sooner) once
+# `max_wall_time - wall_time_reserve` seconds have elapsed since the loop started, then returns
+# normally with the last successful policy (if any) so __main__ proceeds exactly as on a normal
+# end: pickle it, verify it on every problem, and write the stats row -- with an extra
+# stoppedBy=wall_time (or =signal, see SIGTERM below) column and wallBudgetUsed. Exists because a
+# cluster job killed by the SLURM time limit writes neither a policy nor a stats row, and loses
+# whatever round or clingo solve was in progress. SIGTERM (which SLURM sends ahead of the hard
+# kill; see genfond.bash's --signal=B:TERM@600) and SIGINT trigger the identical graceful stop
+# independently of this setting. See docs/wall-budget-results.md.
+max_wall_time: null
+# How much of max_wall_time to hold back from the round loop so the final verification pass in
+# __main__ (which runs after solve_iteratively returns and is not itself time-bounded) has room
+# to finish. Only has an effect together with max_wall_time.
+wall_time_reserve: 300
 dump_failed_policies: false
 dump_clingo_program: null
 keep_going: false

@@ -9,8 +9,15 @@ import clingo
 
 from .cost_utils import feature_cost
 from .problem_iterator import MAX_COST
+from .shutdown import stop_requested
 
 log = logging.getLogger(__name__)
+
+# How often the async wait loop in Solver.solve checks for a deadline or a stop request. Short
+# enough that a SIGTERM (genfond.bash gives SLURM jobs a 10-minute warning via
+# --signal=B:TERM@600) or an exhausted --max-wall-time budget takes effect promptly, long enough
+# that polling overhead is negligible next to an actual clingo solve.
+POLL_INTERVAL = 1.0
 
 
 class SolveStatus(enum.Enum):
@@ -54,12 +61,19 @@ class Solver:
         time_limit: Optional[float] = None,
         minimize_good_signatures: str = "none",
         minimize_selected_count: str = "none",
+        wall_deadline: Optional[float] = None,
     ):
         self.asp_code = asp_code
         self.minimize_good_signatures = minimize_good_signatures
         self.minimize_selected_count = minimize_selected_count
         self.opt_strategy = opt_strategy or "bb"
         self.time_limit = time_limit
+        # An absolute `time.perf_counter()`-based deadline (see --max-wall-time /
+        # genfond.shutdown), independent of and composable with `time_limit`: the effective
+        # per-solve budget is whichever of the two runs out first (computed fresh in `solve()`,
+        # since the same Control is solved repeatedly in the lazy-pairs loop and the remaining
+        # wall budget shrinks between those calls even though `wall_deadline` itself does not).
+        self.wall_deadline = wall_deadline
         options = list(clingo_options or [])
         if self.opt_strategy != "bb":
             # "bb" is clingo's own default, so leaving the option off reproduces the previous
@@ -134,11 +148,19 @@ class Solver:
     def solve(self) -> bool:
         """Solve the grounded program; return whether a model was found.
 
-        With `time_limit` set the solve is anytime: it runs asynchronously and is cancelled once
-        the budget is up, keeping the best model clingo reported so far. `self.status` then
-        distinguishes the four outcomes and `self.optimal` says whether the answer was proved.
-        A cancelled solve that never produced a model is `UNKNOWN`, *not* unsatisfiable -- the
-        caller must not read a refutation into it.
+        With `time_limit` and/or `wall_deadline` set the solve is anytime: it is cancelled once
+        the effective budget (the sooner of the two) is up, keeping the best model clingo
+        reported so far. `self.status` then distinguishes the four outcomes and `self.optimal`
+        says whether the answer was proved. A cancelled solve that never produced a model is
+        `UNKNOWN`, *not* unsatisfiable -- the caller must not read a refutation into it.
+
+        The solve always runs asynchronously, polling for completion in `POLL_INTERVAL` steps,
+        even with no budget at all: that is the only way a `genfond.shutdown.stop_requested()`
+        signal (SIGINT/SIGTERM) can reach a solve already in flight, since a plain blocking
+        `control.solve()` call would not return control to Python -- where a signal handler
+        actually runs -- until clingo itself finishes. With no budget and no stop request this
+        polling loop only ever exits once the solve completes on its own, so it settles the same
+        question a single blocking call would, just observed in small steps.
         """
         # Constraints added since the previous solve can only raise the optimum, so a bound
         # carried over from it would be unsound. clingo does not keep one, but say so anyway.
@@ -150,16 +172,35 @@ class Solver:
         self.solution = dict()
         self.cost = []
         start = time.perf_counter()
-        if self.time_limit is None:
-            res = self.control.solve(on_model=self.on_model)
-            self.timed_out = False
-        else:
-            with self.control.solve(on_model=self.on_model, async_=True) as handle:
-                finished = handle.wait(self.time_limit)
-                if not finished:
-                    handle.cancel()
-                res = handle.get()
-            self.timed_out = not finished
+        # The effective deadline for *this* solve: the sooner of the configured time_limit and
+        # the remaining wall-clock budget. Recomputed from wall_deadline (an absolute instant)
+        # on every call, not just once at construction time, since the lazy-pairs loop solves
+        # the same Control repeatedly and the remaining budget shrinks between those calls even
+        # though wall_deadline itself is fixed.
+        stop_at: Optional[float] = None if self.time_limit is None else start + self.time_limit
+        if self.wall_deadline is not None:
+            stop_at = self.wall_deadline if stop_at is None else min(stop_at, self.wall_deadline)
+        # Computed from `start`, not a fresh `time.perf_counter()`, so the first wait() below is
+        # the with-block's first statement, exactly like the plain `handle.wait(self.time_limit)`
+        # this replaces: an unbounded (solve_time_limit=0) hard-optimisation instance can return
+        # its first (non-optimal) model within microseconds, so any extra work inserted before
+        # that first wait() measurably changes how often it wins the race -- see
+        # docs/wall-budget-results.md.
+        step = POLL_INTERVAL if stop_at is None else max(0.0, min(POLL_INTERVAL, stop_at - start))
+        finished = False
+        with self.control.solve(on_model=self.on_model, async_=True) as handle:
+            while True:
+                finished = handle.wait(step)
+                if finished:
+                    break
+                if (stop_at is not None and time.perf_counter() >= stop_at) or stop_requested():
+                    break
+                now = time.perf_counter()
+                step = POLL_INTERVAL if stop_at is None else max(0.0, min(POLL_INTERVAL, stop_at - now))
+            if not finished:
+                handle.cancel()
+            res = handle.get()
+        self.timed_out = not finished
         self.elapsed = time.perf_counter() - start
         self.statistics = self.control.statistics
         if self.solution:
@@ -172,9 +213,10 @@ class Solver:
         elif res.satisfiable is False:
             self.status = SolveStatus.UNSATISFIABLE
         else:
-            # No model and no proof of unsatisfiability: the budget ran out first. Without a
-            # budget this cannot happen, and the `assert res.satisfiable is not None` below
-            # still reports it exactly as it did before -- no new failure mode on that path.
+            # No model and no proof of unsatisfiability: the budget ran out first, or a stop was
+            # requested, before any model was found. Without a budget and without a stop request
+            # this cannot happen, and the `assert res.satisfiable is not None` below still
+            # reports it exactly as it did before -- no new failure mode on that path.
             self.status = SolveStatus.UNKNOWN
         self.optimal = self.status in (SolveStatus.OPTIMAL, SolveStatus.UNSATISFIABLE)
         log.info(
@@ -186,9 +228,11 @@ class Solver:
             " (timed out)" if self.timed_out else "",
             self.cost if self.cost else "-",
         )
-        if self.time_limit is None:
-            # Unchanged from before the anytime path existed: without a budget clingo always
-            # settles the question one way or the other.
+        if finished:
+            # The async wait resolved on its own -- not cut off by a deadline or a stop request
+            # -- so clingo settled the question one way or the other, exactly as a plain
+            # blocking solve() always did (the case this reproduces when stop_at is None and no
+            # stop was ever requested).
             assert res.satisfiable is not None
             return res.satisfiable
         return bool(self.solution)
