@@ -665,3 +665,8 @@ That policy has 5 rules over three elements (`b_empty(clear ∧ clear_g)`, `c_eq
 solves **10/12 held-out** instances (fails 012-1, 020-2).
 m9-siwr1-s1/s2 (4153962/3, seeds 1–2 of the restarts-1 arm, pre-keep-best): both 4 h TIMEOUT with first
 failure at position 43, matching seed 0; the number was a first-failure position, superseded by keep-best.
+Combined flags re-run (small suite): seed 1 → 36 rounds, 99-rule policy, 27/30, timed out; seed 0 → 30 rounds,
+no policy, timed out. Either flag alone: 13–15 rounds, 7–8 rules, 30/30. The combination reliably derails the
+small-suite trajectory (though the kb-r1-mod cluster arm with both on still found its 89/95 policy at round
+14). Forced labels showed no gain with the solve budget, so the recommended configuration drops them:
+add-problem, budget 300 s, role offset 2 / concept offset 1, restarts 1, cap 8, keep-best, final pass optional.
