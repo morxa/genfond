@@ -630,3 +630,5 @@ Suite extension (seed 2, same configuration): train ≤8 blocks (35 problems) �
 **92/95**; ≤9 blocks (40) → 40/40 in 20 s, 7 rules, **93/95** (fails 017-5, 018-4); ≤10 blocks (45, incl.
 010-5) → 44/45 after 40 min timeout, 18 rounds, 92/95. Adding the instance that needs the well-placed concept
 stalls the loop exactly as predicted; H19 (extra features) is the test.
+fc-cpu (4144318, cpu 12 h, final pass, no graceful budget): killed; 29 training problems ≤9 blocks,
+first failure at position 35 (a lower bound on coverage), still adding problems at the end.
