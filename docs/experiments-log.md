@@ -852,3 +852,16 @@ verification only at the end, per-step logging off.
 Till: ten executions per candidate were for FOND; for deterministic problems repetition only matters
 because the datalog executor samples among applicable rule instantiations. Decision: in-loop validation
 executes each problem once; the datalog configs' final verification drops `policy_iterations` from 10 to 3.
+
+**Full-suite loop, new grammar, five runs:** ec-cpu (seed 2, hash 0) 95/95 in 18 min; ec-s3 95/95 in 19.5 min;
+ec-mod (seed 2, modern node), ec-s1, ec-s2 all **28/95**, each with best policy at round 12 from 19 training
+problems and stopped by the 4 h budget. The successful runs also peak at round 12 (6 training problems). The
+outcome is decided at round 12 by which equal-cost optimal model clingo returns: `c_equal_closure` (→ 95) or
+`c_equal` (→ 28), the same tie as on the small suite. Planned fix (H22): enumerate several optimal models per
+round and let the coverage test choose (keep-best already ranks by coverage).
+
+**Offsets are a trade-off, not a free win:** without role/concept offsets, blocks3ops ≤7-block training gives
+5-rule `c_equal` policies at 89–90/95 for all three seeds (with offsets: 2 of 3 seeds 95/95), and visitall-500
+reaches 26/500 in 50 min (with offsets: 500/500 in 3 h). visitall-36 (the `deterministic-new` suite) needs a
+complexity-6 role that the role offset delays to complexity 8; the offsets help where the needed elements are
+cheap concepts and hurt where a deep role is needed.
