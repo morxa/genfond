@@ -587,3 +587,5 @@ coverage, and for those runs it matched the tail figure, so the cluster policies
 removes the early break and keeps the best-coverage policy. Running now on the workstation: the 30-problem
 training run repeated for seeds 0–2, with and without `minimize_selected_count: above`, each policy scored on
 all 95.
+m7-r1-cap8 (4152032, modern 4 h, deadline fix): graceful, true coverage **29/95**, 20 training problems
+≤8 blocks, pass 45 → 45 (1 round). Cost 45 versus cost 8 for the 91/95 policy from the small suite.
