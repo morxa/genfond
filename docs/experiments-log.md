@@ -730,3 +730,6 @@ H21 result: dlplan `equal-closure` @ b2df1699 (pushed): new element `EqualClosur
 selected before the cap (its negation and boolean sit at complexity 4–5). Regression suites reproduce the
 baselines exactly under the default config. genfond pinned to b2df1699 (learn-from-examples and hyp/combo);
 image rebuild running locally for the cluster runs.
+Image rebuilt locally in 10 min (`make genfond_env.sif`, 1.1 GB) from the re-pinned lock; it parses
+`c_equal_closure(...)` at complexity 3 and exposes `generate_equal_closure_concept`. Copied to
+`/work/.../genfond_env_ec.sif` (new name so running jobs keep their open image).
