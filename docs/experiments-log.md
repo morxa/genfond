@@ -796,3 +796,5 @@ Cross-domain snapshot after 73 min (rec = working configuration, old = original 
 The original system sits in its first round on every hard domain; the working configuration is 7–22 rounds
 in. Two domains crash under both systems (domain-file issue, investigated). Spanner is the one domain where
 the baseline's early policy covers more.
+Crash causes: deterministic-new/miconic fails to parse under both systems (`PDDLMissingRequirementError:
+:typing not found`, a domain-file issue, not a system difference).
