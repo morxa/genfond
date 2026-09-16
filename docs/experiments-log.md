@@ -801,3 +801,5 @@ Crash causes: deterministic-new/miconic fails to parse under both systems (`PDDL
 blocks-multiple: problem files reuse names (BW-rand-4 ×4, …); the original system asserts
 ("Problem names must be unique"), the new one runs but its per-name bookkeeping is confused (8/48 with
 duplicate unsolved entries). Excluded from the comparison; the suite needs unique problem names.
+Cancelled as superseded by the new-grammar result (Till, 2026-09-16): 4147766 (full2-long, 36 h),
+4154631 (kb-lite-cpu), 4154622 (kb-r1-cpu); all pre-grammar full-suite arms.
