@@ -892,3 +892,14 @@ could not finish its first round, the working configuration reaches 8–13-objec
 higher coverage. Two infrastructure limits showed: the validation loop dominates large suites (fix in
 progress) and the graceful stop cannot interrupt it (the four killed rec runs), so those runs lost their
 stats and best policies.
+
+## H23: cheap in-loop validation (`hyp/cheap-validation`, 299d7fe, 218 tests)
+
+`validation_iterations: 1`, `validation_max_consecutive_failures: 3` (size order, lower-bound count),
+`validation_time_limit: 60` (per execution, monotonic clock inside the executors, `ExecutionTimeout`),
+deadline/stop checks between problems so the graceful stop works inside validation; datalog configs'
+`policy_iterations` 10 → 3; the leaked per-step `eval to cond` lines went to the `genfond.execution` loggers
+(they came from `generate_rule_policy`'s logger, which the log map did not silence). Workstation validation
+(regression suites + spanner 141 with a 50 min budget) running. H22 (`hyp/opt-enum`, on top of it):
+enumerate up to k optimal models per round, discard those violating lazy pairs, validate each cheaply, keep
+the best coverage — the tie-breaker for the round-12 fork.
