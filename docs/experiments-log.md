@@ -751,3 +751,10 @@ Robustness (workstation, new image): training on **2–7 blocks only** (30 probl
 closure concept selected, **95/95**; seed 1: 30/30, 6 rules, plain `c_equal` chosen (equal cost), **92/95**;
 seed 2: 30/30, 6 rules, closure, **95/95**; all in ~33 s. Regression suites in the new image, default config:
 gripper 5/5 c6, miconic 4/4 c12, blocks4ops-clear 4/4 c2, delivery 4/4 c9 — identical to the baselines.
+
+## RESULT: the full 95-problem loop completes with 95/95
+
+ec-cpu (4161148, `rleap_cpu`, new image, recommended configuration, seed 0, single thread): the iterative
+loop over all 95 problems **completed normally after 18 min** (`COMPLETED`, not a timeout): 6 training
+problems (≤4 blocks), best policy at round 12, **95/95 solved**, 6 rules on `c_equal_closure(on, on_g)`,
+`c_equal(on, on_g)` as boolean, and `r_not(on_g)`. No curated training set, no hand-given features.
