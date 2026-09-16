@@ -798,3 +798,6 @@ in. Two domains crash under both systems (domain-file issue, investigated). Span
 the baseline's early policy covers more.
 Crash causes: deterministic-new/miconic fails to parse under both systems (`PDDLMissingRequirementError:
 :typing not found`, a domain-file issue, not a system difference).
+blocks-multiple: problem files reuse names (BW-rand-4 ×4, …); the original system asserts
+("Problem names must be unique"), the new one runs but its per-name bookkeeping is confused (8/48 with
+duplicate unsolved entries). Excluded from the comparison; the suite needs unique problem names.
