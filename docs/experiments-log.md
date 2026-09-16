@@ -865,3 +865,30 @@ round and let the coverage test choose (keep-best already ranks by coverage).
 reaches 26/500 in 50 min (with offsets: 500/500 in 3 h). visitall-36 (the `deterministic-new` suite) needs a
 complexity-6 role that the role offset delays to complexity 8; the offsets help where the needed elements are
 cheap concepts and hurt where a deep role is needed.
+
+### Cross-domain A/B, final (12 h, seed 0, single thread; rec = working configuration with graceful budget,
+old = original system)
+
+| domain (problems) | old | rec | verdict |
+|---|---|---|---|
+| blocks4ops-clear (95) | 95/95, 16 s | 95/95, 44 s | equal |
+| blocks4ops-on (190) | 190/190, 33 s | 190/190, 4.5 min | equal |
+| gripper (30) ×2 | 30/30, 30/30 | 30/30, 30/30 | equal |
+| visitall (500) | 500/500, 43 min | 500/500, 3 h | equal, slower |
+| **blocks4ops (113)** | 52/113 | **106/113** (19 training problems ≤9) | rec |
+| **blocks (35)** | killed in round 1 | **29/35** (27 problems ≤13) | rec |
+| **hanoi (30)** | killed in round 1 | **30/30** in 10 h | rec |
+| **delivery (225)** | killed in round 1 | **139/225** (31 problems ≤9) | rec |
+| **miconic (25)** | 14/25 | **18/25** | rec |
+| **logistics_dp (47)** | 9/47 | **17/47** | rec |
+| logistics (47) | 9/47 | 9/47 | equal |
+| **visitall (36)** | **36/36**, 4.6 min | 8/36 | **old** (needs a complexity-6 role; role offset delays it) |
+| barman, grid, reward, spanner | killed in round 0–1 | killed at the limit inside validation, no final line (reward best 5/35) | no result |
+| sokoban, storage | still running | still running | pending |
+| blocks-multiple, miconic-new | invalid suites | – | – |
+
+Reading: no domain regresses except visitall-36, which is the offset trade-off; where the original system
+could not finish its first round, the working configuration reaches 8–13-object training sets and much
+higher coverage. Two infrastructure limits showed: the validation loop dominates large suites (fix in
+progress) and the graceful stop cannot interrupt it (the four killed rec runs), so those runs lost their
+stats and best policies.
