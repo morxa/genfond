@@ -394,6 +394,42 @@ def test_extra_features_not_duplicated_when_also_synthesised(simple_blocks, monk
     assert clingo_program.count('concept_complexity("c_top", 1).') == 1
 
 
+def test_extra_features_complexity_override(simple_blocks):
+    """extra_features_complexity, when set, replaces the emitted complexity of every
+    extra_features element with the override value; unset, the emitted complexity is DLPlan's own
+    compute_complexity() as before."""
+    domain, problem = simple_blocks
+    extra_concept = "c_not(c_not(c_primitive(holding,0)))"
+
+    base_overrides = {
+        "include_concepts": True,
+        "max_complexity": 2,
+        "prune_concepts": False,
+        "prune_roles": False,
+        "prune_static_concepts": False,
+        "prune_static_roles": False,
+        "extra_features": {"concepts": [extra_concept]},
+    }
+
+    config_without_override = ConfigHandler()
+    for key, value in base_overrides.items():
+        config_without_override[key] = value
+    pool_without_override = FeaturePool(domain, [problem], config=config_without_override)
+    dlplan_complexity = pool_without_override.concepts[extra_concept].compute_complexity()
+    clingo_program_without_override = pool_without_override.to_clingo()
+    assert f'concept_complexity("{extra_concept}", {dlplan_complexity}).' in clingo_program_without_override
+
+    config_with_override = ConfigHandler()
+    for key, value in base_overrides.items():
+        config_with_override[key] = value
+    config_with_override["extra_features_complexity"] = 2
+    pool_with_override = FeaturePool(domain, [problem], config=config_with_override)
+    assert pool_with_override.concepts[extra_concept].compute_complexity() == dlplan_complexity
+    clingo_program_with_override = pool_with_override.to_clingo()
+    assert f'concept_complexity("{extra_concept}", 2).' in clingo_program_with_override
+    assert 2 != dlplan_complexity
+
+
 def test_extra_features_merged_with_preset_features(simple_blocks):
     """With preset_features also set, extra_features is merged into the preset lists instead
     of being appended after a (skipped) generation step."""

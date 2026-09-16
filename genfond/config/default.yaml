@@ -219,6 +219,14 @@ preset_features: null
 # replaces synthesis, so there is nothing to append after). null (default) is a no-op. See
 # docs/extra-features-results.md.
 extra_features: null
+# When set to an integer, every element listed in extra_features is emitted with this complexity
+# in the feature_complexity/concept_complexity/role_complexity facts instead of DLPlan's own
+# compute_complexity() -- only the emitted cost changes, nothing else about how the element is
+# generated, deduplicated or pruned. Lets a hand-given element that generalizes well compete with
+# cheap synthesised combinations in the #minimize over feature cost, rather than losing on
+# syntactic cost it was never meant to be judged by. null (default) keeps DLPlan's computed
+# complexity, as before. No effect without extra_features set. See docs/extra-features-results.md.
+extra_features_complexity: null
 feature_generator:
   generate_til_c_role: false
 prune_roles: true

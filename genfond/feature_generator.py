@@ -197,6 +197,12 @@ class FeaturePool:
         # state; only collected for the plan_label_heuristic.
         self._plan_actions: list[tuple[int, int, str]] = []
         self.forced_labels: Optional[ForcedLabels] = None
+        # String keys of extra_features elements actually added to the pool (booleans and
+        # numericals share self.features, so both land in _extra_feature_keys). Consulted in
+        # to_clingo to apply extra_features_complexity, if set.
+        self._extra_feature_keys: set[str] = set()
+        self._extra_concept_keys: set[str] = set()
+        self._extra_role_keys: set[str] = set()
         if not max_complexity:
             max_complexity = config["max_complexity"]
         for problem in problems:
@@ -243,6 +249,10 @@ class FeaturePool:
                 added_concepts = _dedup_extend(concepts, extra_concepts)
                 added_roles = _dedup_extend(roles, extra_roles)
                 _log_added_extra_features(added_booleans, added_numericals, added_concepts, added_roles)
+                self._extra_feature_keys.update(str(b) for b in added_booleans)
+                self._extra_feature_keys.update(str(n) for n in added_numericals)
+                self._extra_concept_keys.update(str(c) for c in added_concepts)
+                self._extra_role_keys.update(str(r) for r in added_roles)
         else:
             if all_generators:
                 feature_generator_kwargs = config["unrestricted_feature_generator"]
@@ -290,6 +300,10 @@ class FeaturePool:
                 added_concepts = _dedup_extend(concepts, extra_concepts)
                 added_roles = _dedup_extend(roles, extra_roles)
                 _log_added_extra_features(added_booleans, added_numericals, added_concepts, added_roles)
+                self._extra_feature_keys.update(str(b) for b in added_booleans)
+                self._extra_feature_keys.update(str(n) for n in added_numericals)
+                self._extra_concept_keys.update(str(c) for c in added_concepts)
+                self._extra_role_keys.update(str(r) for r in added_roles)
         self.features = {}
         self.concepts = {}
         self.roles = {}
@@ -894,19 +908,42 @@ class FeaturePool:
             ),
             "redundant_roles": (self.compute_redundant_roles() if self.config["prune_redundant_roles"] else set()),
         }
+        extra_complexity = self.config.get("extra_features_complexity")
+        if extra_complexity is not None and (
+            self._extra_feature_keys or self._extra_concept_keys or self._extra_role_keys
+        ):
+            log.info(
+                f"extra_features_complexity={extra_complexity}: overriding the emitted complexity "
+                f"for extra_features element(s) {sorted(self._extra_feature_keys | self._extra_concept_keys | self._extra_role_keys)}"
+            )
         clingo_program = ""
         for feature_str, feature in self.features.items():
+            complexity = (
+                extra_complexity
+                if extra_complexity is not None and feature_str in self._extra_feature_keys
+                else feature.compute_complexity()
+            )
             feature_str = f'"{feature_str}"'
             clingo_program += f"feature({feature_str}).\n"
-            clingo_program += f"feature_complexity({feature_str}, {feature.compute_complexity()}).\n"
+            clingo_program += f"feature_complexity({feature_str}, {complexity}).\n"
         for concept_str, concept in self.concepts.items():
+            complexity = (
+                extra_complexity
+                if extra_complexity is not None and concept_str in self._extra_concept_keys
+                else concept.compute_complexity()
+            )
             concept_str = f'"{concept_str}"'
             clingo_program += f"concept({concept_str}).\n"
-            clingo_program += f"concept_complexity({concept_str}, {concept.compute_complexity()}).\n"
+            clingo_program += f"concept_complexity({concept_str}, {complexity}).\n"
         for role_str, role in self.roles.items():
+            complexity = (
+                extra_complexity
+                if extra_complexity is not None and role_str in self._extra_role_keys
+                else role.compute_complexity()
+            )
             role_str = f'"{role_str}"'
             clingo_program += f"role({role_str}).\n"
-            clingo_program += f"role_complexity({role_str}, {role.compute_complexity()}).\n"
+            clingo_program += f"role_complexity({role_str}, {complexity}).\n"
         for state_graph in self.state_graphs.values():
             for node in state_graph.nodes.values():
                 clingo_program += self.node_to_clingo(state_graph.problem, node, stats)
