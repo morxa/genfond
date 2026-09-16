@@ -91,3 +91,81 @@ membership, complexity exemption, dedup, pruning -- all unit-tested); this run d
 `extra_features` improving blocks3ops end-to-end, and a fair comparison would need a wall-time
 budget large enough for both configurations to converge, or several seeds. Not rerun further per
 the "report, don't fix" policy for research-code validation runs.
+
+## `extra_features_complexity`: overriding the emitted cost
+
+Date: 2026-09-16. Branch: `hyp/extra-cost` (based on `hyp/extra-features`).
+
+### Change
+
+The A/B above showed the mechanism works -- the extra concept is reachable and gets selected
+mid-run -- but the cost minimiser doesn't keep it: DLPlan's own `compute_complexity()` for
+`c_all(r_transitive_reflexive_closure(...), c_equal(...))` is high (it is a nested
+role/concept expression), so cheaper synthesised combinations that merely overfit the training
+set win the `#minimize`. Added `extra_features_complexity` (`genfond/config/default.yaml`, null
+by default): when set to an integer, `FeaturePool.to_clingo()` emits that value in
+`feature_complexity/2`/`concept_complexity/2`/`role_complexity/2` for every `extra_features`
+element instead of `compute_complexity()`'s result -- nothing else (generation, dedup, pruning)
+changes. Logged once per `to_clingo()` call when active. Unit test
+`test_extra_features_complexity_override` (`tests/test_feature_generator.py`) checks both
+directions: with the override, the emitted `concept_complexity` fact equals the override value;
+without it, DLPlan's own value (and the two differ, so the test cannot pass by accident). Gates
+(`black`/`isort`/`mypy genfond tests`/`pytest`, 209 passed, 1 pre-existing skip) all green.
+
+### Validation run
+
+Five runs on the workstation (desk-03), same shape as the earlier A/B: `--type datalog-sig -n 1
+--max-memory 60000`, training set `domain.pddl` + `p002-*`..`p007-*` + `p010-5` + `p017-5` (32
+problems), `timeout 20m`, base config as in the earlier A/B (`role_complexity_offset: 2`,
+`concept_complexity_offset: 1`, `max_plans_per_problem: 8`, `planners.siw.restarts: 1`,
+`add_problem_after_success: true`, `solve_time_limit: 300`) plus the same three `extra_features`
+elements. Scored with `scripts/eval_policy.py --seed 0 -i 2` on the full 95-problem suite.
+
+| run | `extra_features_complexity` | training solved | rules | extra concept selected | training wall | full-95 score |
+|---|---|---|---|---|---|---|
+| seed 0 | 2 | 30/32 | 3 | **yes** | 1207.4s (hit 20m cap) | **93/95** (fails blocks-004-1, blocks-007-5) |
+| seed 1 | 2 | -- | -- | -- | -- | -- (see below) |
+| seed 2 | 2 | 31/32 | 3 | **yes** | 1203.5s (hit 20m cap) | **93/95** (fails blocks-004-1, blocks-007-5) |
+| seed 0 | 4 | **32/32** | 3 | **yes** | **21.7s** (converged normally) | **95/95** |
+| seed 0 | unset (baseline) | 26/32 | 94 | no | 1211.3s (hit 20m cap) | 26/95 |
+
+Seed 1 hit a race in the SIGTERM-based graceful-stop mechanism used when `timeout 20m` expires:
+the log shows two `Received SIGTERM` lines at the same millisecond (`06:45:29,643` local time in
+the run), the second forcing an immediate exit before the "return the best policy seen" path
+(the same mechanism that saved the seed-0/seed-2 runs) could write a policy file -- no
+`.policy` was produced, though the log's last "Policy solves N/32 (best so far 30/32 from round
+2)" line shows a comparably good policy existed at that point. Reported as-is, not rerun, per
+the "report, don't fix" policy for research-code validation.
+
+**The override changes the outcome decisively.** Both completed `extra_features_complexity: 2`
+runs converged on a 3-rule policy built entirely on the extra concept (all three rules'
+conditions are `c_not(c_all(r_transitive_reflexive_closure(r_primitive(on,0,1)),
+c_equal(r_primitive(on,0,1),r_primitive(on_g,0,1))))` and its complement), each scoring 93/95 --
+matching or beating the 91/95 quality bar noted in `MEMORY.md` for the best `datalog-sig`
+policies on this suite, and far ahead of the 26/95 the same `extra_features` config produced
+without the override (both in this run and in the original A/B in this doc). The two instances
+that still fail, blocks-004-1 and blocks-007-5, fail identically in training, i.e. the round's
+20-minute cap froze the search before those two were folded in, not because the policy is wrong
+elsewhere.
+
+**Setting the override closer to the concept's true complexity converges normally and hits
+95/95.** `extra_features_complexity: 4` is still cheaper than DLPlan's own
+`compute_complexity()` for the concept (`extra_features_complexity: 2` is even cheaper), but
+apparently close enough that the round no longer needs the full 20 minutes: it converges in
+21.7 seconds with a 3-rule policy solving all 32/32 training problems and all 95/95 on the full
+suite -- the best result seen anywhere in this doc or in `MEMORY.md`'s benchmark log for this
+suite. This suggests the earlier A/B's failure mode was less about the extra concept losing the
+`#minimize` outright and more about a large complexity gap between it and the cheap-but-wrong
+synthesised alternatives inflating the search the solver has to do to notice the extra concept
+is better -- an override large enough to make the concept merely competitive (rather than
+artificially cheapest) was enough here.
+
+**Reading, not fixing.** This remains a single-domain, small-seed-count validation (three
+completed runs at the two override values, one baseline), and the earlier A/B's caveat about
+wall-time sensitivity to pool size still applies -- a different training set or domain could
+need a different override value, and there is currently no way to search for one automatically.
+The result nonetheless directly supports the motivation: an emitted-cost override lets a
+general, syntactically-expensive concept the user has verified is useful compete with cheaper
+overfit combinations in the `#minimize`, rather than being excluded from every optimal policy by
+construction. Not investigated further (seed-1 rerun, additional domains, or an automatic search
+over the override value) per the "report, don't fix" policy for research-code validation runs.
