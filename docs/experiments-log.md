@@ -615,3 +615,12 @@ Full-95 scores of the six small-suite policies (trained on 2–7 blocks, 14 s ea
 10–18-block instances (017-5 in every case, 013-4 and 010-5 often). The general policy is found robustly; the
 remaining gap is a rule the ≤7-block training set never needs. Running: training suites extended to ≤8, ≤9,
 ≤10 blocks with the same configuration, scored on all 95.
+
+**Why the 93/95 policy fails.** In blocks-010-5 the tower b0-b3-b2-b1 stands on b8, which is on the table
+but belongs on b9; every block above b8 is on its goal support locally, so `c_equal(on, on_g)` marks them as
+placed, no clear block is "misplaced", and no rule fires. The needed concept is *well-placed*: on the goal
+support and so is everything below (`c_all(r_transitive_reflexive_closure(on), c_equal(on, on_g))`,
+complexity 6). ≤7-block training instances never require it; on the full suite the rounds that would need
+it sit at complexity 7 with thousands of concepts. H19 (`hyp/extra-features`): allow hand-given elements
+into the synthesised pool regardless of the round's complexity limit, then train on the small suite plus the
+two failing instances.
