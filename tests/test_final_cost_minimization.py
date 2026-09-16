@@ -43,6 +43,7 @@ def base_config(**overrides):
         "max_complexity": 6,
         "use_unrestricted_features": False,
         "policy_iterations": 1,
+        "validation_iterations": 1,
         "minimize_good_signatures": "none",
         "minimize_selected_count": "none",
     }
@@ -57,7 +58,7 @@ def test_test_policy_on_problems_tests_every_problem_even_after_a_failure(monkey
     problems = [DummyProblem("p1"), DummyProblem("p2"), DummyProblem("p3")]
     calls = []
 
-    def fake_execute_policy(domain, problem, policy, config):
+    def fake_execute_policy(domain, problem, policy, config, **kwargs):
         calls.append(problem.name)
         if problem.name == "p1":
             raise RuntimeError("no solution")
@@ -89,7 +90,7 @@ def test_final_pass_climbs_through_no_solution_and_keeps_cheapest_valid_candidat
         raise AssertionError(f"unexpected complexity {kwargs['complexity']}")
 
     monkeypatch.setattr(isolver, "solve_step", fake_solve_step)
-    monkeypatch.setattr(isolver, "execute_policy", lambda domain, problem, policy, config: [])
+    monkeypatch.setattr(isolver, "execute_policy", lambda domain, problem, policy, config, **kwargs: [])
 
     best_policy, best_solved = _final_cost_minimization_pass(None, problems, problem_iterator, config, stats, policy)
 
@@ -115,7 +116,7 @@ def test_final_pass_discards_a_candidate_that_fails_training_set_execution(monke
     def fake_solve_step(**kwargs):
         return Result.SUCCESS, DummyPolicy((1,)), []
 
-    def fake_execute_policy(domain, problem, policy, config):
+    def fake_execute_policy(domain, problem, policy, config, **kwargs):
         if problem.name == "p2":
             raise RuntimeError("cycle")
         return []
@@ -151,7 +152,7 @@ def test_final_pass_stops_after_final_pass_max_levels_even_when_max_cost_allows_
         return Result.NO_SOLUTION, None, []
 
     monkeypatch.setattr(isolver, "solve_step", fake_solve_step)
-    monkeypatch.setattr(isolver, "execute_policy", lambda domain, problem, policy, config: [])
+    monkeypatch.setattr(isolver, "execute_policy", lambda domain, problem, policy, config, **kwargs: [])
 
     best_policy, best_solved = _final_cost_minimization_pass(None, problems, problem_iterator, config, stats, policy)
 
@@ -180,7 +181,7 @@ def test_final_pass_max_levels_null_keeps_the_old_unbounded_climb(monkeypatch):
         return Result.NO_SOLUTION, None, []
 
     monkeypatch.setattr(isolver, "solve_step", fake_solve_step)
-    monkeypatch.setattr(isolver, "execute_policy", lambda domain, problem, policy, config: [])
+    monkeypatch.setattr(isolver, "execute_policy", lambda domain, problem, policy, config, **kwargs: [])
 
     _final_cost_minimization_pass(None, problems, problem_iterator, config, stats, policy)
 
@@ -208,7 +209,7 @@ def test_final_pass_threads_final_pass_max_pool_into_solve_step(monkeypatch):
         return Result.NO_SOLUTION, None, []
 
     monkeypatch.setattr(isolver, "solve_step", fake_solve_step)
-    monkeypatch.setattr(isolver, "execute_policy", lambda domain, problem, policy, config: [])
+    monkeypatch.setattr(isolver, "execute_policy", lambda domain, problem, policy, config, **kwargs: [])
 
     _final_cost_minimization_pass(None, problems, problem_iterator, config, stats, policy)
 
@@ -229,7 +230,7 @@ def test_final_pass_stops_gracefully_on_out_of_resources(monkeypatch):
         return Result.OUT_OF_RESOURCES, None, []
 
     monkeypatch.setattr(isolver, "solve_step", fake_solve_step)
-    monkeypatch.setattr(isolver, "execute_policy", lambda domain, problem, policy, config: [])
+    monkeypatch.setattr(isolver, "execute_policy", lambda domain, problem, policy, config, **kwargs: [])
 
     best_policy, best_solved = _final_cost_minimization_pass(None, problems, problem_iterator, config, stats, policy)
 
@@ -255,6 +256,7 @@ def solve_iteratively_config(**overrides):
         "use_example_plans": False,
         "frontier_expansion": False,
         "policy_iterations": 1,
+        "validation_iterations": 1,
         "stop_after_first_solution": True,
         "final_cost_minimization": True,
         "minimize_good_signatures": "none",
@@ -287,7 +289,7 @@ def test_final_pass_runs_when_the_iterator_exhausts_without_solving_everything(m
     def fake_solve_step(**kwargs):
         return solve_step_script.pop(0)
 
-    def fake_execute_policy(domain, problem, policy, config):
+    def fake_execute_policy(domain, problem, policy, config, **kwargs):
         if problem.name == "p2":
             raise RuntimeError("no action found")
         return []
@@ -451,7 +453,7 @@ def test_final_pass_min_time_gate_is_not_applied_when_not_stopped_by_wall_time(m
         return Result.NO_SOLUTION, None, []
 
     monkeypatch.setattr(isolver, "solve_step", fake_solve_step)
-    monkeypatch.setattr(isolver, "execute_policy", lambda domain, problem, policy, config: [])
+    monkeypatch.setattr(isolver, "execute_policy", lambda domain, problem, policy, config, **kwargs: [])
 
     wall_deadline = isolver.time.perf_counter() + 5.0
     _final_cost_minimization_pass(None, problems, problem_iterator, config, stats, policy, wall_deadline=wall_deadline)
@@ -481,13 +483,16 @@ def test_final_pass_stops_between_rounds_when_the_deadline_passes(monkeypatch):
         return Result.NO_SOLUTION, None, []
 
     monkeypatch.setattr(isolver, "solve_step", fake_solve_step)
-    monkeypatch.setattr(isolver, "execute_policy", lambda domain, problem, policy, config: [])
+    monkeypatch.setattr(isolver, "execute_policy", lambda domain, problem, policy, config, **kwargs: [])
 
-    # A fake clock: t=0 at the upfront gate and the first round's pre-check (both pass, deadline
-    # is far off), then t=1000 at the second round's pre-check (deadline long passed). Real
-    # elapsed wall time in this mocked test is negligible, so a hand-rolled clock is what makes
-    # the "passes mid-climb" moment deterministic instead of racing the CPU.
-    clock = iter([0.0, 0.0, 1000.0])
+    # A fake clock: t=0 for the upfront gate, the one _test_policy_on_problems call this makes
+    # before the climb starts (its own start()/per-problem/per-iteration/validationTime-end
+    # checks -- see _test_policy_on_problems's wall_deadline handling), and the first round's
+    # pre-check (all pass, deadline is far off), then t=1000 at the second round's pre-check
+    # (deadline long passed). Real elapsed wall time in this mocked test is negligible, so a
+    # hand-rolled clock is what makes the "passes mid-climb" moment deterministic instead of
+    # racing the CPU.
+    clock = iter([0.0] * 6)
     monkeypatch.setattr(isolver.time, "perf_counter", lambda: next(clock, 1000.0))
 
     best_policy, best_solved = _final_cost_minimization_pass(
@@ -518,7 +523,7 @@ def test_final_pass_stops_between_rounds_on_a_pending_signal(monkeypatch):
         return Result.NO_SOLUTION, None, []
 
     monkeypatch.setattr(isolver, "solve_step", fake_solve_step)
-    monkeypatch.setattr(isolver, "execute_policy", lambda domain, problem, policy, config: [])
+    monkeypatch.setattr(isolver, "execute_policy", lambda domain, problem, policy, config, **kwargs: [])
 
     try:
         best_policy, best_solved = _final_cost_minimization_pass(
@@ -555,7 +560,7 @@ def test_main_loop_stops_early_by_final_pass_budget_when_the_pass_is_enabled(mon
         return policy, [p1]
 
     monkeypatch.setattr(isolver, "solve_step", fake_solve_step)
-    monkeypatch.setattr(isolver, "execute_policy", lambda domain, problem, policy, config: [])
+    monkeypatch.setattr(isolver, "execute_policy", lambda domain, problem, policy, config, **kwargs: [])
     monkeypatch.setattr(isolver, "_final_cost_minimization_pass", fake_final_pass)
 
     isolver.solve_iteratively(None, problems, config)
@@ -590,7 +595,7 @@ def test_keep_best_policy_returns_the_better_round_when_the_final_pass_is_worse(
     def fake_solve_step(**kwargs):
         return Result.SUCCESS, DummyPolicy((2,)), []
 
-    def fake_execute_policy(domain, problem, policy, config):
+    def fake_execute_policy(domain, problem, policy, config, **kwargs):
         return []  # round 1 solves everything -> stop_after_first_solution breaks immediately
 
     def fake_final_pass(domain, problems, problem_iterator, config, stats, policy, wall_deadline=None):
@@ -621,7 +626,7 @@ def test_keep_best_policy_false_returns_the_last_policy_even_if_worse(monkeypatc
     def fake_solve_step(**kwargs):
         return Result.SUCCESS, DummyPolicy((2,)), []
 
-    def fake_execute_policy(domain, problem, policy, config):
+    def fake_execute_policy(domain, problem, policy, config, **kwargs):
         return []
 
     def fake_final_pass(domain, problems, problem_iterator, config, stats, policy, wall_deadline=None):
@@ -657,7 +662,7 @@ def test_in_loop_test_does_not_stop_at_the_first_failing_problem_when_keeping_be
 
     exec_calls = []
 
-    def fake_execute_policy(domain, problem, policy, config):
+    def fake_execute_policy(domain, problem, policy, config, **kwargs):
         exec_calls.append(problem.name)
         if problem.name == "p1":
             raise RuntimeError("no solution")
@@ -688,7 +693,7 @@ def test_in_loop_test_stops_at_the_first_failing_problem_when_not_keeping_best(m
 
     exec_calls = []
 
-    def fake_execute_policy(domain, problem, policy, config):
+    def fake_execute_policy(domain, problem, policy, config, **kwargs):
         exec_calls.append(problem.name)
         if problem.name == "p1":
             raise RuntimeError("no solution")
@@ -721,7 +726,7 @@ def test_main_loop_uses_the_full_deadline_when_the_pass_is_disabled(monkeypatch)
         return Result.SUCCESS, DummyPolicy((2,)), []
 
     monkeypatch.setattr(isolver, "solve_step", fake_solve_step)
-    monkeypatch.setattr(isolver, "execute_policy", lambda domain, problem, policy, config: [])
+    monkeypatch.setattr(isolver, "execute_policy", lambda domain, problem, policy, config, **kwargs: [])
 
     before = isolver.time.perf_counter()
     isolver.solve_iteratively(None, problems, config)

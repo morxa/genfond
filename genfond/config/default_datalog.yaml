@@ -1,5 +1,12 @@
 policy_type: DATALOG
-policy_iterations: 10
+# Repetition (both this -- the final verification's repeat count -- and default.yaml's
+# validation_iterations, the in-loop repeat count) is only informative when execution samples
+# among multiple applicable actions at random, the way FOND execution samples among an action's
+# nondeterministic outcomes. execute_datalog_policy instead samples among applicable *rule
+# instantiations* for deterministic problems, so a small number already catches that variance;
+# default.yaml's policy_iterations: 100 default (sized for FOND) buys little here at 10-30x the
+# execution cost.
+policy_iterations: 3
 use_example_plans: true
 frontier_expansion: true
 abort_on_cycle: true

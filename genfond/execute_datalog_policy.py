@@ -1,6 +1,7 @@
 import itertools
 import logging
 import random
+import time
 from typing import Collection, Optional
 
 import dlplan.core
@@ -14,6 +15,7 @@ from genfond.ground import action_string, state_string
 
 from .execute_rule_policy import (
     CycleError,
+    ExecutionTimeout,
     NoActionError,
     PolicyExecutionError,
     _get_dlplan_state,
@@ -71,9 +73,16 @@ def eval_roles(
 
 
 def execute_datalog_policy(
-    domain: Domain, problem: Problem, datalog_policy: DatalogPolicy, config: ConfigHandler
+    domain: Domain,
+    problem: Problem,
+    datalog_policy: DatalogPolicy,
+    config: ConfigHandler,
+    time_limit: Optional[float] = None,
 ) -> list[str]:
     log.info(f"Executing policy:\n{datalog_policy}\nin {domain.name} for problem {problem.name}")
+    # See execute_rule_policy.execute_rule_policy for why this is a per-step monotonic-clock
+    # check rather than a signal-based interrupt or a policy_steps substitute.
+    deadline = time.monotonic() + time_limit if time_limit else None
 
     vocabulary = construct_vocabulary_info(domain, config)
     factory = SyntacticElementFactory(vocabulary)
@@ -112,6 +121,9 @@ def execute_datalog_policy(
     actions_taken = []
     max_steps = config["policy_steps"]
     while not check_formula(state, problem.goal) and (max_steps <= 0 or num_steps < max_steps):
+        if deadline is not None and time.monotonic() > deadline:
+            log.warning(f"Execution exceeded time_limit={time_limit}s, aborting")
+            raise ExecutionTimeout(trace, state, time_limit)
         if config["abort_on_cycle"]:
             if state in trace:
                 log.error("Cycle detected!")
@@ -204,7 +216,7 @@ def execute_datalog_policy(
                     param = action.parameters[param_index]
                     aug_fstate = get_param_augmented_state(problem, state, param_index, param)
                     aug_state = dlplan.core.State(-1, instance, [mapping[fact] for fact in aug_fstate])
-                    feval = feature_eval_to_cond(cond, features[cond].evaluate(aug_state))
+                    feval = feature_eval_to_cond(cond, features[cond].evaluate(aug_state), logger=log)
                     if feval != val:
                         log.debug(
                             "... Rule not applicable! "

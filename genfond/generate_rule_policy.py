@@ -42,8 +42,15 @@ def trans_deltas_to_effects(
     return effs
 
 
-def feature_eval_to_cond(feature_str: str, feature_eval: int) -> Cond:
-    log.debug(f"eval to cond: {feature_str} -> {feature_eval}")
+def feature_eval_to_cond(feature_str: str, feature_eval: int, logger: Optional[logging.Logger] = None) -> Cond:
+    # Callers on the execution hot path (execute_rule_policy.bool_eval_state,
+    # execute_datalog_policy.execute_datalog_policy) pass their own genfond.execution.* logger
+    # so this per-condition DEBUG line is silenced by the `log: execution: CRITICAL` map in
+    # config/default.yaml along with the rest of execution's per-step logging. Left at the
+    # default (this module's genfond.generation.rule, a sibling logger the map does not touch),
+    # it was the dominant source of per-step log noise during in-loop validation -- one line per
+    # condition per execution step, regardless of -v.
+    (logger or log).debug(f"eval to cond: {feature_str} -> {feature_eval}")
     if feature_str.startswith("b_"):
         if feature_eval:
             return Cond.TRUE

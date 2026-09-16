@@ -24,6 +24,48 @@ role_complexity_offset: 0
 # Only has an effect with use_example_plans, which is what makes the state space grow.
 reset_complexity_on_state_space_change: false
 policy_iterations: 100
+# How many times execute_policy runs each problem during *in-loop* validation --
+# solve_iteratively's own testing block after every successful round, and the final
+# cost-minimization pass's candidate comparisons -- as opposed to the one-time final
+# verification loop in __main__, which keeps policy_iterations (see iterative_solver.
+# _test_policy_on_problems). Repetition is only informative when execution samples among
+# multiple applicable outcomes at random: FOND execution (execute_rule_policy) samples a
+# successor among an action's nondeterministic outcomes, and the datalog executor
+# (execute_datalog_policy) samples among applicable rule instantiations, so either can flake
+# between runs of the identical policy on the identical problem. Deterministic executors that
+# never branch this way gain nothing from repeating a run. Keeping this low (default 1, no
+# repetition) is what makes in-loop validation cheap enough to run after every success on a
+# large suite -- see docs/cheap-validation-results.md; a cluster run on the 141-problem spanner
+# suite spent 8.5h in this test alone before this change. `default_datalog.yaml` and
+# `default_datalog-sig.yaml` additionally lower policy_iterations itself (the *final*
+# verification's repeat count) to 3, since for those deterministic-executor types even the
+# final, one-time verification gains little from policy_iterations' default of 100 -- see the
+# comment there.
+validation_iterations: 1
+# In-loop validation tests problems in the same smallest-first order solve_iteratively sorts
+# `problems` into once at the top of the run. Stop testing a candidate policy after this many
+# problems *in a row* fail, instead of testing every remaining (typically larger, so likelier to
+# also fail) problem in the suite. The returned solved count is then a lower bound rather than
+# the exact number the policy solves; keep_best_policy's round-to-round comparison treats that
+# lower bound as the count, which is sound as long as it is applied consistently (see its own
+# config comment) -- the exact count is always recomputed once, unbounded, by the final
+# verification loop in __main__. null tests every problem regardless of failures, reproducing
+# the previous (unbounded) behaviour. The final cost-minimization pass's own candidate testing
+# does not use this: it compares candidates by how many problems they solve, so truncating that
+# count would bias the comparison (see _test_policy_on_problems's docstring).
+validation_max_consecutive_failures: 3
+# Wall-clock budget in seconds for a single execute_policy call during in-loop validation (both
+# solve_iteratively's own testing block and the final cost-minimization pass's candidate tests).
+# A problem that runs past it counts as a failure of that problem (ExecutionTimeout, a
+# RuntimeError subclass, so it is caught by every existing `except RuntimeError:` around
+# execute_policy without other changes). Enforced by a monotonic-clock deadline checked once per
+# step inside execute_rule_policy's/execute_datalog_policy's own execution loop, not by a
+# signal-based interrupt: execution always runs in-process on the caller's thread, and
+# policy_steps (a step *count*) cannot substitute for a wall-clock bound, since a single step is
+# not itself time-bounded (e.g. enumerating action/object combinations). null = unbounded
+# (previous behaviour). Only applies to in-loop validation; the final verification loop in
+# __main__ never passes a time_limit.
+validation_time_limit: 60
 # Seed for the global RNG. Policy execution is randomized -- rules are tried in a random order,
 # object bindings are shuffled, and successors are drawn at random -- so the number of solved
 # problems varies between runs of the *same* policy: a problem counts as solved only if all

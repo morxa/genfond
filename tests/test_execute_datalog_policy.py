@@ -3,6 +3,7 @@ import pytest
 from genfond.config_handler import ConfigHandler
 from genfond.datalog_policy import Cond, DatalogPolicy, DatalogPolicyRule
 from genfond.execute_datalog_policy import execute_datalog_policy
+from genfond.execute_rule_policy import ExecutionTimeout
 
 
 def test_block_clear_all(blocks_clear):
@@ -26,6 +27,35 @@ def test_block_clear_all(blocks_clear):
     )
     config = ConfigHandler()
     execute_datalog_policy(domain, problem, policy, config)
+
+
+def test_execute_datalog_policy_time_limit_triggers_timeout(blocks_clear):
+    """The real (non-mocked) `validation_time_limit` mechanism: a vanishingly small time_limit
+    must be exceeded before the very first step (goal not already satisfied by problem.init, so
+    the loop body runs at least once), raising ExecutionTimeout rather than running to
+    completion or hanging. See test_in_loop_validation.py for the higher-level
+    `_test_policy_on_problems` behaviour this enables (mocked, since that test is about the
+    control flow around execute_policy rather than the deadline check itself)."""
+    domain, problem = blocks_clear
+    policy = DatalogPolicy(
+        [
+            DatalogPolicyRule(
+                "unstack(X, Y)",
+                concepts=[
+                    ("X", "c_primitive(clear, 0)"),
+                ],
+            ),
+            DatalogPolicyRule(
+                "putdown(X)",
+                concepts=[
+                    ("X", "c_primitive(clear, 0)"),
+                ],
+            ),
+        ]
+    )
+    config = ConfigHandler()
+    with pytest.raises(ExecutionTimeout):
+        execute_datalog_policy(domain, problem, policy, config, time_limit=1e-9)
 
 
 def test_fond_blocks(fond_blocks):

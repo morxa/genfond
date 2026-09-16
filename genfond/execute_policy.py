@@ -1,17 +1,19 @@
+from typing import Optional
+
 from .config_handler import ConfigHandler
 from .datalog_policy import DatalogPolicy
 from .execute_datalog_policy import execute_datalog_policy
 from .execute_rule_policy import PolicyExecutionError, execute_rule_policy
 
 
-def execute_policy(domain, problem, policy, config=None):
+def execute_policy(domain, problem, policy, config=None, time_limit: Optional[float] = None):
     if not policy:
         raise PolicyExecutionError("Empty policy")
     if isinstance(policy, DatalogPolicy):
         if not config:
             config = ConfigHandler(type="datalog")
-        return execute_datalog_policy(domain, problem, policy, config)
+        return execute_datalog_policy(domain, problem, policy, config, time_limit=time_limit)
     else:
         if not config:
             config = ConfigHandler()
-        return execute_rule_policy(domain, problem, policy, config)
+        return execute_rule_policy(domain, problem, policy, config, time_limit=time_limit)

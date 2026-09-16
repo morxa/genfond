@@ -1,5 +1,6 @@
 import logging
 import random
+import time
 from typing import Collection, Mapping, Optional
 
 import dlplan.core
@@ -45,6 +46,24 @@ class CycleError(PolicyExecutionError):
         self.trace = trace
         self.cycle = cycle
         super().__init__("Cycle detected")
+
+
+class ExecutionTimeout(PolicyExecutionError):
+    """Raised when a single `execute_*_policy` call runs past its `time_limit`.
+
+    Used by in-loop validation (`validation_time_limit`, see `iterative_solver.
+    _test_policy_on_problems`) to bound the wall time a slow/looping candidate policy can spend
+    on one problem; the final verification loop in `__main__` never passes a `time_limit`, so
+    this is never raised there. A subclass of `PolicyExecutionError` (hence `RuntimeError`), so
+    every existing `except RuntimeError:` around `execute_policy` already treats it as an
+    ordinary execution failure without needing to name it explicitly.
+    """
+
+    def __init__(self, trace: dict[State, State], state: State, time_limit: Optional[float]):
+        self.trace = trace
+        self.state = state
+        self.time_limit = time_limit
+        super().__init__(f"Execution exceeded time_limit={time_limit}s")
 
 
 def _get_dlplan_state(
@@ -95,7 +114,13 @@ def bool_eval_state(
     log.debug(f"feature eval: {feature_eval}")
     bool_feature_eval = dict()
     for feature, eval in feature_eval.items():
-        bool_feature_eval[feature] = feature_eval_to_cond(feature, eval)
+        # logger=log routes the per-condition "eval to cond" DEBUG line to this module's
+        # genfond.execution.rule logger (a child of genfond.execution, silenced to CRITICAL by
+        # default -- see the log: map in config/default.yaml) instead of
+        # feature_eval_to_cond's own genfond.generation.rule logger, which -v does not silence.
+        # This call site runs once per feature per execution step, so left unrouted it was the
+        # dominant source of per-step log noise during in-loop validation.
+        bool_feature_eval[feature] = feature_eval_to_cond(feature, eval, logger=log)
     return bool_feature_eval
 
 
@@ -135,10 +160,21 @@ def get_next_state(states: Collection[State], _) -> State:
     return random.choice([state for state in states])
 
 
-def execute_rule_policy(domain: Domain, problem: Problem, policy: Policy, config: dict) -> list[str]:
+def execute_rule_policy(
+    domain: Domain, problem: Problem, policy: Policy, config: dict, time_limit: Optional[float] = None
+) -> list[str]:
     log.info(
         f"Executing policy:\n{policy}\nin {domain.name} for problem {problem.name} with features {policy.features}"
     )
+    # A monotonic-clock deadline checked once per step, rather than a signal-based interrupt:
+    # execution always runs in-process on the caller's own thread (there is no safe way to
+    # interrupt it from outside without signals, and this loop already runs inside __main__'s
+    # own SIGINT/SIGTERM handler installation, so nesting another signal is best avoided).
+    # policy_steps (a step *count*) cannot substitute for this: a single step -- e.g. the
+    # sorted(grounded_actions, ...) scan and per-successor evaluation below -- is not itself
+    # time-bounded, so a policy stuck re-evaluating a large action set could still run
+    # arbitrarily long between step increments.
+    deadline = time.monotonic() + time_limit if time_limit else None
     vocabulary = construct_vocabulary_info(domain, config)
     factory = SyntacticElementFactory(vocabulary)
     instance, mapping = construct_instance_info(vocabulary, domain, problem, 0, config)
@@ -161,6 +197,9 @@ def execute_rule_policy(domain: Domain, problem: Problem, policy: Policy, config
     actions_taken = []
     max_steps = config["policy_steps"]
     while not check_formula(state, problem.goal) and (max_steps <= 0 or num_steps < max_steps):
+        if deadline is not None and time.monotonic() > deadline:
+            log.warning(f"Execution exceeded time_limit={time_limit}s, aborting")
+            raise ExecutionTimeout(trace, state, time_limit)
         if config["abort_on_cycle"]:
             if state in trace:
                 log.error("Cycle detected!")

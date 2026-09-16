@@ -14,7 +14,7 @@ from tqdm.contrib.logging import logging_redirect_tqdm
 
 from .cost_utils import feature_cost
 from .datalog_policy import DatalogPolicy
-from .execute_datalog_policy import CycleError, NoActionError
+from .execute_datalog_policy import CycleError, ExecutionTimeout, NoActionError
 from .execute_policy import execute_policy
 from .feature_generator import FeaturePool
 from .frontier import FrontierState, collect_frontier_states, expand_frontier
@@ -327,27 +327,146 @@ def pnames(problems: Collection[Problem]) -> str:
 
 
 def _test_policy_on_problems(
-    domain: Domain, problems: Collection[Problem], policy: Policy | DatalogPolicy, config: Mapping
+    domain: Domain,
+    problems: Collection[Problem],
+    policy: Policy | DatalogPolicy,
+    config: Mapping,
+    max_consecutive_failures: Optional[int] = None,
+    problem_iterator: Optional[ProblemIterator] = None,
+    stats: Optional[MutableMapping[str, Any]] = None,
+    show_progress: bool = False,
+    wall_deadline: Optional[float] = None,
 ) -> list[Problem]:
-    """Execute `policy` on every problem in `problems`, `policy_iterations` times each.
+    """Execute `policy` on problems in `problems`, `validation_iterations` times each (capped at
+    `validation_time_limit` seconds per execution) -- the cheap, in-loop validation used both by
+    `solve_iteratively`'s own testing block after every success and by
+    `_final_cost_minimization_pass`'s candidate comparisons. Unlike the one-time final
+    verification loop in `__main__`, which always tests every problem `policy_iterations` times
+    with no time limit, this is meant to be run over and over on a large suite -- see
+    docs/cheap-validation-results.md for the 8.5h an unbounded version of this spent testing
+    candidates on a 141-problem suite.
 
-    Unlike the main loop's testing block (which stops at the first problem it cannot solve,
-    since `problems` is sorted smallest-first and a miss there usually means every larger
-    problem misses too), this tests every one of them: `_final_cost_minimization_pass` compares
-    candidate policies by how many problems they solve, so silently undercounting a later
-    problem because an earlier one already failed would bias that comparison.
+    `problems` is tested in whatever order it is given, with no reordering here: both call sites
+    pass `problem_iterator.active_problems`/the outer `problems` list, which `solve_iteratively`
+    already sorts smallest-first once at the top, so a miss tends to predict misses on the
+    (larger, harder) problems that follow.
+
+    `max_consecutive_failures` (default None) stops testing once that many problems *in a row*
+    fail, and the returned list then undercounts -- it is a lower bound on how many problems the
+    policy actually solves, not the exact number. That is fine for `solve_iteratively`'s own
+    round-to-round `keep_best_policy` comparison (both candidates it compares are counted the
+    same way, and the exact number is recomputed once, unbounded, by `__main__`'s final
+    verification) but NOT for `_final_cost_minimization_pass`: it compares candidates by exact
+    solved count, so silently truncating a later candidate because an earlier problem already
+    failed would bias that comparison -- `_final_cost_minimization_pass` therefore always calls
+    this with the default `max_consecutive_failures=None` (test every problem), matching its
+    pre-existing behaviour exactly.
+
+    `problem_iterator`, when given, is told the outcome of every problem actually tested
+    (`ProblemIterator.set_solved`); a problem never reached because of an early stop is left
+    alone. `stats`, when given, accumulates `stats["validationTime"]` (wall time spent in this
+    call) and increments `stats["validationEarlyStops"]` when `max_consecutive_failures` actually
+    cut the test short.
+
+    `wall_deadline` (an absolute `time.perf_counter()`-based deadline, the same kind
+    `solve_iteratively`'s round loop and `_final_cost_minimization_pass` use) and
+    `genfond.shutdown.stop_requested()` are checked before every problem *and* before every
+    repeated iteration of the same problem, not just between calls to this function: four 12h
+    SLURM jobs (barman, grid, reward, spanner) were killed without ever writing a stats row or
+    policy file because a single call to this function -- one round's whole in-loop test -- ran
+    for hours on its own, well past `--max-wall-time`, with nothing checking either flag until
+    the *next* round's top-of-loop check that never arrived. When either fires, testing stops
+    immediately (mid-problem if it fires between iterations) and `stats["validationStoppedBy"]`
+    is set to `"wall_time"` or `"signal"`; the caller must check that and end the run gracefully
+    the same way the round loop's own top-of-loop check does, exactly as if this had been caught
+    between rounds instead of inside one -- see `solve_iteratively`'s post-call check. The
+    problem being tested when this fires is not recorded either way (neither solved nor failed):
+    its own outcome is unknown, only that there was no time left to find out.
     """
-    solved_problems = []
-    for problem in problems:
-        solved = True
-        for _ in range(config["policy_iterations"]):
-            try:
-                execute_policy(domain, problem, policy, config)
-            except (NoActionError, CycleError, RuntimeError):
-                solved = False
+    iterations = config["validation_iterations"]
+    time_limit = config.get("validation_time_limit")
+    solved_problems: list[Problem] = []
+    consecutive_failures = 0
+    stopped_by: Optional[str] = None
+    start = time.perf_counter()
+    problem_list = list(problems)
+    iterable = tqdm.tqdm(problem_list, disable=None) if show_progress else problem_list
+
+    def _deadline_hit() -> Optional[str]:
+        if wall_deadline is not None and time.perf_counter() >= wall_deadline:
+            return "wall_time"
+        if stop_requested():
+            return "signal"
+        return None
+
+    with logging_redirect_tqdm():
+        for problem in iterable:
+            stopped_by = _deadline_hit()
+            if stopped_by is not None:
                 break
-        if solved:
-            solved_problems.append(problem)
+            log.info(f"Testing policy on {problem.name} {iterations} time(s) ...")
+            plan_lengths = []
+            solved = True
+            for _ in range(iterations):
+                stopped_by = _deadline_hit()
+                if stopped_by is not None:
+                    break
+                try:
+                    plan_lengths.append(len(execute_policy(domain, problem, policy, config, time_limit=time_limit)))
+                except NoActionError:
+                    log.info(f"Policy does not solve {problem.name}, no action in reachable state")
+                    solved = False
+                    break
+                except CycleError as e:
+                    log.info(f"Policy does not solve {problem.name}, found cycle of length {len(e.cycle)}")
+                    solved = False
+                    break
+                except ExecutionTimeout:
+                    log.info(f"Policy does not solve {problem.name}, execution exceeded validation_time_limit")
+                    solved = False
+                    break
+                except RuntimeError:
+                    log.info(f"Policy does not solve {problem.name}")
+                    solved = False
+                    break
+            if stopped_by is not None:
+                # This problem's own outcome is unknown (it may have been mid-way through its
+                # repeated iterations) -- leave it unrecorded and stop without counting it either
+                # way, same as a problem never reached at all.
+                log.warning(
+                    "In-loop validation: stopping before/during %s (%s); %d/%d problem(s) tested" " this call",
+                    problem.name,
+                    stopped_by,
+                    len(solved_problems) + consecutive_failures,
+                    len(problem_list),
+                )
+                break
+            if problem_iterator is not None:
+                problem_iterator.set_solved(problem, solved)
+            if solved:
+                log.info(
+                    f"Policy already solves {problem.name} (plan length "
+                    f"{statistics.mean(plan_lengths)} ± {statistics.stdev(plan_lengths):.2f})"
+                    if len(plan_lengths) > 1
+                    else f"Policy already solves {problem.name} (plan length {plan_lengths[0]})"
+                )
+                solved_problems.append(problem)
+                consecutive_failures = 0
+            else:
+                consecutive_failures += 1
+                if max_consecutive_failures is not None and consecutive_failures >= max_consecutive_failures:
+                    if stats is not None:
+                        stats["validationEarlyStops"] = stats.get("validationEarlyStops", 0) + 1
+                    log.info(
+                        f"Stopping validation after {consecutive_failures} consecutive failure(s)"
+                        " (validation_max_consecutive_failures); remaining problems are untested"
+                        " this round"
+                    )
+                    break
+    if stats is not None:
+        stats["validationTime"] = stats.get("validationTime", 0.0) + (time.perf_counter() - start)
+        if stopped_by is not None:
+            stats["validationStoppedBy"] = stopped_by
     return solved_problems
 
 
@@ -478,7 +597,7 @@ def _final_cost_minimization_pass(
 
     assert policy.cost is not None, "the main loop only sets `policy` from a Result.SUCCESS, which always has a cost"
     best_policy = policy
-    best_solved = _test_policy_on_problems(domain, problems, policy, config)
+    best_solved = _test_policy_on_problems(domain, problems, policy, config, stats=stats, wall_deadline=wall_deadline)
     best_cost = feature_cost(
         policy.cost, config.get("minimize_good_signatures", "none"), config.get("minimize_selected_count", "none")
     )
@@ -535,7 +654,9 @@ def _final_cost_minimization_pass(
         # this mirrors set_last_result, which does the same regardless of whether the main
         # loop's later testing block goes on to find an execution failure.
         max_cost = new_cost - 1
-        solved = _test_policy_on_problems(domain, problems, new_policy, config)
+        solved = _test_policy_on_problems(
+            domain, problems, new_policy, config, stats=stats, wall_deadline=wall_deadline
+        )
         solved_names = {p.name for p in solved}
         if not (active_problem_names <= solved_names):
             log.info(f"Candidate policy at complexity {complexity} does not solve every training problem, discarding")
@@ -685,51 +806,45 @@ def solve_iteratively(
         assert new_policy is not None, "solve_step must return a policy on Result.SUCCESS"
         assert new_policy.cost is not None, "a Result.SUCCESS policy always has a cost"
         policy = new_policy
-        log.info(f'Testing policy on unsolved problems {config["policy_iterations"]} times ...')
-        round_solved: list[Problem] = []
-        all_passed = True
-        with logging_redirect_tqdm():
-            for problem in tqdm.tqdm(problems, disable=None):
-                log.info(f'Testing policy on {problem.name} {config["policy_iterations"]} times ...')
-                plans = []
-                solved = True
-                for _ in range(config["policy_iterations"]):
-                    try:
-                        plan = execute_policy(domain, problem, policy, config)
-                        plans.append(plan)
-                    except NoActionError as e:
-                        log.info(f"Policy does not solve {problem.name}, no action in reachable state")
-                        solved = False
-                        problem_iterator.set_solved(problem, False)
-                    except CycleError as e:
-                        log.info(f"Policy does not solve {problem.name}, found cycle of length {len(e.cycle)}")
-                        solved = False
-                        problem_iterator.set_solved(problem, False)
-                    except RuntimeError:
-                        log.info("Policy does not solve {}".format(problem.name))
-                        solved = False
-                        problem_iterator.set_solved(problem, False)
-                if solved:
-                    plan_lengths = [len(plan) for plan in plans]
-                    log.info(
-                        f"Policy already solves {problem.name} (plan length "
-                        f"{statistics.mean(plan_lengths)} ± {statistics.stdev(plan_lengths):.2f})"
-                        if len(plan_lengths) > 1
-                        else f"{plan_lengths[0]}"
-                    )
-                    problem_iterator.set_solved(problem)
-                    round_solved.append(problem)
-                else:
-                    all_passed = False
-                    if not keep_best_policy:
-                        # Old behaviour: `problems` is sorted smallest-first, so a miss here
-                        # usually means every larger problem misses too -- stop early. Kept only
-                        # when keep_best_policy is off: the best-policy comparison below needs
-                        # the exact coverage count for every round, which an early break would
-                        # undercount (see _test_policy_on_problems's docstring for the same
-                        # reasoning applied to the final cost-minimization pass).
-                        break
-        solved = all_passed
+        log.info(f'Testing policy on unsolved problems {config["validation_iterations"]} time(s) ...')
+        # keep_best_policy off reproduces the old behaviour exactly: stop at the very first
+        # problem the round cannot solve (max_consecutive_failures=1), since `problems` is
+        # sorted smallest-first and a miss there usually means every larger problem misses too.
+        # keep_best_policy needs the coverage count from every round to compare candidates by,
+        # so it uses validation_max_consecutive_failures instead (None = test everything,
+        # reproducing the exact-count behaviour the old code had while keep_best_policy was on);
+        # a round that stops early is inherently incomplete, so it can never count as "solves
+        # all problems" below regardless of the cutoff value.
+        round_solved = _test_policy_on_problems(
+            domain,
+            problems,
+            policy,
+            config,
+            max_consecutive_failures=(
+                1 if not keep_best_policy else config.get("validation_max_consecutive_failures")
+            ),
+            problem_iterator=problem_iterator,
+            stats=stats,
+            show_progress=True,
+            wall_deadline=wall_deadline,
+        )
+        if stats.get("validationStoppedBy") is not None:
+            # In-loop validation itself hit the wall-clock deadline or a pending stop signal
+            # mid-test (see _test_policy_on_problems's wall_deadline handling) -- a single
+            # round's testing block can itself run for hours on a large suite (see
+            # docs/cheap-validation-results.md), so this is checked inside that block too, not
+            # only between rounds. End the run here exactly like the top-of-loop
+            # wall_deadline/stop_requested check would on the next iteration, so __main__'s
+            # final verification, stats row and policy file are still written instead of losing
+            # everything to a SIGKILL/SIGTERM that arrives before the next round even starts.
+            log.warning(
+                "In-loop validation hit its wall-clock deadline or a pending stop request;"
+                " stopping without starting another round"
+            )
+            stats["stoppedBy"] = stats.pop("validationStoppedBy")
+            stats["wallBudgetUsed"] = time.perf_counter() - wall_time_start
+            break
+        solved = len(round_solved) == len(problems)
         if keep_best_policy:
             assert policy.cost is not None, "a Result.SUCCESS policy always has a cost"
             round_cost = feature_cost(
