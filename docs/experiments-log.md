@@ -914,3 +914,6 @@ H23 result (workstation, new image): regression suites unchanged (gripper 5/5, m
 4/4, delivery 4/4 at the rec config's costs); **spanner 140/140 in 17 min** (8 rounds, 3 training problems,
 validation 1 019 s of 1 027 s, 2 early stops, no per-step log lines) where the previous run sat in one
 validation block for 12 h. Merged into `hyp/combo`.
+Resubmitted under the working configuration with cheap validation (worktree combo8 @ 299d7fe, `rec2`, 4 h
+graceful): barman, sokoban, storage, miconic, blocks4ops, grid, reward, spanner, logistics, logistics_dp,
+delivery, blocks.
