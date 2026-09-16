@@ -557,3 +557,8 @@ crossed so far only by the restarts-1 arm (43, with 10-block problems in trainin
 m6-s1 (4150566, seed 1 incl. hash seed, full configuration + restarts 1 + cap 8, modern 4 h, graceful):
 **29/95**, 20 training problems ≤8 blocks, pass 36 → 36. Against 33–36 for seed 0 the run-to-run variance is
 about ±4 problems; arm differences of that size are noise.
+
+m5-r1-cap8 (4150538, seed 0, full configuration + restarts 1 + `max_plans_per_problem: 8`, modern 4 h,
+graceful): **29/95**, 20 training problems ≤8 blocks, 41 rounds, pass 39 → 39. The cap is within the ±4 noise
+band of the uncapped arms (33–36) and does not add coverage; the dedupe stays (it only removes plans that add
+no states), the cap stays off by default.
