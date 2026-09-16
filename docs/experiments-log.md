@@ -644,3 +644,5 @@ to cheap combinations that fit the training set. H20 (`hyp/extra-cost`): `extra_
 the emitted cost of hand-given elements; validated with seeds 0–2 at override 2, plus 4 and unset.
 full-cpu (4144771, cpu 12 h, combo before forced labels, graceful): **36/95**, 27 training problems ≤9 blocks,
 pass 46 → 46. Cost 46 versus 8 for the small-suite policy.
+full2-cpu (4144792, cpu 12 h, full configuration incl. forced labels, graceful): **37/95**, 28 training
+problems ≤9 blocks, pass 51 → 51. Best 12-hour full-suite figure so far, still a cost-51 patchwork.
