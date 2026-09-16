@@ -721,3 +721,12 @@ small suite + the two failing instances, the pool dump, and the regression suite
 follow if it holds up.
 c-r1-cap8 (4150539, cpu 12 h, pre-deadline-fix): killed in the final pass, no stats row; superseded by the
 keep-best arms.
+
+H21 result: dlplan `equal-closure` @ b2df1699 (pushed): new element `EqualClosureConcept`, parser syntax
+`c_equal_closure(R1,R2)`, factory/bindings/stubs, generator rule at complexity 3 for goal pairs, kwarg
+`generate_equal_closure_concept` (default true), unit test; build clean, core tests 43/43, genfond suite
+208 passed. Pool check: the concept is generated at complexity 3. Local 25 min training on 2–7 blocks +
+010-5 + 017-5 (graceful stop): 30/32, 6 rules using plain `c_equal`, **90/95**; the closure concept was not
+selected before the cap (its negation and boolean sit at complexity 4–5). Regression suites reproduce the
+baselines exactly under the default config. genfond pinned to b2df1699 (learn-from-examples and hyp/combo);
+image rebuild running locally for the cluster runs.
