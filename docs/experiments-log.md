@@ -771,3 +771,8 @@ blocks4ops 95, blocks4ops-clear 95, blocks4ops-on 190, gripper 30, hanoi 30, mic
 visitall}, deterministic-new/{blocks 12, blocks-multiple 22, delivery 225, grid 14, gripper 10, logistics,
 logistics_dp, miconic, reward, spanner, visitall}. Note: gripper and miconic exist in both directories and
 share job names; tell rows apart by problem count and job id.
+Seed-1 tie (new grammar): with 010-5 + 017-5 in training → 30/32 at the 25 min budget, plain `c_equal`
+policy, 90/95; with `minimize_selected_count: above` on the 2–7-block suite → 30/30, 91/95, still `c_equal`.
+`c_equal` and `c_equal_closure` tie on complexity (3) and element count (1), so the model choice decides;
+2 of 3 seeds pick the closure and reach 95/95. A cheap outer restart over seeds with keep-best would make the
+result seed-independent (each attempt is ~30 s); not implemented.
