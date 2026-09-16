@@ -604,3 +604,8 @@ Hang isolation (30-problem suite, seed 0): `fix_forced_labels` alone → 30/30, 
 `final_cost_minimization` alone → 30/30, 8 rules, 29 s (15 rounds). Neither flag hangs by itself; the
 combined run took a different trajectory (23 rounds) and stalled inside one solve. Re-running the combination
 with seeds 1 and 0 to see whether it is trajectory-dependent.
+
+Seed repeat of the 91/95 configuration on the 30-problem 2–7-block suite (workstation): seeds 0/1/2 give
+30/30 in 14 s with 7/6/6 rules; with `minimize_selected_count: above` 7/7/7 rules, also 14 s. Seed 0's policy
+re-scores **91/95** on the full suite (the chained scoring in the first pass had failed silently); the other
+five are being scored.
