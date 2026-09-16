@@ -111,6 +111,51 @@ def get_action_augmented_state(problem: Problem, state: State, config: Mapping, 
     return frozenset(augmented_state)
 
 
+def _parse_extra_features(
+    factory: SyntacticElementFactory, extra_features_config: Mapping
+) -> Tuple[list[Boolean], list[Numerical], list, list]:
+    """Parse the booleans/numericals/concepts/roles of an `extra_features`-shaped config entry
+    with `factory`. Unlike the synthesised pool, these go straight through `factory.parse_*`, so
+    they are not subject to any complexity limit -- see the call sites in `FeaturePool.__init__`."""
+    return (
+        [factory.parse_boolean(f) for f in extra_features_config.get("booleans", [])],
+        [factory.parse_numerical(f) for f in extra_features_config.get("numericals", [])],
+        [factory.parse_concept(c) for c in extra_features_config.get("concepts", [])],
+        [factory.parse_role(r) for r in extra_features_config.get("roles", [])],
+    )
+
+
+def _dedup_extend(elements: list, extra: list) -> list:
+    """Append `extra` dlplan elements to `elements` in place, skipping any whose string
+    representation already appears in `elements` (or earlier in `extra`). Returns the elements
+    that were actually appended, in the same order."""
+    seen = {str(element) for element in elements}
+    added = []
+    for element in extra:
+        key = str(element)
+        if key in seen:
+            continue
+        seen.add(key)
+        elements.append(element)
+        added.append(element)
+    return added
+
+
+def _log_added_extra_features(
+    added_booleans: list, added_numericals: list, added_concepts: list, added_roles: list
+) -> None:
+    log.info(
+        f"extra_features added {len(added_booleans)} boolean(s) "
+        f"(complexities: {[b.compute_complexity() for b in added_booleans]}), "
+        f"{len(added_numericals)} numerical(s) "
+        f"(complexities: {[n.compute_complexity() for n in added_numericals]}), "
+        f"{len(added_concepts)} concept(s) "
+        f"(complexities: {[c.compute_complexity() for c in added_concepts]}), "
+        f"{len(added_roles)} role(s) "
+        f"(complexities: {[r.compute_complexity() for r in added_roles]})"
+    )
+
+
 class FeaturePool:
 
     def __init__(
@@ -187,6 +232,17 @@ class FeaturePool:
             numericals = [factory.parse_numerical(f) for f in config["preset_features"].get("numericals", [])]
             concepts = [factory.parse_concept(c) for c in config["preset_features"].get("concepts", [])]
             roles = [factory.parse_role(r) for r in config["preset_features"].get("roles", [])]
+            if config.get("extra_features", None):
+                # preset_features already replaces synthesis entirely, so there is no
+                # generated pool to append after -- extra_features is simply merged in.
+                extra_booleans, extra_numericals, extra_concepts, extra_roles = _parse_extra_features(
+                    factory, config["extra_features"]
+                )
+                added_booleans = _dedup_extend(booleans, extra_booleans)
+                added_numericals = _dedup_extend(numericals, extra_numericals)
+                added_concepts = _dedup_extend(concepts, extra_concepts)
+                added_roles = _dedup_extend(roles, extra_roles)
+                _log_added_extra_features(added_booleans, added_numericals, added_concepts, added_roles)
         else:
             if all_generators:
                 feature_generator_kwargs = config["unrestricted_feature_generator"]
@@ -217,6 +273,23 @@ class FeaturePool:
                 10000,
                 **feature_generator_kwargs,
             )
+            if config.get("extra_features", None):
+                # Parsed directly with the factory rather than through generate_features above,
+                # so these are exempt from concept_complexity_limit/role_complexity_limit/
+                # max_complexity -- those limits are only enforced inside generate_features
+                # itself, and appending after it returns is what achieves the exemption. They
+                # keep DLPlan's own computed complexity (so the #minimize over feature cost
+                # still prefers cheap elements over them where possible), and are appended
+                # before pruning below, so compute_uninformative_*/compute_redundant_* still
+                # see them exactly like a synthesised element.
+                extra_booleans, extra_numericals, extra_concepts, extra_roles = _parse_extra_features(
+                    factory, config["extra_features"]
+                )
+                added_booleans = _dedup_extend(booleans, extra_booleans)
+                added_numericals = _dedup_extend(numericals, extra_numericals)
+                added_concepts = _dedup_extend(concepts, extra_concepts)
+                added_roles = _dedup_extend(roles, extra_roles)
+                _log_added_extra_features(added_booleans, added_numericals, added_concepts, added_roles)
         self.features = {}
         self.concepts = {}
         self.roles = {}

@@ -206,6 +206,19 @@ minimize_selected_count: none
 include_dead_states: true
 include_goal_states: true
 preset_features: null
+# Hand-given booleans/numericals/concepts/roles (same shape as preset_features: lists of
+# DLPlan strings) that are always in the pool, in addition to whatever the round's synthesis
+# produces. Unlike preset_features, this does not replace synthesis. Elements are parsed with
+# the factory and appended to the synthesised lists after generate_features runs, before
+# pruning, so they are exempt from the round's max_complexity/concept_complexity_offset/
+# role_complexity_offset limits (those are only enforced inside generate_features) but still go
+# through compute_uninformative_*/compute_redundant_* like every synthesised element, and keep
+# DLPlan's own computed complexity for the #minimize over feature cost. Deduplicated against the
+# synthesised lists (and against each other) by string representation. If preset_features is
+# also set, extra_features is merged into the preset lists instead (preset_features already
+# replaces synthesis, so there is nothing to append after). null (default) is a no-op. See
+# docs/extra-features-results.md.
+extra_features: null
 feature_generator:
   generate_til_c_role: false
 prune_roles: true

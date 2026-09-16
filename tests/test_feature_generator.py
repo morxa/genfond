@@ -332,3 +332,76 @@ def test_concept_and_role_complexity_offsets_are_floored_at_one(simple_blocks, m
     concept_limit, role_limit = captured_args["limits"][:2]
     assert concept_limit == 1
     assert role_limit == 1
+
+
+def test_extra_features_concept_present_and_exempt_from_complexity_limit(simple_blocks):
+    """extra_features elements are parsed with the factory and appended after
+    generate_features runs, so they carry their own complexity regardless of the round's
+    max_complexity -- unlike a synthesised concept of the same complexity, which would not be
+    generated at all at this max_complexity."""
+    domain, problem = simple_blocks
+    extra_concept = "c_not(c_not(c_primitive(holding,0)))"
+
+    base_overrides = {
+        "include_concepts": True,
+        "max_complexity": 2,
+        "prune_concepts": False,
+        "prune_roles": False,
+        "prune_static_concepts": False,
+        "prune_static_roles": False,
+    }
+
+    config_without_extra = ConfigHandler()
+    for key, value in base_overrides.items():
+        config_without_extra[key] = value
+    pool_without_extra = FeaturePool(domain, [problem], config=config_without_extra)
+    assert extra_concept not in pool_without_extra.concepts
+
+    config_with_extra = ConfigHandler()
+    for key, value in base_overrides.items():
+        config_with_extra[key] = value
+    config_with_extra["extra_features"] = {"concepts": [extra_concept]}
+    pool_with_extra = FeaturePool(domain, [problem], config=config_with_extra)
+    assert extra_concept in pool_with_extra.concepts
+    expected_complexity = pool_with_extra.concepts[extra_concept].compute_complexity()
+    assert expected_complexity > config_with_extra["max_complexity"]
+
+    clingo_program = pool_with_extra.to_clingo()
+    assert f'concept("{extra_concept}").' in clingo_program
+    assert f'concept_complexity("{extra_concept}", {expected_complexity}).' in clingo_program
+
+
+def test_extra_features_not_duplicated_when_also_synthesised(simple_blocks, monkeypatch):
+    """An extra_features element that generate_features also produces must appear only once in
+    the pool -- not as two identical concept/1 + concept_complexity/2 facts."""
+    domain, problem = simple_blocks
+    config = ConfigHandler()
+    config["include_concepts"] = True
+    config["max_complexity"] = 2
+    config["prune_concepts"] = False
+    config["prune_redundant_concepts"] = False
+    config["extra_features"] = {"concepts": ["c_top"]}
+
+    def fake_generate_features(factory, states, *limits, **kwargs):
+        return [], [], [factory.parse_concept("c_top")], []
+
+    monkeypatch.setattr("genfond.feature_generator.dlplan_gen.generate_features", fake_generate_features)
+    pool = FeaturePool(domain, [problem], config=config)
+
+    assert list(pool.concepts.keys()).count("c_top") == 1
+    clingo_program = pool.to_clingo()
+    assert clingo_program.count('concept("c_top").') == 1
+    assert clingo_program.count('concept_complexity("c_top", 1).') == 1
+
+
+def test_extra_features_merged_with_preset_features(simple_blocks):
+    """With preset_features also set, extra_features is merged into the preset lists instead
+    of being appended after a (skipped) generation step."""
+    domain, problem = simple_blocks
+    config = ConfigHandler()
+    config["include_concepts"] = True
+    config["preset_features"] = {"concepts": ["c_top"]}
+    config["extra_features"] = {"concepts": ["c_top", "c_primitive(holding,0)"]}
+    pool = FeaturePool(domain, [problem], config=config)
+
+    assert set(pool.concepts.keys()) == {"c_top", "c_primitive(holding,0)"}
