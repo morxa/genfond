@@ -903,3 +903,10 @@ deadline/stop checks between problems so the graceful stop works inside validati
 (regression suites + spanner 141 with a 50 min budget) running. H22 (`hyp/opt-enum`, on top of it):
 enumerate up to k optimal models per round, discard those violating lazy pairs, validate each cheaply, keep
 the best coverage — the tie-breaker for the round-12 fork.
+
+H22 implemented (`hyp/opt-enum`, 3d08ff7, 231 tests): `optimal_model_limit: k` enumerates up to k proven-optimal
+models on the final lazy-pairs program (`opt_mode=optN`), discards models violating any pair, validates each
+cheaply and keeps the highest coverage (ties: fewer rules, then clingo's order); default 1 = old behaviour.
+Local suites: identical solved/cost; 2–3 optimal models per round everywhere, blocks4ops-clear picks a
+higher-coverage sibling and converges one round earlier. Workstation: ≤7-block training, seeds 0–2, limit 1 vs
+3, scored on 95; cluster: full loop with limit 3 for seeds 1 and 2 (the ones that forked to 28).
