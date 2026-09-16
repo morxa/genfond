@@ -642,3 +642,5 @@ available the run drifted to a 63-rule policy, **26/95**; without it, 7 rules, *
 reachable and used in intermediate candidates but never survived cost minimisation: at complexity 6 it loses
 to cheap combinations that fit the training set. H20 (`hyp/extra-cost`): `extra_features_complexity` overrides
 the emitted cost of hand-given elements; validated with seeds 0–2 at override 2, plus 4 and unset.
+full-cpu (4144771, cpu 12 h, combo before forced labels, graceful): **36/95**, 27 training problems ≤9 blocks,
+pass 46 → 46. Cost 46 versus 8 for the small-suite policy.
