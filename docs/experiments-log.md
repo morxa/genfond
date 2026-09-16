@@ -910,3 +910,7 @@ cheaply and keeps the highest coverage (ties: fewer rules, then clingo's order);
 Local suites: identical solved/cost; 2–3 optimal models per round everywhere, blocks4ops-clear picks a
 higher-coverage sibling and converges one round earlier. Workstation: ≤7-block training, seeds 0–2, limit 1 vs
 3, scored on 95; cluster: full loop with limit 3 for seeds 1 and 2 (the ones that forked to 28).
+H23 result (workstation, new image): regression suites unchanged (gripper 5/5, miconic 4/4, blocks4ops-clear
+4/4, delivery 4/4 at the rec config's costs); **spanner 140/140 in 17 min** (8 rounds, 3 training problems,
+validation 1 019 s of 1 027 s, 2 early stops, no per-step log lines) where the previous run sat in one
+validation block for 12 h. Merged into `hyp/combo`.
