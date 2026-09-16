@@ -683,3 +683,10 @@ synthesised-only experiment (mined grammar, selected-count bias, concept offset 
 kb-lite-mod (4154630, modern 4 h, exact 93/95 configuration + keep-best, graceful): **87/95** from round 13
 (cost 8), last policy 33. Keep-best turns every full-suite run into a high-80s result.
 full2-r1-cpu (4148283, cpu 12 h, pre-deadline-fix): killed in the final pass, no stats; 34 training problems incl. 10-block, first failure at position 40.
+
+Synthesised-only test (seed 2, 2–7 blocks + 010-5 + 017-5, concept offset 0, 45 min each): mined grammar +
+count bias → 25/32, 94 rules; mined grammar only → 30/32, 141 rules; count bias only → 26/32, 88 rules; all
+timed out, none used a closure concept. With purely synthesised features the loop cannot reach or select the
+complexity-6 well-placed concept once the instances that need it are in training; the pool-shrinking and
+tie-breaking levers do not change that. Open decision (Till): a goal-closure generator rule, the analogue of
+DLPlan's goal-comparison rule, at complexity 4.
