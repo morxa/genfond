@@ -719,3 +719,5 @@ number is hardcoded. A generator rule applies it to goal pairs exactly as the ex
 Branch `equal-closure` on the dlplan fork (from the pinned rev cfd4561); validation through genfond on the
 small suite + the two failing instances, the pool dump, and the regression suites. Image rebuild and re-pin
 follow if it holds up.
+c-r1-cap8 (4150539, cpu 12 h, pre-deadline-fix): killed in the final pass, no stats row; superseded by the
+keep-best arms.
