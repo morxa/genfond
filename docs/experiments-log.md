@@ -597,3 +597,6 @@ and kb-r1-cpu (4154622, cpu 12 h) with the full configuration + restarts 1.
 Note: the 91/95 run used add-problem, budget 300 s, role caps, restarts 1 and cap 8 **without** the final
 pass and forced labels. A repeat with those two added hung after the first lazy iteration of round 23 for
 two hours (to be isolated). The seed repeat was restarted with the exact 91/95 configuration.
+Arms kb-lite-mod (4154630, modern 4 h) and kb-lite-cpu (4154631, cpu 12 h): the exact 91/95 configuration
+(add-problem, budget 300 s, role caps, restarts 1, cap 8; no final pass, no forced labels) with keep-best on
+the full 95. Workstation: isolating whether `fix_forced_labels` or `final_cost_minimization` causes the hang.
