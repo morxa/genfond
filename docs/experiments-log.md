@@ -670,3 +670,13 @@ no policy, timed out. Either flag alone: 13–15 rounds, 7–8 rules, 30/30. The
 small-suite trajectory (though the kb-r1-mod cluster arm with both on still found its 89/95 policy at round
 14). Forced labels showed no gain with the solve budget, so the recommended configuration drops them:
 add-problem, budget 300 s, role offset 2 / concept offset 1, restarts 1, cap 8, keep-best, final pass optional.
+
+## H20 (diagnostic only): cost override for hand-given elements (`hyp/extra-cost`)
+
+`extra_features_complexity` replaces the emitted cost of hand-given elements. 32-problem training set
+(2–7 blocks + 010-5 + 017-5): override 2 → 3-rule policy on the well-placed concept, 93/95 (seeds 0, 2;
+seed 1 lost its policy file to a double SIGTERM); override 4 → converges in **22 s, 3 rules, 95/95**; unset
+(true complexity 6) → 94-rule patchwork, 26/95. Reading (per Till: presets are expressiveness tests, not
+solutions): the language and the grammar contain a complete 3-rule blocks3ops policy; what synthesis lacks is
+a way to make that complexity-6 concept reachable and to let it win against cheaper patchworks. The
+synthesised-only experiment (mined grammar, selected-count bias, concept offset 0) is the test of that.
