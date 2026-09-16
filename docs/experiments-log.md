@@ -849,3 +849,6 @@ early break at the first failure, so each candidate pays the whole suite. Learni
 the slow part; execution-based validation is. Fix in progress (`hyp/cheap-validation`): one execution per
 problem in the loop, size order with early stop after consecutive failures, per-problem time cap, full
 verification only at the end, per-step logging off.
+Till: ten executions per candidate were for FOND; for deterministic problems repetition only matters
+because the datalog executor samples among applicable rule instantiations. Decision: in-loop validation
+executes each problem once; the datalog configs' final verification drops `policy_iterations` from 10 to 3.
