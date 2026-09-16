@@ -553,3 +553,7 @@ Batch 6 (12 h, `hyp/min-count`, goal suffix + budget + role caps): b6-gs-tl-r2c1
 b6-mc-sigs 33/95 (27), b6-mc-count 33/95 (28). Neither Occam bias changes coverage at scale. The recurring
 33 = all instances up to 7 blocks (30) plus three 8-block ones; the 8–9-block instances are the coverage wall,
 crossed so far only by the restarts-1 arm (43, with 10-block problems in training).
+
+m6-s1 (4150566, seed 1 incl. hash seed, full configuration + restarts 1 + cap 8, modern 4 h, graceful):
+**29/95**, 20 training problems ≤8 blocks, pass 36 → 36. Against 33–36 for seed 0 the run-to-run variance is
+about ±4 problems; arm differences of that size are noise.
