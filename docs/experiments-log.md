@@ -589,3 +589,8 @@ training run repeated for seeds 0–2, with and without `minimize_selected_count
 all 95.
 m7-r1-cap8 (4152032, modern 4 h, deadline fix): graceful, true coverage **29/95**, 20 training problems
 ≤8 blocks, pass 45 → 45 (1 round). Cost 45 versus cost 8 for the 91/95 policy from the small suite.
+
+H18 fix (`hyp/keep-best`, 3d757ec, merged into `hyp/combo`, 204 tests): the in-loop test now scores every
+problem (no early break when `keep_best_policy` is on), the best-coverage policy of the run is returned
+(ties by cost), stats gain `bestSolved/bestCost/bestRound/lastSolved`. Arms kb-r1-mod (4154621, modern 4 h)
+and kb-r1-cpu (4154622, cpu 12 h) with the full configuration + restarts 1.
