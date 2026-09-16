@@ -594,3 +594,6 @@ H18 fix (`hyp/keep-best`, 3d757ec, merged into `hyp/combo`, 204 tests): the in-l
 problem (no early break when `keep_best_policy` is on), the best-coverage policy of the run is returned
 (ties by cost), stats gain `bestSolved/bestCost/bestRound/lastSolved`. Arms kb-r1-mod (4154621, modern 4 h)
 and kb-r1-cpu (4154622, cpu 12 h) with the full configuration + restarts 1.
+Note: the 91/95 run used add-problem, budget 300 s, role caps, restarts 1 and cap 8 **without** the final
+pass and forced labels. A repeat with those two added hung after the first lazy iteration of round 23 for
+two hours (to be isolated). The seed repeat was restarted with the exact 91/95 configuration.
