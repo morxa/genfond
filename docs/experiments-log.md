@@ -548,3 +548,8 @@ m4-mined-r1 (4149500, modern, 4 h): last policy 33/95, 71 rounds, ≤8 blocks; k
 Final-pass bound (`hyp/final-pass-bound`, b23c6b8, merged into `hyp/combo`, 200 tests): the pass climbs at
 most `final_pass_max_levels: 2` levels above the success complexity and can skip rounds whose pool exceeds
 `final_pass_max_pool`. Submitted m8-r1-cap8 (4153234, modern, 4 h) with the full configuration on that commit.
+
+Batch 6 (12 h, `hyp/min-count`, goal suffix + budget + role caps): b6-gs-tl-r2c1 33/95 (29 problems),
+b6-mc-sigs 33/95 (27), b6-mc-count 33/95 (28). Neither Occam bias changes coverage at scale. The recurring
+33 = all instances up to 7 blocks (30) plus three 8-block ones; the 8–9-block instances are the coverage wall,
+crossed so far only by the restarts-1 arm (43, with 10-block problems in training).
