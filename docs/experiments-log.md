@@ -661,3 +661,5 @@ kb-r1-mod (4154621, modern 4 h, full configuration + restarts 1 + keep-best, gra
 **cost-8 policy solving 89/95**; the run's last policy solved 33, the pass changed nothing (40 → 40), and the
 best policy was returned (`bestSolved=89 bestRound=14 solved=89`). First full-suite run with purely
 synthesised features at this level; the earlier plateau at 33 was the loop discarding this policy.
+That policy has 5 rules over three elements (`b_empty(clear ∧ clear_g)`, `c_equal(on, on_g)`, role `on_g`) and
+solves **10/12 held-out** instances (fails 012-1, 020-2).
