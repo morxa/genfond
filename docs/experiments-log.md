@@ -733,3 +733,7 @@ image rebuild running locally for the cluster runs.
 Image rebuilt locally in 10 min (`make genfond_env.sif`, 1.1 GB) from the re-pinned lock; it parses
 `c_equal_closure(...)` at complexity 3 and exposes `generate_equal_closure_concept`. Copied to
 `/work/.../genfond_env_ec.sif` (new name so running jobs keep their open image).
+Runs with the new grammar (cluster worktree combo7, image `genfond_env_ec.sif`, config: add-problem, budget
+300 s, role offset 2 / concept offset 1, restarts 1, cap 8, keep-best; default `generate_equal_closure_concept`):
+ec-mod (modern 4 h) and ec-cpu (cpu 12 h) on the full 95; workstation: 2–7 blocks + 010-5 + 017-5 with a
+2 h wall budget, scored on all 95.
