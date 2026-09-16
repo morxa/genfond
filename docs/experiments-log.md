@@ -626,3 +626,7 @@ into the synthesised pool regardless of the round's complexity limit, then train
 two failing instances.
 m8-r1-cap8 (4153234, modern 4 h, bounded pass): graceful, **28/95**, 19 training problems ≤8 blocks, pass
 ran 2 levels (33 → 33). Same story as m7: the full-suite trajectory yields patchworks.
+Suite extension (seed 2, same configuration): train ≤8 blocks (35 problems) → 35/35 in 16 s, 7 rules,
+**92/95**; ≤9 blocks (40) → 40/40 in 20 s, 7 rules, **93/95** (fails 017-5, 018-4); ≤10 blocks (45, incl.
+010-5) → 44/45 after 40 min timeout, 18 rounds, 92/95. Adding the instance that needs the well-placed concept
+stalls the loop exactly as predicted; H19 (extra features) is the test.
