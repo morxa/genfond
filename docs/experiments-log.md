@@ -542,3 +542,5 @@ main loop stops earlier by that budget. Resubmitted the best configuration as m7
 m3-r1-res (4149378, modern, 4 h, reserve 1800 but pre-fix pass): last policy 33/95, 65 rounds, ≤8 blocks; killed.
 Note the cluster of full-configuration arms at 33–36 in 4 h against 43 for the plain siw-r1 arm on
 `hyp/min-count`; the seed arms (m6-s1/s2) decide whether that 43 was a lucky trajectory.
+m4-mined-r1 (4149500, modern, 4 h): last policy 33/95, 71 rounds, ≤8 blocks; killed in the pass with a
+1 945-feature / 5 738-concept pool (the pass climbs into the huge pools the loop otherwise avoids).
