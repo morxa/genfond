@@ -624,3 +624,5 @@ complexity 6). ≤7-block training instances never require it; on the full suite
 it sit at complexity 7 with thousands of concepts. H19 (`hyp/extra-features`): allow hand-given elements
 into the synthesised pool regardless of the round's complexity limit, then train on the small suite plus the
 two failing instances.
+m8-r1-cap8 (4153234, modern 4 h, bounded pass): graceful, **28/95**, 19 training problems ≤8 blocks, pass
+ran 2 levels (33 → 33). Same story as m7: the full-suite trajectory yields patchworks.
