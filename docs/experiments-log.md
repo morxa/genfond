@@ -803,3 +803,10 @@ blocks-multiple: problem files reuse names (BW-rand-4 ×4, …); the original sy
 duplicate unsolved entries). Excluded from the comparison; the suite needs unique problem names.
 Cancelled as superseded by the new-grammar result (Till, 2026-09-16): 4147766 (full2-long, 36 h),
 4154631 (kb-lite-cpu), 4154622 (kb-r1-cpu); all pre-grammar full-suite arms.
+
+**Caveat on the full-suite loop:** ec-mod (4161147, same configuration and seed as ec-cpu but on
+`rleap_cpu_modern`, graceful 4 h): **28/95** (best round 12, 19 training problems ≤7 blocks) against 95/95
+in 18 min on `rleap_cpu`. With a per-solve time budget the trajectory depends on the machine's speed, so a
+single full-suite run is not a reliable reading. Repeating the full loop with seeds 1–3 on `rleap_cpu`
+(4 h, graceful). The small-suite path (≤7 blocks, ~33 s) remains the robust and cheap route: 2 of 3 seeds
+give 95/95, and an outer restart over seeds with keep-best would make it seed-independent.
