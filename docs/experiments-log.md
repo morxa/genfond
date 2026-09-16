@@ -810,3 +810,26 @@ in 18 min on `rleap_cpu`. With a per-solve time budget the trajectory depends on
 single full-suite run is not a reliable reading. Repeating the full loop with seeds 1–3 on `rleap_cpu`
 (4 h, graceful). The small-suite path (≤7 blocks, ~33 s) remains the robust and cheap route: 2 of 3 seeds
 give 95/95, and an outer restart over seeds with keep-best would make it seed-independent.
+
+Cross-domain snapshot at 8 h 20 (finished rows are final; "running" rows give rounds / training-set size /
+position of the first failing problem):
+
+| domain | old | rec |
+|---|---|---|
+| blocks4ops-clear (95) | 95/95, 16 s | 95/95, 47 s |
+| blocks4ops-on (190) | 190/190, 33 s | 190/190, 4.5 min |
+| gripper ×2 | 30/30, 30/30 | 30/30, 30/30 |
+| visitall (500) | 500/500, 43 min | 500/500, 3 h |
+| **visitall (36)** | **36/36, 4.6 min** | **8/36, ended after 2 h** (regression, investigated) |
+| miconic (25) | 14/25, ended after 2 h | running: 12 training problems |
+| logistics (47) | 9/47, ended after 6.9 h | running: round 10 |
+| blocks4ops (95) | round 1, 10 problems | round 7, 21 problems, first failure 63 |
+| delivery (225) | round 1, 11 problems | round 6, 33 problems, first failure 109 |
+| blocks (12) | round 1, 3 problems | round 5, 27 problems (?), first failure 25 |
+| hanoi (30) | round 1, 4 problems | round 1, 8 problems |
+| logistics_dp | round 1, 5 | round 17, 8, first failure 15 |
+| reward | round 1, 5 | round 10, 7, first failure 6 |
+| spanner | first failure 34 | round 4, 3 problems, first failure 9 |
+| storage | round 1, 6 | round 1, 3, first failure 3 |
+| barman, grid, sokoban | round 0–1 | round 0–9 |
+| blocks-multiple, miconic-new | invalid suites (see above) | – |
