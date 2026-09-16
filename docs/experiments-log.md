@@ -210,6 +210,14 @@ c2-unselect (`unselect_problems: true`), c2-frontier2 (`max_frontier_states_per_
 | 4133412 | c2-frontier2 (c2-combo + `max_frontier_states_per_round: 2`) | 29/95 (last policy) | 12 h TIMEOUT | – | 20 problems (≤7 blocks) | 11 h in one complexity-4 round: first model after 19 min, optimality never proven (eager pairs, bb) |
 | 4133419 | c3-combo (H2+H3+H5 lazy pairs+memory fix) | 29/95 (last policy) | 12 h TIMEOUT | – | 22 problems (≤7 blocks) | lazy iterations 3 and 4 took 2291 s and 6225 s (cost 26 → 28), iteration 5 never returned |
 | 4133421 | c3-r2c1 (c3-combo + role offset 2, concept offset 1) | **33/95** (last policy) | 12 h TIMEOUT | – | 27 problems incl. 8-block (08-1, 08-3, 08-4, 08-5) | 11 h in lazy iteration 2 of a round |
+| 4133890 | c3-grammar (H7 grammar restriction) | 28/95 (last policy) | 12 h TIMEOUT | – | 21 problems (≤7 blocks) | still progressing at the end (lazy iteration 2 in 241 s); no gain over c3-combo |
+| 4133891 | c3-grammar-r2c1 (H7 + role caps) | 33/95 (last policy) | 12 h TIMEOUT | – | 26 problems incl. 8-block | 11 h in one lazy iteration; same coverage as c3-r2c1 |
+| 4135666 | x32-combo (c3-combo, 32 threads, not comparable) | 31/95 (last policy) | 12 h TIMEOUT | – | 23 incl. 8-block | lazy iteration 3 took 62 min, iteration 4 never returned |
+| 4135667 | x32-r2c1 (c3-r2c1, 32 threads) | 33/95 (last policy) | 12 h TIMEOUT | – | 26 incl. 8-block | iteration 3 took 3 h; threads do not remove the stall |
+| 4136480 | c4-usc (combo + usc) | 27/95 (last policy) | 12 h TIMEOUT | – | 17 (≤7 blocks) | stuck from 09:02 in lazy iteration 2 |
+| 4136481 | c4-tl300 (combo + 300 s solve budget) | 34/95 (last policy) | 12 h TIMEOUT | – | 27 incl. 8-block | still progressing at the end (last round 17:40) |
+| 4136482 | c4-usc-r2c1 (usc + role caps) | 33/95 (last policy) | 12 h TIMEOUT | – | 24 incl. 8-block | stuck from 08:54 |
+| 4136483 | c4-tl300-r2c1 (300 s budget + role caps) | **40/95** (last policy) | 12 h TIMEOUT | – | 29+ incl. 8-block | still progressing at the end (last round 20:00) |
 
 The eager distinguishing-set instance for 19 problems at complexity 4 exhausts 128 GB. This is the case the
 lazy pairs arm (c3-combo, job 4133419) targets.
@@ -312,3 +320,404 @@ constructor is a DLPlan issue (or needs a genfond-side goal-comparison augmentat
 **Protocol correction:** `State` is a `frozenset` of pddl atoms, so iteration order and the frontier loop's
 choices follow `PYTHONHASHSEED`; `--seed 0 -n 1` alone does not make two runs identical. Both benchmark scripts
 now pin `PYTHONHASHSEED`. Earlier single-run A/Bs carry that noise.
+
+## H11: DLPlan never generates goal-comparison concepts for genfond (bug)
+
+`dlplan/src/generator/rules/concepts/equal.cpp` (pinned rev cfd4561) generates `c_equal(R, R_goal)` only when
+the goal role's predicate name is the other's plus the **lowercase** suffix `_g`. genfond names goal predicates
+`on_G`, `clear_G`, … (uppercase), so the rule never matches and no `c_equal` concept, hence no "block sits on
+its goal support", ever enters a synthesised pool, at any complexity. The hand-written preset (H9) bypassed
+the generator, which is why it generalised. Decision (Till): genfond adopts DLPlan's convention and names goal
+predicates `_g` (`hyp/goal-suffix`); DLPlan and the apptainer image stay as they are. Old `.policy` pickles
+become incompatible. Validation on the local suite and the held-out set is running.
+
+H11 result (`hyp/goal-suffix`, 17ed4c2): with `_g` the pools gain `c_equal` (29→30 / 88→90 concepts at
+complexity 3 / 4). blocks3ops-local 10/10, cost 7, **36 rules** using `c_equal` heavily, held-out **0/12**;
+regression suites identical. So availability of the right concept is necessary but not sufficient: among thirty
+concepts the cost-minimal selection still yields a training-fitted rule set, where the tiny preset pool forced
+a 13-rule policy (cost 6, 5/12). Next: an Occam bias on the number of good signatures (H12, `hyp/min-rules`).
+Gotcha found: `scripts/eval_policy.py` run as a script imports the editable-installed genfond from the main
+checkout unless `PYTHONPATH=.` is set.
+
+**Is the add-problem switch now detrimental?** (Till's hypothesis: the post-success climb was the cost
+minimisation across complexity levels, and cheaper policies generalised better.) A/B on `hyp/goal-suffix`,
+workstation, blocks3ops-local, 4 threads: climb on → 10/10, 26 rules, 18 rounds, 19 s, held-out 0/12;
+switch on → 10/10, 26 rules, 14 rounds, 14 s, held-out 0/12. No difference at this scale. Full-95 arms
+gs-climb (4139572) and gs-noclimb (4139573) test it at scale.
+
+## H12: minimise the number of good signatures (`hyp/min-rules`, on `hyp/goal-suffix`)
+
+`minimize_good_signatures: none|below|above` adds `#minimize { 1@P, K : good_sig(K) }` under or over the
+complexity level (frontier stays highest); `cost_utils.feature_cost` now finds the complexity level for every
+layout (this also fixed `max_cost` being read from the wrong level once extra levels exist). Also repaired the
+gripper encoding-equivalence test to compare cost, since `c_equal` created a tie.
+
+blocks3ops-local (10 problems), local, seed 0: none → 36 rules / 72 good signatures; below → 26 / 30;
+above → 20 / 23. Held-out **0/12 in all three**. Regression suites: `below` identical to baseline everywhere,
+`above` +1 cost on blocks4ops-clear. Fewer rules alone does not give generalisation. The preset policy had
+5 selected elements; the synthesised ones select more, cheaper elements → H13 (`hyp/min-count`): minimise
+the number of selected elements.
+
+**Cluster snapshot 13:06 (batch 4 at 4 h 20 min, x32 at 6 h, preset at 1 h 40 min):**
+
+| arm | training set | last policy solved | state |
+|---|---|---|---|
+| c4-usc | 17 (≤7 blocks) | 27 | stuck 4 h in lazy iteration 2 (usc) |
+| c4-tl300 | 26 incl. 8-block | 32 | progressing, iterations at the 300 s budget, not proven optimal |
+| c4-usc-r2c1 | 24 incl. 8-block | 33 | iteration 2 took 47 min, stuck since 08:54 |
+| c4-tl300-r2c1 | 29 incl. 8-block | **38** | progressing, 18 budgeted iterations per round |
+| x32-combo | 23 incl. 8-block | 31 | stuck 3.5 h in iteration 2 with 32 threads |
+| x32-r2c1 | 26 incl. 8-block | 33 | iteration 3 took 3 h |
+| c5-preset | 18 | – | frontier expansion runaway on 08-2 (1 423 plans, 721 MB log); preset pool unsatisfiable for the set |
+
+The per-solve time budget is the only setting that keeps rounds moving at this scale; core-guided search and
+32 threads do not. The gs-climb / gs-noclimb arms were submitted without the budget and will stall the same way,
+so they are resubmitted with `solve_time_limit: 300` as gs-climb-tl / gs-noclimb-tl.
+
+## H13: minimise the number of selected elements (`hyp/min-count`, on `hyp/min-rules`)
+
+`minimize_selected_count: none|below|above` (count of selected concepts+features+roles at its own priority
+level; frontier moved to `@3`; `cost_utils.feature_cost` derives the complexity level from both knobs).
+blocks3ops-local: `above` → 27 rules, 5 selected elements (drops `c_equal`), held-out **0/12** again;
+regression suites unchanged. Composing `count=above` with `sigs=above` (two stacked levels above the
+complexity level) did not finish in 30 min on an idle 96-core node. Neither Occam bias reproduces the preset's
+generalisation locally; both are cheap to test for coverage at scale.
+
+Cluster batch 6 on `hyp/min-count` (goal suffix `_g`, all H2–H8 machinery), all with
+`add_problem_after_success`, `solve_time_limit: 300`, role offset 2 / concept offset 1: gs-tl-r2c1 (no
+bias), mc-sigs (good-signature bias above), mc-count (selected-count bias above).
+
+## Faster cadence (from 2026-09-15 afternoon)
+
+Till: too few ideas at a time. Changes: exploration arms get a 4 h limit (`SBATCH_TIMELIMIT=4:00:00`) on the
+otherwise idle `rleap_cpu_modern` node (wall times there are not comparable to `rleap_cpu`, coverage is), and
+four implementation agents run in parallel.
+
+Batch 7 (`m-*`, jobs 4143934–4143941, `hyp/min-count`, all with add-problem, role offset 2 / concept offset 1,
+`solve_time_limit: 300` unless stated): tl60, tl900 (budget sweep), siw-r1, siw-r10, siw-nobranch (planner
+diversity), unrestricted (all DLPlan generators), frontier2 (≤2 frontier states per round), preset (hand-crafted
+pool with `_g`, + frontier2).
+
+In implementation (own branches from `hyp/min-count`): fixed-labels (precompute forced good/bad transitions so
+pair constraints between forced classes carry no labelling choice; optional plan heuristic), plan-cap (cap and
+state-set dedupe of example plans; the preset arm hit 1 423 plans on one problem), final-climb (one cost
+minimisation pass at the end instead of after every success), wall-budget (graceful `max_wall_time`/SIGTERM
+handling so killed runs still write stats and policy).
+
+## H14: one final cost-minimisation pass (`hyp/final-climb`, on `hyp/min-count`)
+
+`final_cost_minimization: true`: after the fast add-problem loop ends, run the old complexity climb once on the
+frozen final training set and keep the candidate that solves the most problems, ties by lowest cost.
+Workstation, `--type datalog-sig -n 1 --seed 0`, add-problem, `solve_time_limit: 300`, role offset 2 /
+concept offset 1, goal suffix `_g`:
+
+| suite | pass off | pass on |
+|---|---|---|
+| blocks3ops-local | 10/10, cost 9, 40 rules, 25 s, **held-out 4/12** | 10/10, cost 7, 27 rules, 49 s, **held-out 8/12** |
+| gripper-local | 5/5, cost 7 | unchanged (a cheaper cost-6 candidate solved fewer problems and was rejected) |
+| miconic-local | 4/4, cost 11 | 4/4, cost 8 |
+
+Two things to note: this configuration (goal suffix + role caps + budget) already generalises to 4/12 without
+the pass, the first synthesised-pool policy to transfer at all; and the cheaper policy transfers twice as far.
+The pass triggered only when all problems were solved; the end-of-run trigger is being added before the
+full-95 cluster arms.
+
+The pass also runs when the loop ends without solving everything (exhausted iterator), verified by tests
+(a8df8dc). Cluster arms with the full configuration (add-problem, budget 300 s, role caps, final pass):
+fc-cpu (4144318, `rleap_cpu`, 12 h) and fc-mod (4144319, `rleap_cpu_modern`, 4 h).
+
+## H15: data-driven grammar (Till's suggestion)
+
+Constructor usage over the selected elements of the final rules of 115 blocks3ops run logs (26 202 rules,
+occurrence counts): c_primitive 370 k, r_primitive 311 k, c_not 184 k, c_some 137 k, c_all 120 k, b_empty 53 k,
+c_and 26 k, c_equal 21 k, r_inverse 13 k; rare: r_not 5 k, r_transitive_closure 4 k, r_til_c 1.6 k,
+r_identity 121; never: c_or, c_diff, c_one_of, c_projection, c_subset, r_and, r_restrict, r_compose,
+nullary/inclusion booleans. Caveat: circular (usage reflects what was offered and what cost minimisation picks).
+Mined grammar = default minus one_of/bot/top concepts, identity/restrict/and/til_c roles, nullary/inclusion
+booleans. Arms on `rleap_cpu_modern`, 4 h: m-mined (`hyp/min-count` config) and m-mined-fc (+ final pass).
+
+## H16: forced transition labels (`hyp/fixed-labels`, on `hyp/min-count`)
+
+Before search, a fixpoint derives the labels every model agrees on (an action whose outcome is neither alive
+nor pruned is bad; a bad class is bad at every occurrence; a state whose remaining candidates share one class
+forces it good; a good class is good everywhere) and emits `forced_good/3`, `forced_bad/3`; forced-bad actions
+leave the choice, forced-good become constraints, forced×forced pairs seed the lazy loop. Sound by
+construction (tests refute the opposite of each forced label on the unmodified program). Stall case
+(p005-1+p005-2+p006-1, c=4, 30 min, no budget): 2 lazy iterations / 1.68 M violated pairs left → 6 / 3 179.
+With the 300 s budget both arms are level (8 vs 9 iterations). Largest finishing one-shot: 5:31 → 2:50 at the
+same optimum. Coverage and cost identical everywhere. Forced-*bad* never fires: frontier expansion makes every
+off-plan successor `pruned`, which counts as safe, so only the forced-good rule acts. The optional plan
+heuristic cancels the gain and is left off. Merged into `hyp/combo` (6ac9f3f, 183 tests).
+
+Cluster: fc-wall arms (4144770 modern 4 h, 4144771 cpu 12 h: final pass + graceful wall budget, from the
+combo commit before forced labels) and full2 arms (modern 4 h, cpu 12 h: the same plus `fix_forced_labels`).
+
+**Batch 7 results (4 h on `rleap_cpu_modern`, `hyp/min-count`, add-problem + role caps, budget 300 s unless
+stated; coverage = last policy tested, from the log tail):**
+
+| arm | training set at 4 h | last policy solved |
+|---|---|---|
+| tl60 (budget 60 s) | 28, ≤8 blocks | – (no policy test found in the 441 MB log tail) |
+| tl900 (budget 900 s) | 28, ≤8 blocks | 33 |
+| **siw-r1 (SIW restarts 1)** | 11 incl. **10-block** | **43** |
+| siw-r10 (restarts 10) | 28, ≤8 blocks | 33 |
+| siw-nobranch | 23 incl. 10-block | 29 |
+| unrestricted generators | 26, ≤8 blocks | – (as tl60) |
+| frontier2 | 29, ≤8 blocks | 33 |
+| preset (hand-crafted pool) | 10 incl. 10-block | – (pool unsatisfiable at the end; 1.4 GB log) |
+
+Fewer example plans per problem (`restarts: 1`) is the largest single gain so far: 43/95 in 4 h against
+33–34 for the 300 s-budget arms at 12 h, and the training set reaches 10-block instances with only 11
+problems. Smaller plan sets mean smaller state spaces and fewer pairs per round. Submitted the full
+configuration with `restarts: 1` as full2-r1-mod (4148282, 4 h) and full2-r1-cpu (4148283, 12 h).
+
+Follow-up arms on the plan-count finding (full configuration, `rleap_cpu_modern`, 4 h, graceful wall budget):
+m2-plans1-r1 (4148300: `min_number_of_plans: 1`, restarts 1), m2-plans2-r1 (4148301), m2-r1-nobranch
+(4148302: restarts 1 and `branch: false`, i.e. a single deterministic plan per problem).
+
+fc-mod (4144319, 4 h, `hyp/final-climb` config without graceful budget): 30/95 (last policy), 24 training
+problems ≤8 blocks; killed by the limit before the final pass could run. The `full*` arms carry the graceful
+wall budget so their final pass executes.
+
+full-mod (4144770, 4 h, combo before forced labels, graceful budget 13 200 s): first arm to end on its own —
+`stoppedBy=wall_time`, stats row and policy written, final pass ran (1 round, cost 37 → 37; the 300 s reserve
+leaves no room for it). 30/95, 24 training problems incl. 10-block. Future arms set `wall_time_reserve: 1800`
+so the pass has half an hour.
+
+H15 result (4 h, modern node): m-mined **36/95** (31 training problems, ≤9 blocks; pool 89 features /
+221 concepts / 8 roles at the last round) against 33 for tl900/frontier2 with the default grammar in the same
+4 h; m-mined-fc 33/95 (27 problems, killed before the pass; no graceful budget on that branch). A modest but
+consistent gain; combined with `restarts: 1` next (m4-mined-r1).
+
+H9 at scale (c5-preset, 4138079, 12 h): the hand-crafted pool became unsatisfiable once the training set
+reached 18–20 problems (≤8 blocks) and stayed so for the last 59 rounds; frontier expansion meanwhile
+attached **4 880** example plans to blocks-008-2 (7.8 GB log). No policy test in the tail. Conclusion: the
+preset shows generalisation is attainable on small sets but is not a complete policy language for blocks3ops,
+and unbounded frontier plan growth is a real defect (addressed by `hyp/plan-cap`).
+
+## H17: cap and dedupe example plans (`hyp/plan-cap`, on `hyp/min-count`)
+
+`max_plans_per_problem` (null = unbounded) stops INC_PLANS/frontier expansion adding plans beyond the cap;
+plans whose replayed state set adds nothing to a problem's covered states are dropped (catches what the
+action-sequence key misses). blocks3ops-local with cap 8: largest problem 45 → 8 plans, 190 → 45 states,
+grounded atoms 97 365 → 24 346, wall 28.7 s → 13.7 s, identical policy cost; gripper/miconic byte-identical.
+The unbounded-baseline driver on the workstation failed on a bind-path error, so no direct A/B there; the
+cluster arms provide it. Merged into `hyp/combo` (189 tests). Arms: m5-r1-cap8 (modern, 4 h) and c-r1-cap8
+(cpu, 12 h) = full configuration + restarts 1 + reserve 1800 + cap 8.
+
+Also on the modern node (4 h, full configuration + restarts 1 + cap 8 + reserve 1800): m6-s1 and m6-s2
+(seeds 1 and 2 incl. `PYTHONHASHSEED`, to measure run-to-run variance of the best configuration) and
+m6-minc3 (`min_complexity: 3`, skipping the complexity-2 rounds). In implementation: `hyp/min-train-size`
+(`min_train_objects`: never train on instances below a size threshold; small instances may induce the
+overfitted rule sets).
+
+full2-mod (4144791, modern, 4 h, full configuration incl. forced labels): queued until ~20:55, then 68 rounds,
+last policy **33/95**; killed by SLURM rather than stopping gracefully — the final pass started within the
+budget but its climb rounds (118 s, 392 s solves) ran past the 300 s reserve, so no stats row or policy was
+written. Fix in progress (`hyp/final-pass-deadline`: the pass gets its own budget and respects the deadline).
+
+m2 results (modern, 4 h, full configuration + restarts 1, graceful stop worked, stats written):
+m2-plans1-r1 (`min_number_of_plans: 1`) **35/95**, 27 training problems ≤9 blocks, final pass 41 → 41;
+m2-r1-nobranch (`branch: false`) **36/95**, 28 problems ≤9 blocks, pass 39 → 39. Both below the plain
+siw-r1 arm (43) on the earlier branch; the m6 seed arms will show how much of that is variance.
+
+gs-climb / gs-noclimb (4139572/3, `hyp/goal-suffix`, no solve budget, 12 h): climb 16/95 (15 training
+problems ≤6 blocks, stuck from 16:09), switch 28/95 (22 problems ≤7 blocks, stuck from 19:55). Without a
+budget the climb loses badly at scale; the budgeted pair (gs-climb-tl / gs-noclimb-tl) is the fair test.
+
+full2-r1-mod (4148282, modern, 4 h): last policy 33/95, 63 rounds, ≤8 blocks; killed in the final pass (same
+deadline bug as full2-mod, no stats row).
+m2-plans2-r1 (4148301): last policy 33/95, 68 rounds, ≤8 blocks; also killed in the final pass.
+
+gs-climb-tl / gs-noclimb-tl (4139742/3, goal suffix + 300 s budget, 12 h): climb **24/95** (17 problems
+≤6 blocks), add-problem switch **31/95** (25 problems ≤8 blocks). Verdict on Till's hypothesis: at scale the
+switch is right; the cost minimisation the climb provided is better spent once at the end (H14 final pass),
+and the base arm's 33 with a cost-10 policy looks like a lucky model rather than a systematic effect.
+
+Final-pass deadline fix (`hyp/final-pass-deadline`, 6f43768, merged into `hyp/combo`): the pass gets its own
+slice (`final_pass_budget: 1800`, `final_pass_min_time: 600`), respects the deadline between rounds, and the
+main loop stops earlier by that budget. Resubmitted the best configuration as m7-r1-cap8 (4152032, modern,
+4 h). One pre-existing flaky solver test (zero-second limit race) is being made deterministic on
+`hyp/fix-flaky-limit-test`.
+m3-r1-res (4149378, modern, 4 h, reserve 1800 but pre-fix pass): last policy 33/95, 65 rounds, ≤8 blocks; killed.
+Note the cluster of full-configuration arms at 33–36 in 4 h against 43 for the plain siw-r1 arm on
+`hyp/min-count`; the seed arms (m6-s1/s2) decide whether that 43 was a lucky trajectory.
+m4-mined-r1 (4149500, modern, 4 h): last policy 33/95, 71 rounds, ≤8 blocks; killed in the pass with a
+1 945-feature / 5 738-concept pool (the pass climbs into the huge pools the loop otherwise avoids).
+
+Final-pass bound (`hyp/final-pass-bound`, b23c6b8, merged into `hyp/combo`, 200 tests): the pass climbs at
+most `final_pass_max_levels: 2` levels above the success complexity and can skip rounds whose pool exceeds
+`final_pass_max_pool`. Submitted m8-r1-cap8 (4153234, modern, 4 h) with the full configuration on that commit.
+
+Batch 6 (12 h, `hyp/min-count`, goal suffix + budget + role caps): b6-gs-tl-r2c1 33/95 (29 problems),
+b6-mc-sigs 33/95 (27), b6-mc-count 33/95 (28). Neither Occam bias changes coverage at scale. The recurring
+33 = all instances up to 7 blocks (30) plus three 8-block ones; the 8–9-block instances are the coverage wall,
+crossed so far only by the restarts-1 arm (43, with 10-block problems in training).
+
+m6-s1 (4150566, seed 1 incl. hash seed, full configuration + restarts 1 + cap 8, modern 4 h, graceful):
+**29/95**, 20 training problems ≤8 blocks, pass 36 → 36. Against 33–36 for seed 0 the run-to-run variance is
+about ±4 problems; arm differences of that size are noise.
+
+m5-r1-cap8 (4150538, seed 0, full configuration + restarts 1 + `max_plans_per_problem: 8`, modern 4 h,
+graceful): **29/95**, 20 training problems ≤8 blocks, 41 rounds, pass 39 → 39. The cap is within the ±4 noise
+band of the uncapped arms (33–36) and does not add coverage; the dedupe stays (it only removes plans that add
+no states), the cap stays off by default.
+Repeatability check of the 43: m9-siwr1-s1 / m9-siwr1-s2 (4153962/3, `hyp/min-count` siw-r1 config, seeds 1
+and 2, modern 4 h).
+m6-s2 (seed 2) 33/95 and m6-minc3 (`min_complexity: 3`) 33/95, both ≤8 blocks, both killed in the pass
+(pre-fix code). Best configuration across seeds 0/1/2: 33–36 / 29 / 33.
+
+## H18: the loop discards near-general policies (from the `hyp/min-train-size` validation)
+
+`min_train_objects` itself was a null result (the 5- and 7-block thresholds never converged in 40 min), but its
+*baseline* arm exposed the real issue: on the 30-problem 2–7-block suite (full configuration + restarts 1 +
+cap 8, seed 0) the loop learned a **7-rule, cost-8 policy from seven 2–4-object problems in 14 s** that solves
+**11/12 held-out** instances (8–30 blocks) and, evaluated on the full suite, **91/95** (failing 010-5, 013-4,
+017-5, 018-4). On the 95-problem runs the same loop keeps going because those instances fail: it adds the
+failing instance, re-learns on the larger set, and the later policies are 26–40-rule patchworks solving
+30–40. The run only reports the last policy, although every success is tested on all problems in the loop.
+Fix in progress (`hyp/keep-best`): remember and return the best-coverage policy seen.
+
+Correction to every "last policy solved" figure read from log tails: the in-loop policy test in
+`solve_iteratively` breaks at the first failing problem (problems are sorted by size), so the count is the
+position of the first failure, not coverage. That is why arms plateau at 33 / 36 / 43 (first failure among
+the 8-, 9- or 10-block instances). Only the end-of-run "Policy solves N out of 95" (graceful runs) is true
+coverage, and for those runs it matched the tail figure, so the cluster policies were genuinely weaker than the
+7-rule policy. No cluster run tested a policy whose first failure came after the 43rd problem. `hyp/keep-best`
+removes the early break and keeps the best-coverage policy. Running now on the workstation: the 30-problem
+training run repeated for seeds 0–2, with and without `minimize_selected_count: above`, each policy scored on
+all 95.
+m7-r1-cap8 (4152032, modern 4 h, deadline fix): graceful, true coverage **29/95**, 20 training problems
+≤8 blocks, pass 45 → 45 (1 round). Cost 45 versus cost 8 for the 91/95 policy from the small suite.
+
+H18 fix (`hyp/keep-best`, 3d757ec, merged into `hyp/combo`, 204 tests): the in-loop test now scores every
+problem (no early break when `keep_best_policy` is on), the best-coverage policy of the run is returned
+(ties by cost), stats gain `bestSolved/bestCost/bestRound/lastSolved`. Arms kb-r1-mod (4154621, modern 4 h)
+and kb-r1-cpu (4154622, cpu 12 h) with the full configuration + restarts 1.
+Note: the 91/95 run used add-problem, budget 300 s, role caps, restarts 1 and cap 8 **without** the final
+pass and forced labels. A repeat with those two added hung after the first lazy iteration of round 23 for
+two hours (to be isolated). The seed repeat was restarted with the exact 91/95 configuration.
+Arms kb-lite-mod (4154630, modern 4 h) and kb-lite-cpu (4154631, cpu 12 h): the exact 91/95 configuration
+(add-problem, budget 300 s, role caps, restarts 1, cap 8; no final pass, no forced labels) with keep-best on
+the full 95. Workstation: isolating whether `fix_forced_labels` or `final_cost_minimization` causes the hang.
+Hang isolation (30-problem suite, seed 0): `fix_forced_labels` alone → 30/30, 7 rules, 14 s (13 rounds);
+`final_cost_minimization` alone → 30/30, 8 rules, 29 s (15 rounds). Neither flag hangs by itself; the
+combined run took a different trajectory (23 rounds) and stalled inside one solve. Re-running the combination
+with seeds 1 and 0 to see whether it is trajectory-dependent.
+
+Seed repeat of the 91/95 configuration on the 30-problem 2–7-block suite (workstation): seeds 0/1/2 give
+30/30 in 14 s with 7/6/6 rules; with `minimize_selected_count: above` 7/7/7 rules, also 14 s. Seed 0's policy
+re-scores **91/95** on the full suite (the chained scoring in the first pass had failed silently); the other
+five are being scored.
+
+Full-95 scores of the six small-suite policies (trained on 2–7 blocks, 14 s each): none seeds 0/1/2 →
+**91 / 92 / 93**, count-bias seeds 0/1/2 → 91 / 90 / 91. Failures are "no action found" on a handful of
+10–18-block instances (017-5 in every case, 013-4 and 010-5 often). The general policy is found robustly; the
+remaining gap is a rule the ≤7-block training set never needs. Running: training suites extended to ≤8, ≤9,
+≤10 blocks with the same configuration, scored on all 95.
+
+**Why the 93/95 policy fails.** In blocks-010-5 the tower b0-b3-b2-b1 stands on b8, which is on the table
+but belongs on b9; every block above b8 is on its goal support locally, so `c_equal(on, on_g)` marks them as
+placed, no clear block is "misplaced", and no rule fires. The needed concept is *well-placed*: on the goal
+support and so is everything below (`c_all(r_transitive_reflexive_closure(on), c_equal(on, on_g))`,
+complexity 6). ≤7-block training instances never require it; on the full suite the rounds that would need
+it sit at complexity 7 with thousands of concepts. H19 (`hyp/extra-features`): allow hand-given elements
+into the synthesised pool regardless of the round's complexity limit, then train on the small suite plus the
+two failing instances.
+m8-r1-cap8 (4153234, modern 4 h, bounded pass): graceful, **28/95**, 19 training problems ≤8 blocks, pass
+ran 2 levels (33 → 33). Same story as m7: the full-suite trajectory yields patchworks.
+Suite extension (seed 2, same configuration): train ≤8 blocks (35 problems) → 35/35 in 16 s, 7 rules,
+**92/95**; ≤9 blocks (40) → 40/40 in 20 s, 7 rules, **93/95** (fails 017-5, 018-4); ≤10 blocks (45, incl.
+010-5) → 44/45 after 40 min timeout, 18 rounds, 92/95. Adding the instance that needs the well-placed concept
+stalls the loop exactly as predicted; H19 (extra features) is the test.
+fc-cpu (4144318, cpu 12 h, final pass, no graceful budget): killed; 29 training problems ≤9 blocks,
+first failure at position 35 (a lower bound on coverage), still adding problems at the end.
+
+## H19: hand-given elements alongside synthesis (`hyp/extra-features`, merged into `hyp/combo`, 207 tests)
+
+`extra_features` (same shape as `preset_features`) appends parsed elements to the synthesised lists after
+generation, so they are exempt from the per-round complexity limits, keep DLPlan's complexity, and go through
+the usual pruning. Validation (seed 2, 2–7 blocks + 010-5 + 017-5, 40 min cap): with the well-placed concept
+available the run drifted to a 63-rule policy, **26/95**; without it, 7 rules, **91/95**. The concept was
+reachable and used in intermediate candidates but never survived cost minimisation: at complexity 6 it loses
+to cheap combinations that fit the training set. H20 (`hyp/extra-cost`): `extra_features_complexity` overrides
+the emitted cost of hand-given elements; validated with seeds 0–2 at override 2, plus 4 and unset.
+full-cpu (4144771, cpu 12 h, combo before forced labels, graceful): **36/95**, 27 training problems ≤9 blocks,
+pass 46 → 46. Cost 46 versus 8 for the small-suite policy.
+full2-cpu (4144792, cpu 12 h, full configuration incl. forced labels, graceful): **37/95**, 28 training
+problems ≤9 blocks, pass 51 → 51. Best 12-hour full-suite figure so far, still a cost-51 patchwork.
+
+**Framing (Till):** preset and hand-given features are diagnostics of expressiveness, not solutions. H9 showed
+the policy language can express a general blocks3ops policy; the synthesised 93/95 policy shows the grammar
+can too. H19/H20 (extra elements, cost override) only test whether the learner would select the well-placed
+concept if reachability and cost were not obstacles; they do not count as results. The synthesised path:
+make the complexity-6 pool tractable (mined grammar) and break cost ties toward few general elements
+(selected-count bias). Running on the workstation (seed 2, 2–7 blocks + 010-5 + 017-5, 45 min each):
+mined-count, mined-only, count-only, with concept offset 0 so the round can reach complexity 6.
+
+## Result: keep-best on the full suite
+
+kb-r1-mod (4154621, modern 4 h, full configuration + restarts 1 + keep-best, graceful): round 14 produced a
+**cost-8 policy solving 89/95**; the run's last policy solved 33, the pass changed nothing (40 → 40), and the
+best policy was returned (`bestSolved=89 bestRound=14 solved=89`). First full-suite run with purely
+synthesised features at this level; the earlier plateau at 33 was the loop discarding this policy.
+That policy has 5 rules over three elements (`b_empty(clear ∧ clear_g)`, `c_equal(on, on_g)`, role `on_g`) and
+solves **10/12 held-out** instances (fails 012-1, 020-2).
+m9-siwr1-s1/s2 (4153962/3, seeds 1–2 of the restarts-1 arm, pre-keep-best): both 4 h TIMEOUT with first
+failure at position 43, matching seed 0; the number was a first-failure position, superseded by keep-best.
+Combined flags re-run (small suite): seed 1 → 36 rounds, 99-rule policy, 27/30, timed out; seed 0 → 30 rounds,
+no policy, timed out. Either flag alone: 13–15 rounds, 7–8 rules, 30/30. The combination reliably derails the
+small-suite trajectory (though the kb-r1-mod cluster arm with both on still found its 89/95 policy at round
+14). Forced labels showed no gain with the solve budget, so the recommended configuration drops them:
+add-problem, budget 300 s, role offset 2 / concept offset 1, restarts 1, cap 8, keep-best, final pass optional.
+
+## H20 (diagnostic only): cost override for hand-given elements (`hyp/extra-cost`)
+
+`extra_features_complexity` replaces the emitted cost of hand-given elements. 32-problem training set
+(2–7 blocks + 010-5 + 017-5): override 2 → 3-rule policy on the well-placed concept, 93/95 (seeds 0, 2;
+seed 1 lost its policy file to a double SIGTERM); override 4 → converges in **22 s, 3 rules, 95/95**; unset
+(true complexity 6) → 94-rule patchwork, 26/95. Reading (per Till: presets are expressiveness tests, not
+solutions): the language and the grammar contain a complete 3-rule blocks3ops policy; what synthesis lacks is
+a way to make that complexity-6 concept reachable and to let it win against cheaper patchworks. The
+synthesised-only experiment (mined grammar, selected-count bias, concept offset 0) is the test of that.
+kb-lite-mod (4154630, modern 4 h, exact 93/95 configuration + keep-best, graceful): **87/95** from round 13
+(cost 8), last policy 33. Keep-best turns every full-suite run into a high-80s result.
+full2-r1-cpu (4148283, cpu 12 h, pre-deadline-fix): killed in the final pass, no stats; 34 training problems incl. 10-block, first failure at position 40.
+
+Synthesised-only test (seed 2, 2–7 blocks + 010-5 + 017-5, concept offset 0, 45 min each): mined grammar +
+count bias → 25/32, 94 rules; mined grammar only → 30/32, 141 rules; count bias only → 26/32, 88 rules; all
+timed out, none used a closure concept. With purely synthesised features the loop cannot reach or select the
+complexity-6 well-placed concept once the instances that need it are in training; the pool-shrinking and
+tie-breaking levers do not change that. Open decision (Till): a goal-closure generator rule, the analogue of
+DLPlan's goal-comparison rule, at complexity 4.
+
+## Goal-closure generator rule: applicability across the 56 benchmark domains
+
+Rule: for each primitive role R with goal counterpart R_g, generate `c_all(r_transitive_reflexive_closure(R),
+c_equal(R, R_g))` (proposed complexity 4; syntactic 6). Trigger and semantics are domain-independent.
+
+- **Fires with the intended meaning (10 domains):** the tower suites blocks3ops, blocks4ops, blocks,
+  blocks-multiple, blocks3ops-fond, d2l/blocks, d2l/blocks3ops, plus hanoi (disc/peg chains) and d2l/depot
+  (crate/pallet chains): "on my goal support and so is everything below me".
+- **Generated but denotationally equal to `c_equal(R, R_g)`, hence deduplicated (≈10 domains):** cross-type
+  goals — gripper, gripper-m, logistics, logistics98, delivery, grid, storage, barman, satellite, floortile.
+- **Generated, likely idle (3):** single-atom same-type goals blocks-on, blocks4ops-fond-on, d2l/blocks-on.
+- **No-op (≈25):** unary/nullary goals (miconic, visitall, spanner, sokoban, reward, childsnack, doors,
+  tireworld variants, islands, miner, acrobatics, beam-walk, graph-traversal, blocks-clear variants); static
+  same-type relations (adjacent, road, connected, next, above, smaller) have no goal version.
+- **Outside the supported goal form:** d2l/blocks-tower (functional), d2l/gridworld (numeric).
+
+Cost: at most one concept per goal role. Open decision: the assigned complexity.
+
+## H21: `c_equal_closure` constructor in DLPlan (Till's decision)
+
+Decision: implement the goal-closure rule in DLPlan as a new grammar constructor rather than a cost override.
+`c_equal_closure(R1, R2)` = objects x such that every y reachable from x via the reflexive-transitive closure
+of R1 has equal R1- and R2-successor sets (semantically `c_all(r_transitive_reflexive_closure(R1),
+c_equal(R1, R2))`). Its complexity follows from the grammar (1 + the two roles = 3 for primitive roles), no
+number is hardcoded. A generator rule applies it to goal pairs exactly as the existing `c_equal` rule does.
+Branch `equal-closure` on the dlplan fork (from the pinned rev cfd4561); validation through genfond on the
+small suite + the two failing instances, the pool dump, and the regression suites. Image rebuild and re-pin
+follow if it holds up.
+c-r1-cap8 (4150539, cpu 12 h, pre-deadline-fix): killed in the final pass, no stats row; superseded by the
+keep-best arms.
