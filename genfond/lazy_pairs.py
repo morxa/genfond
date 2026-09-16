@@ -78,12 +78,54 @@ def _seed_forced_pairs(solver: Solver, pairs: LazyPairs, forced: ForcedLabels, b
     return violated, len(batch)
 
 
+def _feasible_candidates(solver: Solver, pairs: LazyPairs, limit: int) -> None:
+    """Enumerate further optimal models and keep the ones that are feasible for the *full*
+    problem, leaving them in `solver.candidates`.
+
+    Two things make this different from enumerating on an eagerly grounded program:
+
+    * It has to run on the final grounded program, i.e. after the loop below has converged, so
+      that every pair batch a counterexample forced in is part of what the enumeration respects.
+    * Even then the program is only a relaxation: the pairs that were never grounded do not
+      constrain it. The incumbent is known feasible (the loop stops exactly when a model violates
+      no pair), but a sibling model of the same cost need not be -- it may be optimal for the
+      relaxation alone. So every enumerated model is put through the same counterexample scan and
+      dropped if it violates anything. `violated_pairs` reads the index and emits nothing, so
+      this neither grows the ground program nor disturbs the loop's own accounting.
+
+    Discarding rather than repairing is deliberate: adding the violated pairs and re-solving
+    would start the loop over, and the point of the enumeration is to spend a bounded amount of
+    extra time on tie-breaking, not to search further.
+    """
+    candidates = solver.enumerate_optimal(limit)
+    if len(candidates) <= 1:
+        return
+    feasible = []
+    for index, solution in enumerate(candidates):
+        violated, _ = pairs.violated_pairs(
+            _selected(solution, "f_selected"),
+            _selected(solution, "c_selected"),
+            _selected(solution, "r_selected"),
+            good={identifier for identifier, _ in solution.get("sig_action", set())},
+            bad=solution.get("bad_sig", set()),
+            limit=1,
+        )
+        if violated:
+            log.info(f"Lazy pairs: discarding optimal model {index} -- it violates {violated} pair(s)")
+            continue
+        feasible.append(solution)
+    log.info(f"Lazy pairs: {len(feasible)} of {len(candidates)} enumerated optimal model(s) are feasible")
+    assert feasible, "the incumbent violates no pair, so at least one candidate must survive"
+    solver.candidates = feasible
+
+
 def solve_with_lazy_pairs(
     solver: Solver,
     signatures: Sequence[ActionSignature],
     batch_size: int = DEFAULT_BATCH,
     stats: Optional[MutableMapping[str, Any]] = None,
     forced: Optional[ForcedLabels] = None,
+    optimal_model_limit: int = 1,
 ) -> SolveStatus:
     """Solve, adding violated separation pairs until the model satisfies them all.
 
@@ -154,6 +196,8 @@ def solve_with_lazy_pairs(
                 f' {"proven optimal" if solver.optimal else "NOT proven optimal (time budget)"}'
             )
             _record(stats, iteration, pairs, total_pairs, optimal=solver.optimal)
+            if optimal_model_limit > 1 and solver.optimal:
+                _feasible_candidates(solver, pairs, optimal_model_limit)
             return SolveStatus.OPTIMAL if solver.optimal else SolveStatus.SATISFIABLE
         assert batch, "a violated pair must be addable, otherwise the loop cannot make progress"
         solver.add_pairs(iteration, facts)

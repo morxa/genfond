@@ -3,7 +3,7 @@ import logging
 import os
 import os.path
 import time
-from typing import Optional, Sequence
+from typing import Any, Mapping, Optional, Sequence
 
 import clingo
 
@@ -44,6 +44,39 @@ def convert_arg(symbol: clingo.Symbol) -> str | int:
         return str(symbol)
     else:
         raise ValueError(f"Unknown symbol type: {symbol.type} for {symbol}")
+
+
+def extract_solution(model: clingo.Model) -> dict:
+    """The shown atoms of `model` as the `{predicate: set of argument tuples}` dict the rest of
+    the code calls a "solution", plus its `cost`.
+
+    Factored out of `Solver.on_model` so that `Solver.enumerate_optimal` can build the same dict
+    for every model it enumerates without any of them becoming *the* incumbent solution.
+    """
+    solution: dict = dict()
+    for symbol in model.symbols(shown=True):
+        args = [convert_arg(arg) for arg in symbol.arguments]
+        if len(args) == 0:
+            solution.setdefault(symbol.name, set()).add(True)
+        elif len(args) == 1:
+            solution.setdefault(symbol.name, set()).add(args[0])
+        else:
+            solution.setdefault(symbol.name, set()).add(tuple([convert_arg(arg) for arg in symbol.arguments]))
+    solution["cost"] = model.cost
+    return solution
+
+
+def solution_key(solution: Mapping[str, Any]) -> tuple:
+    """A hashable identity for a solution dict, for deduplicating enumerated models.
+
+    `repr` of each element rather than the element itself: a predicate's argument set mixes ints,
+    strings and tuples, which do not sort against each other.
+    """
+    return tuple(
+        (name, tuple(sorted(repr(value) for value in values)))
+        for name, values in sorted(solution.items())
+        if name != "cost"
+    )
 
 
 class Solver:
@@ -114,6 +147,14 @@ class Solver:
         assert isinstance(self.control.configuration.solve, clingo.Configuration)
         self.control.configuration.solve.parallel_mode = num_threads or os.cpu_count()
         self.solution: dict = dict()
+        # Further optimal models of the same cost as `solution`, collected by
+        # `enumerate_optimal()`; empty until it runs (so `candidates or [solution]` is the one
+        # place callers have to look).
+        self.candidates: list[dict] = []
+        # How many distinct optimal models `enumerate_optimal()` actually found; `candidates`
+        # may be filtered down afterwards (the lazy-pairs loop drops the infeasible ones), so
+        # the count is kept separately for the stats.
+        self.num_enumerated = 0
         self.cost: list[int] = []
         self.statistics: dict = dict()
         self.status = SolveStatus.UNKNOWN
@@ -130,16 +171,7 @@ class Solver:
     def on_model(self, model: clingo.Model) -> None:
         if not self.solution:
             log.info("Found first solution")
-        self.solution = dict()
-        for symbol in model.symbols(shown=True):
-            args = [convert_arg(arg) for arg in symbol.arguments]
-            if len(args) == 0:
-                self.solution.setdefault(symbol.name, set()).add(True)
-            elif len(args) == 1:
-                self.solution.setdefault(symbol.name, set()).add(args[0])
-            else:
-                self.solution.setdefault(symbol.name, set()).add(tuple([convert_arg(arg) for arg in symbol.arguments]))
-        self.solution["cost"] = model.cost
+        self.solution = extract_solution(model)
         self.cost = model.cost
 
     def add_pairs(self, batch: int, facts: str) -> None:
@@ -244,3 +276,102 @@ class Solver:
             assert res.satisfiable is not None
             return res.satisfiable
         return bool(self.solution)
+
+    def enumerate_optimal(self, limit: int) -> list[dict]:
+        """Collect up to `limit` optimal models of the already-solved program.
+
+        The caller must have run `solve()` to a *proven* optimum first: the enumeration only
+        makes sense relative to a known optimal cost, and clingo's `optN` mode needs to redo the
+        optimisation phase on the same `Control` anyway (it is fast there, since the solve that
+        proved the optimum left its learnt clauses behind).
+
+        Why this exists: on blocks3ops two models of cost 3 with one selected element each --
+        `c_equal_closure(on, on_g)` and `c_equal(on, on_g)` -- decide the whole run (95/95 vs.
+        28/95), and no static tie-breaker tells them apart. The loop already validates every
+        candidate policy on all problems, so coverage is the natural tie-breaker; it just never
+        had more than one candidate per round to apply it to.
+
+        `limit <= 1` is a no-op returning just the incumbent, so the default configuration never
+        runs a second solve at all. Otherwise `opt_mode` is switched to `optN`, which first
+        re-establishes the optimum and then enumerates models *of that cost*; clingo reports
+        those with `optimality_proven` set (the one re-reported model of the optimisation phase
+        has it clear), and `configuration.solve.models = limit` counts exactly the enumerated
+        ones. A program with no `#minimize` at all has no optimisation phase and no
+        `optimality_proven` flag -- every model is trivially optimal there, so those are taken as
+        they come.
+
+        The enumeration as a whole gets the same budget a single solve gets (`time_limit`, and
+        whatever is left of `wall_deadline`); running out of it simply returns fewer candidates.
+        The incumbent is always first in the returned list, so a caller that cannot afford to
+        look past it -- or an enumeration that timed out before its first model -- still sees the
+        exact model the single-model path would have produced.
+        """
+        self.candidates = [self.solution] if self.solution else []
+        self.num_enumerated = len(self.candidates)
+        if limit <= 1 or not self.solution or not self.optimal:
+            return self.candidates
+        assert isinstance(self.control.configuration.solve, clingo.Configuration)
+        known_cost = list(self.cost)
+        models: list[dict] = []
+
+        def on_model(model: clingo.Model) -> None:
+            if list(model.cost) != known_cost:
+                # Cannot normally happen (optN only enumerates at the optimum, and the one
+                # optimisation-phase model it re-reports is the incumbent), but a model of a
+                # different cost is not a tie and must never become a candidate.
+                return
+            if model.cost and not model.optimality_proven:
+                return
+            models.append(extract_solution(model))
+
+        previous_models = self.control.configuration.solve.models
+        self.control.configuration.solve.opt_mode = "optN"
+        self.control.configuration.solve.models = limit
+        start = time.perf_counter()
+        stop_at: Optional[float] = None if self.time_limit is None else start + self.time_limit
+        if self.wall_deadline is not None:
+            stop_at = self.wall_deadline if stop_at is None else min(stop_at, self.wall_deadline)
+        # The polling loop of `solve()`, repeated rather than shared: that one is written so that
+        # its first `wait()` is the very first statement inside the `with`, because an unbounded
+        # hard-optimisation instance can produce its first model within microseconds and any work
+        # inserted before that wait measurably changes the race (see `solve()`'s comment and
+        # docs/wall-budget-results.md). Refactoring both onto one helper would put that property
+        # at the mercy of a later edit here.
+        step = POLL_INTERVAL if stop_at is None else max(0.0, min(POLL_INTERVAL, stop_at - start))
+        finished = False
+        try:
+            with self.control.solve(on_model=on_model, async_=True) as handle:
+                while True:
+                    finished = handle.wait(step)
+                    if finished:
+                        break
+                    if (stop_at is not None and time.perf_counter() >= stop_at) or stop_requested():
+                        break
+                    now = time.perf_counter()
+                    step = POLL_INTERVAL if stop_at is None else max(0.0, min(POLL_INTERVAL, stop_at - now))
+                if not finished:
+                    handle.cancel()
+        finally:
+            # A later `solve()` on this Control (the lazy-pairs loop solves the same one over and
+            # over) must see the configuration it always saw; `solve()` resets opt_mode itself,
+            # but nothing there resets the model count.
+            self.control.configuration.solve.opt_mode = "opt"
+            self.control.configuration.solve.models = previous_models
+        elapsed = time.perf_counter() - start
+        seen = {solution_key(self.solution)}
+        for solution in models:
+            key = solution_key(solution)
+            if key in seen:
+                continue
+            seen.add(key)
+            self.candidates.append(solution)
+        self.num_enumerated = len(self.candidates)
+        log.info(
+            "Enumerated %d optimal model(s) of cost %s in %.2fs (limit %d%s)",
+            len(self.candidates),
+            known_cost,
+            elapsed,
+            limit,
+            "" if finished else ", cut off",
+        )
+        return self.candidates

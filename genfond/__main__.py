@@ -195,6 +195,12 @@ def main():
         "cost, 'above' decides fewest selected elements first",
     )
     config_args.add_argument(
+        "--optimal-model-limit",
+        type=int,
+        help="enumerate up to this many optimal models of the same cost per round, validate each "
+        "and keep the one solving the most problems (1 = the single model clingo returns)",
+    )
+    config_args.add_argument(
         "--seed",
         type=int,
         help="seed the global RNG, which policy execution draws on; needed to compare two runs",

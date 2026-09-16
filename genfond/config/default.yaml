@@ -202,6 +202,20 @@ emit_object_facts: true
 lazy_pairs: false
 # How many violated pairs one lazy iteration may add (the smallest distinguishing sets first).
 lazy_pairs_batch: 5000
+# How many optimal models of the same cost a round may enumerate and validate before picking
+# one. clingo returns whichever optimal model it happened to prove first, and equal-cost models
+# are not equally good policies: on blocks3ops a cost-3 model on `c_equal_closure(on, on_g)`
+# solves 95/95 while the equally cheap `c_equal(on, on_g)` solves 28/95, and nothing in the ASP
+# encoding tells them apart. With a limit above 1 the round enumerates that many optimal models
+# (clingo's optN mode on the already-solved control; with lazy_pairs the enumeration runs on the
+# final grounded program and every model is re-checked against the pairs, since a sibling may be
+# optimal for the relaxation only), turns each into a policy, runs the cheap in-loop validation
+# on each and keeps the one with the highest coverage (ties: fewer rules, then clingo's order).
+# The cost is one extra clingo solve plus one in-loop validation per extra candidate; the
+# winner's validation is reused as the round's own, so a limit of k costs k validations rather
+# than k+1. 1 (default) never enumerates and reproduces the previous behaviour exactly.
+# See docs/opt-enum-results.md.
+optimal_model_limit: 1
 # Compute, before the search, which (instance, state, action) occurrences are good in every
 # model and which are bad in every model, and pin them: the forced-bad ones are dropped from the
 # good_trans choice and the forced-good ones get a constraint (solve_datalog_sig.lp only; needs

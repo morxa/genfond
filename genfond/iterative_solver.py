@@ -6,7 +6,7 @@ import statistics
 import sys
 import time
 from collections.abc import Iterator
-from typing import Any, Callable, Collection, Mapping, MutableMapping, Optional
+from typing import Any, Callable, Collection, Mapping, MutableMapping, Optional, Sequence
 
 import tqdm
 from pddl.core import Domain, Plan, Problem
@@ -118,7 +118,8 @@ def solve(
     stats: Optional[MutableMapping[str, Any]] = None,
     wall_deadline: Optional[float] = None,
     max_pool_size: Optional[int] = None,
-) -> Optional[tuple[DatalogPolicy | Policy, MutableMapping[str, Any], list[FrontierState]]]:
+    optimal_model_limit: int = 1,
+) -> Optional[tuple[list[DatalogPolicy | Policy], MutableMapping[str, Any], list[FrontierState]]]:
     # The caller may hand in the run-level stats dict so that the keys describing *why* a round
     # produced no policy (solveStatus, solveOptimal) survive a `return None`; the returned
     # mapping is then that same object and `stats.update(...)` on it is a no-op.
@@ -128,6 +129,17 @@ def solve(
     # not a SolveStatus name: those paths keep the pre-existing NO_SOLUTION handling.
     stats["solveStatus"] = None
     stats["solveOptimal"] = True
+    # The per-round optimal-model keys describe *this* round; without clearing them a round that
+    # enumerates nothing would report the previous round's numbers. The `*Total` counters below
+    # are cumulative over the run and are deliberately not cleared.
+    for key in (
+        "optimalModelsEnumerated",
+        "optimalModelsFeasible",
+        "optimalModelChosenCoverage",
+        "optimalModelChosenIndex",
+        "optimalModelCoverages",
+    ):
+        stats.pop(key, None)
     if config.get("minimize_good_signatures", "none") != "none" and config["solve_prog"] != "solve_datalog_sig.lp":
         # good_sig/1 (and the two #program parts Solver grounds for it) only exist in
         # solve_datalog_sig.lp; grounding them against another solve_prog would fail inside
@@ -272,10 +284,17 @@ def solve(
             config.get("lazy_pairs_batch") or DEFAULT_BATCH,
             stats,
             forced=forced,
+            optimal_model_limit=optimal_model_limit,
         )
     else:
         solver.solve()
         status = solver.status
+        if optimal_model_limit > 1 and status == SolveStatus.OPTIMAL:
+            # The lazy loop does this itself (it has to run the enumeration on its *final*
+            # grounded program and re-check every model against the pairs it never grounded);
+            # here the grounded program is the whole problem, so every enumerated model of the
+            # optimal cost is feasible as it stands.
+            solver.enumerate_optimal(optimal_model_limit)
     stats["solveStatus"] = status.name
     # Whether the round *proved* its answer. A model whose cost was never proved optimal must
     # not be used to refute a complexity level; the iterator is told via
@@ -312,14 +331,35 @@ def solve(
     log.debug(f'f_distinguished: {solution.get("f_distinguished", [])}')
     frontier_states = collect_frontier_states(feature_pool, solution)
     stats["numFrontierTransitions"] = len(frontier_states)
+    policy_type = PolicyType[config["policy_type"]]
     try:
-        policy = generate_policy(
-            solution, policy_type=PolicyType[config["policy_type"]], signatures=feature_pool.signatures
-        )
+        policy = generate_policy(solution, policy_type=policy_type, signatures=feature_pool.signatures)
     except KeyError as e:
         log.error(f"Error during policy generation: {e}")
         raise
-    return policy, stats, frontier_states
+    policies: list[DatalogPolicy | Policy] = [policy]
+    if frontier_states:
+        # Not a policy at all (see solve_step): the caller expands the frontier and re-solves,
+        # so there is nothing for a tie-breaker to choose between.
+        return policies, stats, frontier_states
+    # Further optimal models of the same cost, if the round asked for them. Each becomes a
+    # candidate policy; `solve_step` picks between them by coverage. A candidate that reaches
+    # into the frontier is dropped rather than returned: only a zero-frontier model is a policy,
+    # and the incumbent already gave us one, so there is no frontier expansion to trigger.
+    if optimal_model_limit > 1:
+        stats["optimalModelsEnumerated"] = solver.num_enumerated
+        stats["optimalModelsEnumeratedTotal"] = stats.get("optimalModelsEnumeratedTotal", 0) + solver.num_enumerated
+    for candidate in solver.candidates[1:]:
+        if collect_frontier_states(feature_pool, candidate):
+            log.info("Discarding an enumerated optimal model: it relies on frontier transitions")
+            continue
+        policies.append(generate_policy(candidate, policy_type=policy_type, signatures=feature_pool.signatures))
+    if optimal_model_limit > 1:
+        stats["optimalModelsFeasible"] = len(policies)
+        stats["optimalModelsFeasibleTotal"] = stats.get("optimalModelsFeasibleTotal", 0) + len(policies)
+    if len(policies) > 1:
+        log.info("Round has %d candidate policies of cost %s", len(policies), solver.cost)
+    return policies, stats, frontier_states
 
 
 def pnames(problems: Collection[Problem]) -> str:
@@ -336,6 +376,7 @@ def _test_policy_on_problems(
     stats: Optional[MutableMapping[str, Any]] = None,
     show_progress: bool = False,
     wall_deadline: Optional[float] = None,
+    outcomes: Optional[MutableMapping[str, bool]] = None,
 ) -> list[Problem]:
     """Execute `policy` on problems in `problems`, `validation_iterations` times each (capped at
     `validation_time_limit` seconds per execution) -- the cheap, in-loop validation used both by
@@ -382,6 +423,12 @@ def _test_policy_on_problems(
     between rounds instead of inside one -- see `solve_iteratively`'s post-call check. The
     problem being tested when this fires is not recorded either way (neither solved nor failed):
     its own outcome is unknown, only that there was no time left to find out.
+
+    `outcomes`, when given, is filled with `problem name -> solved` for exactly the problems whose
+    outcome was actually determined -- the same set `problem_iterator.set_solved` is called for.
+    It lets a caller that must not record into the iterator yet (`solve_iteratively`'s per-
+    candidate validation: the losing candidates' results must not count) replay the winner's
+    results afterwards instead of re-running the whole test.
     """
     iterations = config["validation_iterations"]
     time_limit = config.get("validation_time_limit")
@@ -443,6 +490,8 @@ def _test_policy_on_problems(
                 break
             if problem_iterator is not None:
                 problem_iterator.set_solved(problem, solved)
+            if outcomes is not None:
+                outcomes[problem.name] = solved
             if solved:
                 log.info(
                     f"Policy already solves {problem.name} (plan length "
@@ -749,8 +798,37 @@ def solve_iteratively(
         problem_iterator = OneShotProblemIterator(problems, config, plans=example_plans, plan_coverage=plan_coverage)
     else:
         problem_iterator = ProblemIterator(problems, config, plans=example_plans, plan_coverage=plan_coverage)
+    # One round's validated candidate policies, as (policy, solved problems, per-problem
+    # outcomes). `solve_step` scores every equal-cost candidate through `_validate_candidate`
+    # below and returns the winner; this is what lets the winner's result be reused here instead
+    # of validating it a second time, and what keeps the losers' results out of
+    # `problem_iterator` (only the round's chosen policy may mark a problem solved). With the
+    # default `optimal_model_limit: 1` there is only ever one candidate, `solve_step` never calls
+    # the validator at all, and this list stays empty -- the round then takes the same testing
+    # path it always did.
+    candidate_results: list[tuple[Policy | DatalogPolicy, list[Problem], dict[str, bool]]] = []
+
+    def _validate_candidate(candidate: Policy | DatalogPolicy) -> list[Problem]:
+        outcomes: dict[str, bool] = dict()
+        candidate_solved = _test_policy_on_problems(
+            domain,
+            problems,
+            candidate,
+            config,
+            max_consecutive_failures=(
+                1 if not keep_best_policy else config.get("validation_max_consecutive_failures")
+            ),
+            stats=stats,
+            show_progress=True,
+            wall_deadline=wall_deadline,
+            outcomes=outcomes,
+        )
+        candidate_results.append((candidate, candidate_solved, outcomes))
+        return candidate_solved
+
     for iter_kwargs in problem_iterator:
         round_num += 1
+        candidate_results.clear()
         if wall_deadline is not None and time.perf_counter() >= wall_deadline:
             # `max_wall_time - (wall_deadline - wall_time_start)` is what's held back in total --
             # just `wall_time_reserve` normally, or `wall_time_reserve + final_pass_budget` when
@@ -780,6 +858,7 @@ def solve_iteratively(
             stats=stats,
             config=config,
             wall_deadline=wall_deadline,
+            validate=_validate_candidate,
         )
         if result == Result.FRONTIER:
             # Expand the unexpanded states the model relied on, then retry the same
@@ -806,28 +885,40 @@ def solve_iteratively(
         assert new_policy is not None, "solve_step must return a policy on Result.SUCCESS"
         assert new_policy.cost is not None, "a Result.SUCCESS policy always has a cost"
         policy = new_policy
-        log.info(f'Testing policy on unsolved problems {config["validation_iterations"]} time(s) ...')
-        # keep_best_policy off reproduces the old behaviour exactly: stop at the very first
-        # problem the round cannot solve (max_consecutive_failures=1), since `problems` is
-        # sorted smallest-first and a miss there usually means every larger problem misses too.
-        # keep_best_policy needs the coverage count from every round to compare candidates by,
-        # so it uses validation_max_consecutive_failures instead (None = test everything,
-        # reproducing the exact-count behaviour the old code had while keep_best_policy was on);
-        # a round that stops early is inherently incomplete, so it can never count as "solves
-        # all problems" below regardless of the cutoff value.
-        round_solved = _test_policy_on_problems(
-            domain,
-            problems,
-            policy,
-            config,
-            max_consecutive_failures=(
-                1 if not keep_best_policy else config.get("validation_max_consecutive_failures")
-            ),
-            problem_iterator=problem_iterator,
-            stats=stats,
-            show_progress=True,
-            wall_deadline=wall_deadline,
-        )
+        # Already validated as one of this round's equal-cost candidates (see
+        # `candidate_results`, filled by `solve_step` via `_validate_candidate`): reuse that
+        # result and replay its per-problem outcomes into the iterator, which
+        # `_validate_candidate` deliberately left alone while the candidates were still
+        # competing. With `optimal_model_limit: 1` there are no candidates and the round takes
+        # the `else` branch, exactly as before.
+        cached = next(((solved_c, out) for cand, solved_c, out in candidate_results if cand is policy), None)
+        if cached is not None:
+            round_solved, cached_outcomes = cached
+            for name, was_solved in cached_outcomes.items():
+                problem_iterator.set_solved(problems_by_name[name], was_solved)
+        else:
+            log.info(f'Testing policy on unsolved problems {config["validation_iterations"]} time(s) ...')
+            # keep_best_policy off reproduces the old behaviour exactly: stop at the very first
+            # problem the round cannot solve (max_consecutive_failures=1), since `problems` is
+            # sorted smallest-first and a miss there usually means every larger problem misses
+            # too. keep_best_policy needs the coverage count from every round to compare
+            # candidates by, so it uses validation_max_consecutive_failures instead (None = test
+            # everything, reproducing the exact-count behaviour the old code had while
+            # keep_best_policy was on); a round that stops early is inherently incomplete, so it
+            # can never count as "solves all problems" below regardless of the cutoff value.
+            round_solved = _test_policy_on_problems(
+                domain,
+                problems,
+                policy,
+                config,
+                max_consecutive_failures=(
+                    1 if not keep_best_policy else config.get("validation_max_consecutive_failures")
+                ),
+                problem_iterator=problem_iterator,
+                stats=stats,
+                show_progress=True,
+                wall_deadline=wall_deadline,
+            )
         if stats.get("validationStoppedBy") is not None:
             # In-loop validation itself hit the wall-clock deadline or a pending stop signal
             # mid-test (see _test_policy_on_problems's wall_deadline handling) -- a single
@@ -973,6 +1064,55 @@ def _release_round_memory() -> None:
         log.debug("malloc_trim(0) unavailable on this platform")
 
 
+def _choose_candidate(
+    policies: Sequence[Policy | DatalogPolicy],
+    validate: Callable[[Policy | DatalogPolicy], Collection[Problem]],
+    stats: MutableMapping[str, Any],
+) -> Policy | DatalogPolicy:
+    """Validate every equal-cost candidate and return the one that solves the most problems.
+
+    The candidates all have the same feature cost and all satisfy the round's constraints, so
+    nothing in the ASP model distinguishes them; coverage on the actual problem set does. Ties
+    are broken by rule count (a smaller policy has the better shot at generalizing further --
+    see H18 in docs/experiments-log.md, where a 7-rule policy out-covered 26-40-rule ones) and
+    then by clingo's own order, so a tie reproduces the single-model path's choice exactly.
+
+    `validate` is expected to be cheap in-loop validation (`validation_iterations`,
+    `validation_time_limit`, `validation_max_consecutive_failures`); it is called once per
+    candidate, which is what this hypothesis trades for the tie-break. It may also stop early
+    when the run's wall-clock budget runs out, in which case its counts are truncated for every
+    remaining candidate alike and the caller ends the run right after this returns.
+    """
+    scored: list[tuple[int, int, int]] = []
+    for index, candidate in enumerate(policies):
+        coverage = len(validate(candidate))
+        scored.append((coverage, -len(candidate.rules), -index))
+        log.info(
+            "Candidate %d/%d: %d rule(s), solves %d problem(s)",
+            index + 1,
+            len(policies),
+            len(candidate.rules),
+            coverage,
+        )
+    best = max(range(len(policies)), key=lambda index: scored[index])
+    stats["optimalModelChosenCoverage"] = scored[best][0]
+    stats["optimalModelChosenIndex"] = best
+    stats["optimalModelCoverages"] = [coverage for coverage, _, _ in scored]
+    stats["optimalModelTieRounds"] = stats.get("optimalModelTieRounds", 0) + 1
+    # The number that says whether the hypothesis paid for itself: how many rounds ended on a
+    # model other than the one clingo happened to return, i.e. how often the tie-break actually
+    # changed the run.
+    stats["optimalModelSwitches"] = stats.get("optimalModelSwitches", 0) + (1 if best else 0)
+    log.info(
+        "Chose candidate %d/%d (%d problem(s) solved) out of coverages %s",
+        best + 1,
+        len(policies),
+        scored[best][0],
+        stats["optimalModelCoverages"],
+    )
+    return policies[best]
+
+
 def solve_step(
     domain: Domain,
     config: Mapping,
@@ -989,7 +1129,22 @@ def solve_step(
     allow_frontier: bool = True,
     wall_deadline: Optional[float] = None,
     max_pool_size: Optional[int] = None,
+    # Scores one candidate policy and returns the problems it solves. Only passed by
+    # `solve_iteratively` (the final cost-minimization pass runs its own comparison), and only
+    # then is more than one optimal model asked for at all: without a validator there is nothing
+    # to choose between siblings with, so the extra clingo enumeration would be pure cost.
+    validate: Optional[Callable[[Policy | DatalogPolicy], Collection[Problem]]] = None,
 ) -> tuple[Result, Optional[Policy | DatalogPolicy], list[FrontierState]]:
+    """Run one solve round; on success return the policy the round settled on.
+
+    With `optimal_model_limit > 1` and a `validate` callback the round may have several optimal
+    models of the *same* cost to choose from -- clingo returns whichever one it happened to prove
+    optimal, and on blocks3ops that choice between `c_equal_closure(on, on_g)` and
+    `c_equal(on, on_g)` is worth 95/95 versus 28/95 with no static tie-breaker between them (see
+    docs/opt-enum-results.md). Each candidate is validated and the one with the highest coverage
+    wins; ties go to the smaller policy (fewer rules), then to the model clingo returned first,
+    which is exactly what the single-model path would have used.
+    """
     log_memory(f"round start complexity={complexity}")
     try:
         log.info(f"Starting solver for {pnames(active_problems)} with max complexity {complexity}")
@@ -1009,6 +1164,7 @@ def solve_step(
             stats=stats,
             wall_deadline=wall_deadline,
             max_pool_size=max_pool_size,
+            optimal_model_limit=(config.get("optimal_model_limit") or 1) if validate is not None else 1,
         )
     except (RuntimeError, MemoryError) as e:
         log.warning(
@@ -1038,7 +1194,8 @@ def solve_step(
         _release_round_memory()
         log_memory(f"round end complexity={complexity} (after release)")
     if solution:
-        policy, solve_stats, frontier_states = solution
+        policies, solve_stats, frontier_states = solution
+        policy = policies[0]
         stats.update(solve_stats)
         if frontier_states:
             # Not a policy: it assumes the frontier states it selects are solvable. The caller
@@ -1048,6 +1205,8 @@ def solve_step(
                 f" {len(frontier_states)} transition(s) into unexpanded states, expanding them"
             )
             return Result.FRONTIER, None, frontier_states
+        if len(policies) > 1 and validate is not None:
+            policy = _choose_candidate(policies, validate, stats)
         log.info(
             f"Found policy with cost {policy.cost} for" f" {pnames(active_problems)} with max complexity {complexity}"
         )
