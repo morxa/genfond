@@ -708,3 +708,14 @@ c_equal(R, R_g))` (proposed complexity 4; syntactic 6). Trigger and semantics ar
 - **Outside the supported goal form:** d2l/blocks-tower (functional), d2l/gridworld (numeric).
 
 Cost: at most one concept per goal role. Open decision: the assigned complexity.
+
+## H21: `c_equal_closure` constructor in DLPlan (Till's decision)
+
+Decision: implement the goal-closure rule in DLPlan as a new grammar constructor rather than a cost override.
+`c_equal_closure(R1, R2)` = objects x such that every y reachable from x via the reflexive-transitive closure
+of R1 has equal R1- and R2-successor sets (semantically `c_all(r_transitive_reflexive_closure(R1),
+c_equal(R1, R2))`). Its complexity follows from the grammar (1 + the two roles = 3 for primitive roles), no
+number is hardcoded. A generator rule applies it to goal pairs exactly as the existing `c_equal` rule does.
+Branch `equal-closure` on the dlplan fork (from the pinned rev cfd4561); validation through genfond on the
+small suite + the two failing instances, the pool dump, and the regression suites. Image rebuild and re-pin
+follow if it holds up.
