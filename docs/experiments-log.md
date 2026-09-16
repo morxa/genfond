@@ -839,3 +839,13 @@ at complexity 8, so the rec run climbed to complexity 6 (7 120 concepts / 3 862 
 The offsets trade expressiveness for tractability; with `c_equal_closure` in the grammar blocks3ops may no
 longer need them. Testing the recommended configuration without offsets on visitall-36 and on the blocks3ops
 ≤7-block suite (3 seeds, scored on 95).
+
+**Why spanner (and other large suites) take hours — Till's question.** `deterministic-new/spanner` has 141
+problems (up to 22 spanners / 11 nuts / 10 locations). The rec run's four learning rounds took milliseconds
+each; at 12:35 it entered the in-loop policy test and was still in it 8.5 h later: every candidate is executed
+on all 141 problems × `policy_iterations` = 10, with a DL evaluation per step (~50 s per execution on the
+large instances) and a `DEBUG eval to cond` line per condition (21 825 lines). `keep_best_policy` removed the
+early break at the first failure, so each candidate pays the whole suite. Learning from example plans is not
+the slow part; execution-based validation is. Fix in progress (`hyp/cheap-validation`): one execution per
+problem in the loop, size order with early stop after consecutive failures, per-problem time cap, full
+verification only at the end, per-step logging off.
