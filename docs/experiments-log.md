@@ -680,3 +680,5 @@ seed 1 lost its policy file to a double SIGTERM); override 4 → converges in **
 solutions): the language and the grammar contain a complete 3-rule blocks3ops policy; what synthesis lacks is
 a way to make that complexity-6 concept reachable and to let it win against cheaper patchworks. The
 synthesised-only experiment (mined grammar, selected-count bias, concept offset 0) is the test of that.
+kb-lite-mod (4154630, modern 4 h, exact 93/95 configuration + keep-best, graceful): **87/95** from round 13
+(cost 8), last policy 33. Keep-best turns every full-suite run into a high-80s result.
