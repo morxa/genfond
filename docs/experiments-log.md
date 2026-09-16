@@ -564,3 +564,5 @@ band of the uncapped arms (33–36) and does not add coverage; the dedupe stays 
 no states), the cap stays off by default.
 Repeatability check of the 43: m9-siwr1-s1 / m9-siwr1-s2 (4153962/3, `hyp/min-count` siw-r1 config, seeds 1
 and 2, modern 4 h).
+m6-s2 (seed 2) 33/95 and m6-minc3 (`min_complexity: 3`) 33/95, both ≤8 blocks, both killed in the pass
+(pre-fix code). Best configuration across seeds 0/1/2: 33–36 / 29 / 33.
