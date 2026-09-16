@@ -566,3 +566,14 @@ Repeatability check of the 43: m9-siwr1-s1 / m9-siwr1-s2 (4153962/3, `hyp/min-co
 and 2, modern 4 h).
 m6-s2 (seed 2) 33/95 and m6-minc3 (`min_complexity: 3`) 33/95, both ≤8 blocks, both killed in the pass
 (pre-fix code). Best configuration across seeds 0/1/2: 33–36 / 29 / 33.
+
+## H18: the loop discards near-general policies (from the `hyp/min-train-size` validation)
+
+`min_train_objects` itself was a null result (the 5- and 7-block thresholds never converged in 40 min), but its
+*baseline* arm exposed the real issue: on the 30-problem 2–7-block suite (full configuration + restarts 1 +
+cap 8, seed 0) the loop learned a **7-rule, cost-8 policy from seven 2–4-object problems in 14 s** that solves
+**11/12 held-out** instances (8–30 blocks) and, evaluated on the full suite, **91/95** (failing 010-5, 013-4,
+017-5, 018-4). On the 95-problem runs the same loop keeps going because those instances fail: it adds the
+failing instance, re-learns on the larger set, and the later policies are 26–40-rule patchworks solving
+30–40. The run only reports the last policy, although every success is tested on all problems in the loop.
+Fix in progress (`hyp/keep-best`): remember and return the best-coverage policy seen.
