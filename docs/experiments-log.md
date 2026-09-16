@@ -663,3 +663,5 @@ best policy was returned (`bestSolved=89 bestRound=14 solved=89`). First full-su
 synthesised features at this level; the earlier plateau at 33 was the loop discarding this policy.
 That policy has 5 rules over three elements (`b_empty(clear ∧ clear_g)`, `c_equal(on, on_g)`, role `on_g`) and
 solves **10/12 held-out** instances (fails 012-1, 020-2).
+m9-siwr1-s1/s2 (4153962/3, seeds 1–2 of the restarts-1 arm, pre-keep-best): both 4 h TIMEOUT with first
+failure at position 43, matching seed 0; the number was a first-failure position, superseded by keep-best.
