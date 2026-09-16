@@ -544,3 +544,7 @@ Note the cluster of full-configuration arms at 33–36 in 4 h against 43 for the
 `hyp/min-count`; the seed arms (m6-s1/s2) decide whether that 43 was a lucky trajectory.
 m4-mined-r1 (4149500, modern, 4 h): last policy 33/95, 71 rounds, ≤8 blocks; killed in the pass with a
 1 945-feature / 5 738-concept pool (the pass climbs into the huge pools the loop otherwise avoids).
+
+Final-pass bound (`hyp/final-pass-bound`, b23c6b8, merged into `hyp/combo`, 200 tests): the pass climbs at
+most `final_pass_max_levels: 2` levels above the success complexity and can skip rounds whose pool exceeds
+`final_pass_max_pool`. Submitted m8-r1-cap8 (4153234, modern, 4 h) with the full configuration on that commit.
