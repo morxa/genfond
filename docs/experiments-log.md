@@ -609,3 +609,9 @@ Seed repeat of the 91/95 configuration on the 30-problem 2–7-block suite (work
 30/30 in 14 s with 7/6/6 rules; with `minimize_selected_count: above` 7/7/7 rules, also 14 s. Seed 0's policy
 re-scores **91/95** on the full suite (the chained scoring in the first pass had failed silently); the other
 five are being scored.
+
+Full-95 scores of the six small-suite policies (trained on 2–7 blocks, 14 s each): none seeds 0/1/2 →
+**91 / 92 / 93**, count-bias seeds 0/1/2 → 91 / 90 / 91. Failures are "no action found" on a handful of
+10–18-block instances (017-5 in every case, 013-4 and 010-5 often). The general policy is found robustly; the
+remaining gap is a rule the ≤7-block training set never needs. Running: training suites extended to ≤8, ≤9,
+≤10 blocks with the same configuration, scored on all 95.
