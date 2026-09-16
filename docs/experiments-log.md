@@ -577,3 +577,13 @@ cap 8, seed 0) the loop learned a **7-rule, cost-8 policy from seven 2–4-objec
 failing instance, re-learns on the larger set, and the later policies are 26–40-rule patchworks solving
 30–40. The run only reports the last policy, although every success is tested on all problems in the loop.
 Fix in progress (`hyp/keep-best`): remember and return the best-coverage policy seen.
+
+Correction to every "last policy solved" figure read from log tails: the in-loop policy test in
+`solve_iteratively` breaks at the first failing problem (problems are sorted by size), so the count is the
+position of the first failure, not coverage. That is why arms plateau at 33 / 36 / 43 (first failure among
+the 8-, 9- or 10-block instances). Only the end-of-run "Policy solves N out of 95" (graceful runs) is true
+coverage, and for those runs it matched the tail figure, so the cluster policies were genuinely weaker than the
+7-rule policy. No cluster run tested a policy whose first failure came after the 43rd problem. `hyp/keep-best`
+removes the early break and keeps the best-coverage policy. Running now on the workstation: the 30-problem
+training run repeated for seeds 0–2, with and without `minimize_selected_count: above`, each policy scored on
+all 95.
