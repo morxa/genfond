@@ -737,3 +737,12 @@ Runs with the new grammar (cluster worktree combo7, image `genfond_env_ec.sif`, 
 300 s, role offset 2 / concept offset 1, restarts 1, cap 8, keep-best; default `generate_equal_closure_concept`):
 ec-mod (modern 4 h) and ec-cpu (cpu 12 h) on the full 95; workstation: 2–7 blocks + 010-5 + 017-5 with a
 2 h wall budget, scored on all 95.
+
+## RESULT: 95/95 with synthesised features and the extended grammar
+
+Workstation, image with dlplan b2df1699 (`c_equal_closure`), config: add-problem, budget 300 s, role offset 2 /
+concept offset 1, restarts 1, cap 8, keep-best, seed 2. Training on 2–7 blocks + 010-5 + 017-5 (32 problems):
+32/32 in **63 s**, **6 rules**, five of them on `c_equal_closure(on, on_g)` (the well-placed concept), the
+boolean `b_empty(c_some(on, clear_g))`, and the roles `on_g` / `r_not(on_g)`. Scores: **95/95** on the full
+suite, **12/12** on the held-out 8–30-block set. No hand-given features; the concept came out of the grammar
+at complexity 3. Robustness runs (other seeds, ≤7-block training only) and the full-95 loop arms follow.
