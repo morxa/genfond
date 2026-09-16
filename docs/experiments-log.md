@@ -646,3 +646,11 @@ full-cpu (4144771, cpu 12 h, combo before forced labels, graceful): **36/95**, 2
 pass 46 → 46. Cost 46 versus 8 for the small-suite policy.
 full2-cpu (4144792, cpu 12 h, full configuration incl. forced labels, graceful): **37/95**, 28 training
 problems ≤9 blocks, pass 51 → 51. Best 12-hour full-suite figure so far, still a cost-51 patchwork.
+
+**Framing (Till):** preset and hand-given features are diagnostics of expressiveness, not solutions. H9 showed
+the policy language can express a general blocks3ops policy; the synthesised 93/95 policy shows the grammar
+can too. H19/H20 (extra elements, cost override) only test whether the learner would select the well-placed
+concept if reachability and cost were not obstacles; they do not count as results. The synthesised path:
+make the complexity-6 pool tractable (mined grammar) and break cost ties toward few general elements
+(selected-count bias). Running on the workstation (seed 2, 2–7 blocks + 010-5 + 017-5, 45 min each):
+mined-count, mined-only, count-only, with concept offset 0 so the round can reach complexity 6.
