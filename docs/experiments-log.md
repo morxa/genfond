@@ -632,3 +632,13 @@ Suite extension (seed 2, same configuration): train ≤8 blocks (35 problems) �
 stalls the loop exactly as predicted; H19 (extra features) is the test.
 fc-cpu (4144318, cpu 12 h, final pass, no graceful budget): killed; 29 training problems ≤9 blocks,
 first failure at position 35 (a lower bound on coverage), still adding problems at the end.
+
+## H19: hand-given elements alongside synthesis (`hyp/extra-features`, merged into `hyp/combo`, 207 tests)
+
+`extra_features` (same shape as `preset_features`) appends parsed elements to the synthesised lists after
+generation, so they are exempt from the per-round complexity limits, keep DLPlan's complexity, and go through
+the usual pruning. Validation (seed 2, 2–7 blocks + 010-5 + 017-5, 40 min cap): with the well-placed concept
+available the run drifted to a 63-rule policy, **26/95**; without it, 7 rules, **91/95**. The concept was
+reachable and used in intermediate candidates but never survived cost minimisation: at complexity 6 it loses
+to cheap combinations that fit the training set. H20 (`hyp/extra-cost`): `extra_features_complexity` overrides
+the emitted cost of hand-given elements; validated with seeds 0–2 at override 2, plus 4 and unset.
