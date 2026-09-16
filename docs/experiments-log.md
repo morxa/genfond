@@ -562,3 +562,5 @@ m5-r1-cap8 (4150538, seed 0, full configuration + restarts 1 + `max_plans_per_pr
 graceful): **29/95**, 20 training problems ≤8 blocks, 41 rounds, pass 39 → 39. The cap is within the ±4 noise
 band of the uncapped arms (33–36) and does not add coverage; the dedupe stays (it only removes plans that add
 no states), the cap stays off by default.
+Repeatability check of the 43: m9-siwr1-s1 / m9-siwr1-s2 (4153962/3, `hyp/min-count` siw-r1 config, seeds 1
+and 2, modern 4 h).
