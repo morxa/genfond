@@ -776,3 +776,23 @@ policy, 90/95; with `minimize_selected_count: above` on the 2–7-block suite �
 `c_equal` and `c_equal_closure` tie on complexity (3) and element count (1), so the model choice decides;
 2 of 3 seeds pick the closure and reach 95/95. A cheap outer restart over seeds with keep-best would make the
 result seed-independent (each attempt is ~30 s); not implemented.
+
+Cross-domain snapshot after 73 min (rec = working configuration, old = original system):
+
+| domain | old | rec |
+|---|---|---|
+| blocks4ops-clear (95) | 95/95 in 16 s | 95/95 in 47 s |
+| blocks4ops-on (190) | 190/190 in 33 s | 190/190 in 4.5 min |
+| gripper (30) | 30/30 | 30/30 in 25 s |
+| blocks4ops (95) | round 1 after 73 min | round 7, first failure at 62 |
+| delivery (225) | round 1 | round 22, first failure at 116 |
+| blocks (12) | round 1 | round 20, first failure at 17 |
+| hanoi (30) | round 1 | round 11, first failure at 15 |
+| miconic (25) | round 1 | round 9, first failure at 14 |
+| spanner | round 4, first failure at 86 | round 4, first failure at 9 |
+| barman, grid, logistics, logistics_dp, reward | round 1 | rounds 1–9 |
+| blocks-multiple, deterministic-new/miconic | crash within seconds | crash within seconds |
+
+The original system sits in its first round on every hard domain; the working configuration is 7–22 rounds
+in. Two domains crash under both systems (domain-file issue, investigated). Spanner is the one domain where
+the baseline's early policy covers more.
