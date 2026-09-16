@@ -833,3 +833,9 @@ position of the first failing problem):
 | storage | round 1, 6 | round 1, 3, first failure 3 |
 | barman, grid, sokoban | round 0–1 | round 0–9 |
 | blocks-multiple, miconic-new | invalid suites (see above) | – |
+visitall-36 regression cause: the baseline's 1-rule policy uses the complexity-6 role
+`r_til_c(connected, visited_g ∧ ¬visited)`; with `role_complexity_offset: 2` that role only enters the pool
+at complexity 8, so the rec run climbed to complexity 6 (7 120 concepts / 3 862 roles) and stalled at 8/36.
+The offsets trade expressiveness for tractability; with `c_equal_closure` in the grammar blocks3ops may no
+longer need them. Testing the recommended configuration without offsets on visitall-36 and on the blocks3ops
+≤7-block suite (3 seeds, scored on 95).
