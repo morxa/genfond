@@ -746,3 +746,8 @@ concept offset 1, restarts 1, cap 8, keep-best, seed 2. Training on 2–7 blocks
 boolean `b_empty(c_some(on, clear_g))`, and the roles `on_g` / `r_not(on_g)`. Scores: **95/95** on the full
 suite, **12/12** on the held-out 8–30-block set. No hand-given features; the concept came out of the grammar
 at complexity 3. Robustness runs (other seeds, ≤7-block training only) and the full-95 loop arms follow.
+
+Robustness (workstation, new image): training on **2–7 blocks only** (30 problems) → seed 0: 30/30, 6 rules,
+closure concept selected, **95/95**; seed 1: 30/30, 6 rules, plain `c_equal` chosen (equal cost), **92/95**;
+seed 2: 30/30, 6 rules, closure, **95/95**; all in ~33 s. Regression suites in the new image, default config:
+gripper 5/5 c6, miconic 4/4 c12, blocks4ops-clear 4/4 c2, delivery 4/4 c9 — identical to the baselines.
