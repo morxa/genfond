@@ -654,3 +654,10 @@ concept if reachability and cost were not obstacles; they do not count as result
 make the complexity-6 pool tractable (mined grammar) and break cost ties toward few general elements
 (selected-count bias). Running on the workstation (seed 2, 2–7 blocks + 010-5 + 017-5, 45 min each):
 mined-count, mined-only, count-only, with concept offset 0 so the round can reach complexity 6.
+
+## Result: keep-best on the full suite
+
+kb-r1-mod (4154621, modern 4 h, full configuration + restarts 1 + keep-best, graceful): round 14 produced a
+**cost-8 policy solving 89/95**; the run's last policy solved 33, the pass changed nothing (40 → 40), and the
+best policy was returned (`bestSolved=89 bestRound=14 solved=89`). First full-suite run with purely
+synthesised features at this level; the earlier plateau at 33 was the loop discarding this policy.
