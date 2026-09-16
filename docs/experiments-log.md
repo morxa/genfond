@@ -690,3 +690,21 @@ timed out, none used a closure concept. With purely synthesised features the loo
 complexity-6 well-placed concept once the instances that need it are in training; the pool-shrinking and
 tie-breaking levers do not change that. Open decision (Till): a goal-closure generator rule, the analogue of
 DLPlan's goal-comparison rule, at complexity 4.
+
+## Goal-closure generator rule: applicability across the 56 benchmark domains
+
+Rule: for each primitive role R with goal counterpart R_g, generate `c_all(r_transitive_reflexive_closure(R),
+c_equal(R, R_g))` (proposed complexity 4; syntactic 6). Trigger and semantics are domain-independent.
+
+- **Fires with the intended meaning (10 domains):** the tower suites blocks3ops, blocks4ops, blocks,
+  blocks-multiple, blocks3ops-fond, d2l/blocks, d2l/blocks3ops, plus hanoi (disc/peg chains) and d2l/depot
+  (crate/pallet chains): "on my goal support and so is everything below me".
+- **Generated but denotationally equal to `c_equal(R, R_g)`, hence deduplicated (≈10 domains):** cross-type
+  goals — gripper, gripper-m, logistics, logistics98, delivery, grid, storage, barman, satellite, floortile.
+- **Generated, likely idle (3):** single-atom same-type goals blocks-on, blocks4ops-fond-on, d2l/blocks-on.
+- **No-op (≈25):** unary/nullary goals (miconic, visitall, spanner, sokoban, reward, childsnack, doors,
+  tireworld variants, islands, miner, acrobatics, beam-walk, graph-traversal, blocks-clear variants); static
+  same-type relations (adjacent, road, connected, next, above, smaller) have no goal version.
+- **Outside the supported goal form:** d2l/blocks-tower (functional), d2l/gridworld (numeric).
+
+Cost: at most one concept per goal role. Open decision: the assigned complexity.
