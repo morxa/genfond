@@ -398,8 +398,8 @@ test = ["pytest"]
 [package.source]
 type = "git"
 url = "https://github.com/morxa/dlplan"
-reference = "cfd45615a8f87a4d92b4ba4a61a8dc9d873cf1c9"
-resolved_reference = "cfd45615a8f87a4d92b4ba4a61a8dc9d873cf1c9"
+reference = "b2df16994681e21c2e4a13a97047c2a787f35f3f"
+resolved_reference = "b2df16994681e21c2e4a13a97047c2a787f35f3f"
 
 [[package]]
 name = "executing"
@@ -1684,4 +1684,4 @@ files = [
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.14"
-content-hash = "55cf7699c08a20abc2725a9409de06264690dc11ffd76c82f03bd51fe1c19fb8"
+content-hash = "dfb8e3d00adfa1f6c3995b0c608745cc1908896a64eb20e61b817128f729aef5"
