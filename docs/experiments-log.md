@@ -758,3 +758,4 @@ ec-cpu (4161148, `rleap_cpu`, new image, recommended configuration, seed 0, sing
 loop over all 95 problems **completed normally after 18 min** (`COMPLETED`, not a timeout): 6 training
 problems (≤4 blocks), best policy at round 12, **95/95 solved**, 6 rules on `c_equal_closure(on, on_g)`,
 `c_equal(on, on_g)` as boolean, and `r_not(on_g)`. No curated training set, no hand-given features.
+That policy also solves **12/12 held-out** instances (8–30 blocks).
