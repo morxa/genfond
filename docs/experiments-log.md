@@ -600,3 +600,7 @@ two hours (to be isolated). The seed repeat was restarted with the exact 91/95 c
 Arms kb-lite-mod (4154630, modern 4 h) and kb-lite-cpu (4154631, cpu 12 h): the exact 91/95 configuration
 (add-problem, budget 300 s, role caps, restarts 1, cap 8; no final pass, no forced labels) with keep-best on
 the full 95. Workstation: isolating whether `fix_forced_labels` or `final_cost_minimization` causes the hang.
+Hang isolation (30-problem suite, seed 0): `fix_forced_labels` alone → 30/30, 7 rules, 14 s (13 rounds);
+`final_cost_minimization` alone → 30/30, 8 rules, 29 s (15 rounds). Neither flag hangs by itself; the
+combined run took a different trajectory (23 rounds) and stalled inside one solve. Re-running the combination
+with seeds 1 and 0 to see whether it is trajectory-dependent.
