@@ -759,3 +759,15 @@ loop over all 95 problems **completed normally after 18 min** (`COMPLETED`, not 
 problems (≤4 blocks), best policy at round 12, **95/95 solved**, 6 rules on `c_equal_closure(on, on_g)`,
 `c_equal(on, on_g)` as boolean, and `r_not(on_g)`. No curated training set, no hand-given features.
 That policy also solves **12/12 held-out** instances (8–30 blocks).
+
+## Cross-domain test of the working configuration (Till's request)
+
+Submitted 2026-09-16 ~12:45: the recommended configuration (worktree combo7, image `genfond_env_ec.sif`,
+`claude-experiments/rec.yaml`: add-problem, budget 300 s, role offset 2 / concept offset 1, restarts 1, cap 8,
+keep-best; graceful 12 h budget) on all 21 other deterministic domains, one job each on `rleap_cpu` (tag
+`rec`), and the original system (worktree base @ 238ae61, old image, datalog-sig defaults, seed 0) on the
+same domains on `rleap_cpu_modern` (tag `old`, plain 12 h limit). Domains: deterministic/{barman 30,
+blocks4ops 95, blocks4ops-clear 95, blocks4ops-on 190, gripper 30, hanoi 30, miconic 25, sokoban, storage,
+visitall}, deterministic-new/{blocks 12, blocks-multiple 22, delivery 225, grid 14, gripper 10, logistics,
+logistics_dp, miconic, reward, spanner, visitall}. Note: gripper and miconic exist in both directories and
+share job names; tell rows apart by problem count and job id.
