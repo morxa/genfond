@@ -139,3 +139,36 @@ the guard is built into the pass itself.
   get a final pass, on whatever training set and cost it stopped at — no separate
   `final_pass_after_rounds` trigger was needed. No production code changed for this; only the
   docstring/comments were corrected to describe it accurately.
+
+## Bounding the climb itself (`hyp/final-pass-bound`)
+
+On the cluster the pass climbed complexity level by level, unbounded, until `max_cost <=
+complexity`. On blocks3ops that reached a pool of 1,945 features / 5,738 concepts, where a single
+`solve_step` call exceeds any budget and the job dies. `NO_SOLUTION` alone never stops the climb
+(the same as the main loop's `INC_COMPLEXITY` branch), and `wall_deadline` only catches this if
+the run has a wall budget configured at all. The pass is meant to find a *cheaper* policy near the
+one the main loop already found, not to explore the whole ladder, so it needs its own bound
+independent of `max_cost`/`max_complexity`/`wall_deadline`.
+
+Two new config keys, both documented next to the other `final_pass_*` keys in
+`genfond/config/default.yaml`:
+
+- `final_pass_max_levels` (default `2`; also `--final-pass-max-levels`): caps the number of
+  complexity levels the pass tries above `succ_complexity`. `null` reproduces the previous
+  unbounded climb. Reported as `stats["finalPassLevelsTried"]` (identical to `finalPassRounds` by
+  construction — one complexity level per loop iteration — under a name tied to what this key
+  bounds).
+- `final_pass_max_pool` (config only, no CLI flag; default `null` = no limit): skips an
+  individual round, without grounding it at all, when the pool `FeaturePool` builds for that
+  round (features + concepts + roles) exceeds this many elements. Implemented in `solve()`
+  because the pool's size is known cheaply right after `FeaturePool` is built, before
+  `to_clingo()`/`Solver.solve()` — the actual grounding/solving is what exhausts memory, not
+  building the pool. A skipped round is reported like an ordinary `NO_SOLUTION` round, so this
+  composes with, rather than replaces, `final_pass_max_levels`.
+
+See `_final_cost_minimization_pass`'s docstring for the mechanics. Unit tests in
+`tests/test_final_cost_minimization.py` (mocked `solve_step`) cover: the pass stopping at exactly
+`final_pass_max_levels` rounds even when `max_cost` would otherwise allow many more, `null`
+reproducing the old unbounded climb, and `final_pass_max_pool` being threaded through to
+`solve_step`'s `max_pool_size` kwarg unchanged. Not re-validated on the cluster as part of this
+change — this is the config/control-flow fix, not a new benchmark pass.

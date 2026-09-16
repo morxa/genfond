@@ -117,6 +117,7 @@ def solve(
     allow_frontier: bool = True,
     stats: Optional[MutableMapping[str, Any]] = None,
     wall_deadline: Optional[float] = None,
+    max_pool_size: Optional[int] = None,
 ) -> Optional[tuple[DatalogPolicy | Policy, MutableMapping[str, Any], list[FrontierState]]]:
     # The caller may hand in the run-level stats dict so that the keys describing *why* a round
     # produced no policy (solveStatus, solveOptimal) survive a `return None`; the returned
@@ -162,6 +163,24 @@ def solve(
         dead_states=dead_states,
     )
     stats["featurePoolSize"] = len(feature_pool.features)
+    # `max_pool_size` (only ever passed by `_final_cost_minimization_pass`, from
+    # `final_pass_max_pool`) bails out before grounding at all -- concepts/roles/features are
+    # already known at this point, cheaply, from building `feature_pool`; it's grounding the ASP
+    # instance from them (`to_clingo()` below, then `Solver.solve()`) that is what actually blows
+    # up memory on a large pool. A skip here is reported like any other no-solution round (see
+    # `solve_step`), so the pass's climb just keeps going -- capped independently by
+    # `final_pass_max_levels`.
+    pool_size = len(feature_pool.features) + len(feature_pool.concepts) + len(feature_pool.roles)
+    if max_pool_size is not None and pool_size > max_pool_size:
+        log.warning(
+            "Pool size %d (features+concepts+roles) at complexity %d exceeds max_pool_size=%d;"
+            " skipping this round without grounding",
+            pool_size,
+            complexity,
+            max_pool_size,
+        )
+        stats["poolSizeSkipped"] = pool_size
+        return None
     log.debug("Generating ASP instance ...")
     asp_instance = feature_pool.to_clingo()
     # The full instance is available via dump_clingo_program; logging it made verbose run logs
@@ -406,6 +425,24 @@ def _final_cost_minimization_pass(
     when it beats the current best by (most problems solved overall, then lowest cost).
     `Result.OUT_OF_RESOURCES`/`TIMEOUT` end the pass gracefully with the best policy found so
     far, exactly like they end the main loop's own climb.
+
+    `final_pass_max_levels` (config, default 2; null reproduces the previous unbounded climb)
+    caps the number of complexity levels this pass tries above `succ_complexity`, independently
+    of `max_cost`/`max_complexity`. A cluster run on blocks3ops climbed unchecked from
+    `succ_complexity` all the way up to a pool of 1,945 features / 5,738 concepts before a single
+    `solve_step` call exceeded any budget and the job died -- this pass is meant to look for a
+    *cheaper* policy near the one the main loop already found, not to explore the whole ladder,
+    so a small, bounded number of levels is the right default. `rounds` (also reported as
+    `finalPassLevelsTried`) already counts exactly one complexity level per loop iteration, so
+    bounding it bounds levels tried directly.
+
+    `final_pass_max_pool` (config only, no CLI flag; default null = no limit) skips an individual
+    round -- without grounding at all -- when the pool `FeaturePool` builds for it (features +
+    concepts + roles) exceeds this many elements; see `solve()`'s check, placed right after the
+    pool is built and before `to_clingo()`/`Solver.solve()`, which is where the memory actually
+    blows up. A skipped round is reported exactly like `Result.NO_SOLUTION` (the pass keeps
+    climbing), so `final_pass_max_levels` is what ultimately bounds the pass's worst case when
+    every remaining level's pool is oversized.
     """
     if wall_deadline is not None:
         remaining = wall_deadline - time.perf_counter()
@@ -448,8 +485,14 @@ def _final_cost_minimization_pass(
     stats["finalPassCostBefore"] = best_cost
     max_cost = best_cost - 1
     rounds = 0
+    final_pass_max_levels = config.get("final_pass_max_levels")
+    max_pool_size = config.get("final_pass_max_pool")
     log.info(f"Starting final cost minimization pass from complexity {complexity}, max cost {max_cost}")
-    while max_cost > complexity and complexity < config["max_complexity"]:
+    while (
+        max_cost > complexity
+        and complexity < config["max_complexity"]
+        and (final_pass_max_levels is None or rounds < final_pass_max_levels)
+    ):
         if wall_deadline is not None and (stop_requested() or time.perf_counter() >= wall_deadline):
             stats["finalPassStoppedBy"] = "signal" if stop_requested() else "wall_time"
             log.warning(
@@ -473,6 +516,7 @@ def _final_cost_minimization_pass(
             dead_states=dead_states,
             allow_frontier=False,
             wall_deadline=wall_deadline,
+            max_pool_size=max_pool_size,
         )
         if result in (Result.OUT_OF_RESOURCES, Result.TIMEOUT):
             break
@@ -499,6 +543,10 @@ def _final_cost_minimization_pass(
         if (len(solved), -new_cost) > (len(best_solved), -best_cost):
             best_policy, best_solved, best_cost = new_policy, solved, new_cost
     stats["finalPassRounds"] = rounds
+    # Same value as finalPassRounds by construction (one complexity level per loop iteration,
+    # unconditionally) -- reported under its own name since it's what final_pass_max_levels
+    # bounds, and a clearer stats-column name than reusing finalPassRounds for that purpose.
+    stats["finalPassLevelsTried"] = rounds
     stats["finalPassCostAfter"] = best_cost
     log.info(
         f"Final cost minimization pass: {rounds} round(s), cost {stats['finalPassCostBefore']} ->"
@@ -744,6 +792,7 @@ def solve_step(
     dead_states: Optional[Mapping[str, set[State]]] = None,
     allow_frontier: bool = True,
     wall_deadline: Optional[float] = None,
+    max_pool_size: Optional[int] = None,
 ) -> tuple[Result, Optional[Policy | DatalogPolicy], list[FrontierState]]:
     log_memory(f"round start complexity={complexity}")
     try:
@@ -763,6 +812,7 @@ def solve_step(
             allow_frontier=allow_frontier,
             stats=stats,
             wall_deadline=wall_deadline,
+            max_pool_size=max_pool_size,
         )
     except (RuntimeError, MemoryError) as e:
         log.warning(

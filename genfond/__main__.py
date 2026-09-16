@@ -106,6 +106,13 @@ def main():
         "final training set once the run has nothing left to add, to look for a cheaper policy",
     )
     config_args.add_argument(
+        "--final-pass-max-levels",
+        type=int,
+        help="cap the final cost-minimization pass to this many complexity levels above the "
+        "starting policy's complexity (default 2); use a config file to set this to null for "
+        "the previous unbounded climb",
+    )
+    config_args.add_argument(
         "-i",
         "--policy-iterations",
         type=int,

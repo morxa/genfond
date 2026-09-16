@@ -256,6 +256,24 @@ final_cost_minimization: false
 # _final_cost_minimization_pass's docstring; a skipped pass is recorded as
 # stats["finalPassSkipped"] with the reason.
 final_pass_min_time: 600
+# Only meaningful together with final_cost_minimization. Caps the number of complexity levels the
+# pass tries above succ_complexity (the complexity its starting policy was found at), regardless
+# of how far max_cost/max_complexity would otherwise let it climb. The pass is meant to find a
+# *cheaper* policy near the one the main loop already found, not to explore the whole ladder: a
+# cluster run on blocks3ops climbed unbounded all the way to a pool of 1,945 features / 5,738
+# concepts before a single solve_step call exceeded any budget and the job died. null reproduces
+# the previous unbounded behaviour. Reported as stats["finalPassLevelsTried"] (== the number of
+# rounds actually run, capped by this). See _final_cost_minimization_pass's docstring.
+final_pass_max_levels: 2
+# Only meaningful together with final_cost_minimization; no CLI flag (config file only). Skips an
+# individual pass round -- without grounding it at all -- when the pool FeaturePool builds for
+# that round (features + concepts + roles) exceeds this many elements, logging the skip and
+# recording stats["poolSizeSkipped"]. Grounding and solving a large pool, not building it, is
+# what actually exhausts memory, so the check happens after the (comparatively cheap) pool is
+# built but before to_clingo()/Solver.solve(). A skipped round is treated like an ordinary
+# NO_SOLUTION round (the pass keeps climbing), so this composes with final_pass_max_levels rather
+# than replacing it. null (default) means no limit -- the previous behaviour.
+final_pass_max_pool: null
 unselect_problems: false
 visualize_state_graphs: false
 unrestricted_feature_generator:

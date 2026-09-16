@@ -131,6 +131,90 @@ def test_final_pass_discards_a_candidate_that_fails_training_set_execution(monke
     assert stats["finalPassCostAfter"] == 5
 
 
+def test_final_pass_stops_after_final_pass_max_levels_even_when_max_cost_allows_more(monkeypatch):
+    """The Observation this branch fixes: on the cluster the pass climbed unbounded (NO_SOLUTION
+    never tightens max_cost, so the old `while max_cost > complexity` condition alone never
+    stops it) until a single solve_step call exceeded any budget. final_pass_max_levels must cap
+    the number of complexity levels tried regardless of max_cost/max_complexity."""
+    problems = [DummyProblem("p1")]
+    problem_iterator = make_problem_iterator(problems, succ_complexity=2)
+    config = base_config(max_complexity=100, final_pass_max_levels=2)
+    stats = {}
+    policy = DummyPolicy((50,))  # max_cost starts at 49, far above max_complexity=100 would allow
+
+    calls = []
+
+    def fake_solve_step(**kwargs):
+        calls.append(kwargs["complexity"])
+        # Never tightens max_cost, so without the level cap this would climb all the way to
+        # max_complexity=100.
+        return Result.NO_SOLUTION, None, []
+
+    monkeypatch.setattr(isolver, "solve_step", fake_solve_step)
+    monkeypatch.setattr(isolver, "execute_policy", lambda domain, problem, policy, config: [])
+
+    best_policy, best_solved = _final_cost_minimization_pass(None, problems, problem_iterator, config, stats, policy)
+
+    assert calls == [3, 4]  # exactly final_pass_max_levels=2 rounds, not climbing to 100
+    assert best_policy is policy
+    assert stats["finalPassRounds"] == 2
+    assert stats["finalPassLevelsTried"] == 2
+
+
+def test_final_pass_max_levels_null_keeps_the_old_unbounded_climb(monkeypatch):
+    """final_pass_max_levels: null (the default `config.get` sees when the key is absent, and
+    what a config file can set explicitly) must reproduce the previous unbounded pass -- the
+    climb only stops via max_cost/max_complexity, as covered by the pre-existing tests above,
+    but this exercises it past what the new default (2) would allow, to prove null really lifts
+    the cap rather than silently applying some other default."""
+    problems = [DummyProblem("p1")]
+    problem_iterator = make_problem_iterator(problems, succ_complexity=2)
+    config = base_config(max_complexity=6, final_pass_max_levels=None)
+    stats = {}
+    policy = DummyPolicy((50,))  # max_cost stays 49 throughout (NO_SOLUTION never tightens it)
+
+    calls = []
+
+    def fake_solve_step(**kwargs):
+        calls.append(kwargs["complexity"])
+        return Result.NO_SOLUTION, None, []
+
+    monkeypatch.setattr(isolver, "solve_step", fake_solve_step)
+    monkeypatch.setattr(isolver, "execute_policy", lambda domain, problem, policy, config: [])
+
+    _final_cost_minimization_pass(None, problems, problem_iterator, config, stats, policy)
+
+    # Climbs every level up to max_complexity=6 (4 rounds: complexity 3, 4, 5, 6), well past the
+    # new default cap of 2 -- proving null disables final_pass_max_levels entirely.
+    assert calls == [3, 4, 5, 6]
+    assert stats["finalPassRounds"] == 4
+    assert stats["finalPassLevelsTried"] == 4
+
+
+def test_final_pass_threads_final_pass_max_pool_into_solve_step(monkeypatch):
+    """final_pass_max_pool is config-only (no CLI flag) and must reach solve_step's
+    max_pool_size kwarg unchanged -- the actual pool-size check lives in solve() (see its
+    docstring/comment), which is out of scope for these solve_step-mocking tests."""
+    problems = [DummyProblem("p1")]
+    problem_iterator = make_problem_iterator(problems, succ_complexity=2)
+    config = base_config(max_complexity=6, final_pass_max_pool=500)
+    stats = {}
+    policy = DummyPolicy((5,))
+
+    seen_pool_sizes = []
+
+    def fake_solve_step(**kwargs):
+        seen_pool_sizes.append(kwargs["max_pool_size"])
+        return Result.NO_SOLUTION, None, []
+
+    monkeypatch.setattr(isolver, "solve_step", fake_solve_step)
+    monkeypatch.setattr(isolver, "execute_policy", lambda domain, problem, policy, config: [])
+
+    _final_cost_minimization_pass(None, problems, problem_iterator, config, stats, policy)
+
+    assert seen_pool_sizes == [500, 500]
+
+
 def test_final_pass_stops_gracefully_on_out_of_resources(monkeypatch):
     problems = [DummyProblem("p1")]
     problem_iterator = make_problem_iterator(problems, succ_complexity=2)
