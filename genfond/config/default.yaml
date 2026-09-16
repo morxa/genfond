@@ -274,6 +274,20 @@ final_pass_max_levels: 2
 # NO_SOLUTION round (the pass keeps climbing), so this composes with final_pass_max_levels rather
 # than replacing it. null (default) means no limit -- the previous behaviour.
 final_pass_max_pool: null
+# Track the best policy the whole run sees -- by (problems solved on the full problem list, then
+# lower feature cost) -- and return/save that instead of whatever policy the loop happens to end
+# on. Every successful round is already tested on all problems inside the loop (that test no
+# longer stops at the first miss while this is on, so the coverage count is exact), so this is
+# free bookkeeping. Without it, add_problem_after_success can grow the training set past the
+# point where a policy generalizes: a policy learned early from a small set can already solve
+# nearly everything, but the loop keeps going on a handful of holdouts and later policies --
+# patchworks fitted to the larger, harder set -- can solve far fewer problems overall, and the
+# old code discarded the early one anyway. Also applied to the final cost-minimization pass's
+# result, if that runs. Reported as stats["bestSolved"]/["bestCost"]/["bestRound"] (the round the
+# best policy came from, or "final_pass") and stats["lastSolved"] (what the run would have
+# returned without this). false restores the old behaviour: always return the last policy, and
+# the in-loop test stops at the first problem it cannot solve again.
+keep_best_policy: true
 unselect_problems: false
 visualize_state_graphs: false
 unrestricted_feature_generator:

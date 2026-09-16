@@ -568,6 +568,143 @@ def test_main_loop_stops_early_by_final_pass_budget_when_the_pass_is_enabled(mon
     assert abs((pass_deadlines[0] - round_deadlines[0]) - 400.0) < 1e-6
 
 
+# --- keep_best_policy (hyp/keep-best) -------------------------------------------------------
+#
+# A policy learned early in a run can already generalize to nearly every problem, but
+# add_problem_after_success keeps growing the training set on a handful of holdouts; later
+# policies are patchworks fitted to the larger set and can solve far fewer problems overall, even
+# though every success is already tested on all problems inside the loop. keep_best_policy (on by
+# default) tracks the best-by-(solved, then cost) policy across the whole run -- including the
+# final cost-minimization pass -- and returns that instead of whatever the run ends on.
+
+
+def test_keep_best_policy_returns_the_better_round_when_the_final_pass_is_worse(monkeypatch):
+    """The final pass is mocked to hand back a policy that solves strictly fewer problems than
+    the round-1 policy that fed it (the same shape as the bug: a later, cheaper-looking candidate
+    that covers less). With keep_best_policy on (the default), the run must still return the
+    round-1 policy and its full coverage, not the final pass's output."""
+    p1, p2 = DummyProblem("p1", objects=[1]), DummyProblem("p2", objects=[1, 2])
+    problems = [p1, p2]
+    config = solve_iteratively_config()  # keep_best_policy left at its default (true)
+
+    def fake_solve_step(**kwargs):
+        return Result.SUCCESS, DummyPolicy((2,)), []
+
+    def fake_execute_policy(domain, problem, policy, config):
+        return []  # round 1 solves everything -> stop_after_first_solution breaks immediately
+
+    def fake_final_pass(domain, problems, problem_iterator, config, stats, policy, wall_deadline=None):
+        # A cheaper-looking policy that only solves p1.
+        return DummyPolicy((1,)), [p1]
+
+    monkeypatch.setattr(isolver, "solve_step", fake_solve_step)
+    monkeypatch.setattr(isolver, "execute_policy", fake_execute_policy)
+    monkeypatch.setattr(isolver, "_final_cost_minimization_pass", fake_final_pass)
+
+    policy, solved, stats = isolver.solve_iteratively(None, problems, config)
+
+    assert policy.cost == (2,)
+    assert {p.name for p in solved} == {"p1", "p2"}
+    assert stats["bestSolved"] == 2
+    assert stats["bestCost"] == 2
+    assert stats["bestRound"] == 1
+    assert stats["lastSolved"] == 1  # what the final pass alone reported
+
+
+def test_keep_best_policy_false_returns_the_last_policy_even_if_worse(monkeypatch):
+    """keep_best_policy: false must reproduce the old behaviour exactly: the run returns whatever
+    it ends on, even when an earlier round covered strictly more problems."""
+    p1, p2 = DummyProblem("p1", objects=[1]), DummyProblem("p2", objects=[1, 2])
+    problems = [p1, p2]
+    config = solve_iteratively_config(keep_best_policy=False)
+
+    def fake_solve_step(**kwargs):
+        return Result.SUCCESS, DummyPolicy((2,)), []
+
+    def fake_execute_policy(domain, problem, policy, config):
+        return []
+
+    def fake_final_pass(domain, problems, problem_iterator, config, stats, policy, wall_deadline=None):
+        return DummyPolicy((1,)), [p1]
+
+    monkeypatch.setattr(isolver, "solve_step", fake_solve_step)
+    monkeypatch.setattr(isolver, "execute_policy", fake_execute_policy)
+    monkeypatch.setattr(isolver, "_final_cost_minimization_pass", fake_final_pass)
+
+    policy, solved, stats = isolver.solve_iteratively(None, problems, config)
+
+    assert policy.cost == (1,)
+    assert [p.name for p in solved] == ["p1"]
+    assert "bestSolved" not in stats
+    assert "lastSolved" not in stats
+
+
+def test_in_loop_test_does_not_stop_at_the_first_failing_problem_when_keeping_best(monkeypatch):
+    """Unlike the pre-existing behaviour, the in-loop test must not stop at the first problem it
+    cannot solve while keep_best_policy is on: the coverage count feeding the best-policy
+    comparison must be exact, so every problem is tested every round."""
+    p1 = DummyProblem("p1", objects=[1])
+    p2 = DummyProblem("p2", objects=[1, 2])
+    p3 = DummyProblem("p3", objects=[1, 2, 3])
+    problems = [p1, p2, p3]
+    # p1 always fails, so no round ever solves everything; the ladder eventually exhausts and
+    # the loop ends via StopIteration. A generous but finite script keeps the test from hanging
+    # if that took more rounds than expected -- it fails loudly (IndexError) rather than looping.
+    script = [(Result.SUCCESS, DummyPolicy((2,)), []) for _ in range(50)]
+
+    def fake_solve_step(**kwargs):
+        return script.pop(0)
+
+    exec_calls = []
+
+    def fake_execute_policy(domain, problem, policy, config):
+        exec_calls.append(problem.name)
+        if problem.name == "p1":
+            raise RuntimeError("no solution")
+        return []
+
+    monkeypatch.setattr(isolver, "solve_step", fake_solve_step)
+    monkeypatch.setattr(isolver, "execute_policy", fake_execute_policy)
+
+    config = solve_iteratively_config(final_cost_minimization=False)
+    isolver.solve_iteratively(None, problems, config)
+
+    assert "p2" in exec_calls
+    assert "p3" in exec_calls
+
+
+def test_in_loop_test_stops_at_the_first_failing_problem_when_not_keeping_best(monkeypatch):
+    """keep_best_policy: false restores the old early-break behaviour: once p1 (the smallest,
+    tested first) fails, p2 and p3 are never even tried that round -- and since every round fails
+    the same way here, they are never tried at all."""
+    p1 = DummyProblem("p1", objects=[1])
+    p2 = DummyProblem("p2", objects=[1, 2])
+    p3 = DummyProblem("p3", objects=[1, 2, 3])
+    problems = [p1, p2, p3]
+    script = [(Result.SUCCESS, DummyPolicy((2,)), []) for _ in range(50)]
+
+    def fake_solve_step(**kwargs):
+        return script.pop(0)
+
+    exec_calls = []
+
+    def fake_execute_policy(domain, problem, policy, config):
+        exec_calls.append(problem.name)
+        if problem.name == "p1":
+            raise RuntimeError("no solution")
+        return []
+
+    monkeypatch.setattr(isolver, "solve_step", fake_solve_step)
+    monkeypatch.setattr(isolver, "execute_policy", fake_execute_policy)
+
+    config = solve_iteratively_config(final_cost_minimization=False, keep_best_policy=False)
+    isolver.solve_iteratively(None, problems, config)
+
+    assert "p2" not in exec_calls
+    assert "p3" not in exec_calls
+    assert exec_calls == ["p1"] * len(exec_calls)
+
+
 def test_main_loop_uses_the_full_deadline_when_the_pass_is_disabled(monkeypatch):
     """Without the pass enabled, the round loop's own deadline must be the unnarrowed
     `final_pass_deadline` -- `final_pass_budget` only matters together with the pass."""

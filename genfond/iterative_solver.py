@@ -561,6 +561,21 @@ def solve_iteratively(
     policy = None
     problems.sort(key=lambda p: len(p.objects))
     stats: dict[str, str | int | float] = dict()
+    # `keep_best_policy` (default True) tracks the best policy seen across the whole run -- by
+    # (problems solved on the full `problems` list, then lower feature cost) -- instead of just
+    # returning whichever policy the loop happens to end on. A policy learned early from a small
+    # training set can already generalize to nearly every problem; if the loop keeps adding a
+    # stubborn holdout to the training set afterwards, later policies are patchworks fitted to a
+    # larger, harder set and can solve far fewer problems overall, even though every one of them
+    # was already tested on all problems inside the loop (`_test_policy_on_problems`-equivalent
+    # block below). The old code discarded that early policy anyway, returning only the last one.
+    # `keep_best_policy: false` restores that old behaviour exactly.
+    keep_best_policy = config.get("keep_best_policy", True)
+    best_policy: Optional[Policy | DatalogPolicy] = None
+    best_solved: list[Problem] = []
+    best_cost: Optional[int] = None
+    best_round: Optional[str | int] = None
+    round_num = 0
     # An absolute deadline (time.perf_counter()-based) for the whole run, `wall_time_reserve`
     # seconds short of `max_wall_time` so that budget is left over for the final verification
     # loop in __main__ after this function returns. `final_pass_deadline` is that deadline --
@@ -614,6 +629,7 @@ def solve_iteratively(
     else:
         problem_iterator = ProblemIterator(problems, config, plans=example_plans, plan_coverage=plan_coverage)
     for iter_kwargs in problem_iterator:
+        round_num += 1
         if wall_deadline is not None and time.perf_counter() >= wall_deadline:
             # `max_wall_time - (wall_deadline - wall_time_start)` is what's held back in total --
             # just `wall_time_reserve` normally, or `wall_time_reserve + final_pass_budget` when
@@ -666,8 +682,12 @@ def solve_iteratively(
         )
         if result != Result.SUCCESS:
             continue
+        assert new_policy is not None, "solve_step must return a policy on Result.SUCCESS"
+        assert new_policy.cost is not None, "a Result.SUCCESS policy always has a cost"
         policy = new_policy
         log.info(f'Testing policy on unsolved problems {config["policy_iterations"]} times ...')
+        round_solved: list[Problem] = []
+        all_passed = True
         with logging_redirect_tqdm():
             for problem in tqdm.tqdm(problems, disable=None):
                 log.info(f'Testing policy on {problem.name} {config["policy_iterations"]} times ...')
@@ -698,8 +718,39 @@ def solve_iteratively(
                         else f"{plan_lengths[0]}"
                     )
                     problem_iterator.set_solved(problem)
+                    round_solved.append(problem)
                 else:
-                    break
+                    all_passed = False
+                    if not keep_best_policy:
+                        # Old behaviour: `problems` is sorted smallest-first, so a miss here
+                        # usually means every larger problem misses too -- stop early. Kept only
+                        # when keep_best_policy is off: the best-policy comparison below needs
+                        # the exact coverage count for every round, which an early break would
+                        # undercount (see _test_policy_on_problems's docstring for the same
+                        # reasoning applied to the final cost-minimization pass).
+                        break
+        solved = all_passed
+        if keep_best_policy:
+            assert policy.cost is not None, "a Result.SUCCESS policy always has a cost"
+            round_cost = feature_cost(
+                policy.cost,
+                config.get("minimize_good_signatures", "none"),
+                config.get("minimize_selected_count", "none"),
+            )
+            is_new_best = best_policy is None
+            if not is_new_best:
+                assert best_cost is not None
+                is_new_best = (len(round_solved), -round_cost) > (len(best_solved), -best_cost)
+            if is_new_best:
+                best_policy, best_solved, best_cost, best_round = policy, round_solved, round_cost, round_num
+            log.info(
+                "Policy solves %d/%d (best so far %d/%d from round %s)",
+                len(round_solved),
+                len(problems),
+                len(best_solved),
+                len(problems),
+                best_round,
+            )
         if solved and config["stop_after_first_solution"]:
             log.info(f"Policy solves all problems")
             break
@@ -738,6 +789,36 @@ def solve_iteratively(
         policy, solved_problems = _final_cost_minimization_pass(
             domain, problems, problem_iterator, config, stats, policy, wall_deadline=final_pass_deadline
         )
+    if keep_best_policy and policy is not None:
+        assert policy.cost is not None, "a policy this function returns always has a cost"
+        final_cost = feature_cost(
+            policy.cost, config.get("minimize_good_signatures", "none"), config.get("minimize_selected_count", "none")
+        )
+        is_new_best = best_policy is None
+        if not is_new_best:
+            assert best_cost is not None
+            is_new_best = (len(solved_problems), -final_cost) > (len(best_solved), -best_cost)
+        if is_new_best:
+            best_policy, best_solved, best_cost, best_round = policy, solved_problems, final_cost, "final_pass"
+        assert best_policy is not None and best_cost is not None and best_round is not None
+        stats["lastSolved"] = len(solved_problems)
+        stats["bestSolved"] = len(best_solved)
+        stats["bestCost"] = best_cost
+        stats["bestRound"] = best_round
+        # Only swap in the best policy when it strictly solves more problems than the one this
+        # run would otherwise return -- a tie is left alone (the returned policy is already the
+        # cheapest one found for that coverage), so a cost-only difference never causes a swap.
+        if len(best_solved) > len(solved_problems):
+            log.warning(
+                "Returning the best policy from round %s (%d/%d problems) instead of the final"
+                " one (%d/%d problems)",
+                best_round,
+                len(best_solved),
+                len(problems),
+                len(solved_problems),
+                len(problems),
+            )
+            policy, solved_problems = best_policy, best_solved
     return policy, solved_problems, stats
 
 
