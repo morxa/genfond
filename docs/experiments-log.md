@@ -1282,3 +1282,5 @@ heuristic, dropped on UNSAT — a grounded bound would be unsound because added 
 optional `round_time_limit`; capped frontier plans are logged and their planner calls skipped
 (`frontierPlansDropped`). Launched: full loop seeds 0–5 (`fb-s*`, cluster worktree `fbound`, H30 setting +
 H31 defaults) and blocks4ops flat (`fb-b4flat`).
+H31 first seeds: seed 2 95/95 in 116 s, seed 5 95/95 in 98 s; the lower-bound abort fires as designed in the
+running seeds (bounds 1–7 proven after lazy iteration 1). Seeds 0/1/3/4 and blocks4ops flat running.
