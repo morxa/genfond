@@ -1010,3 +1010,24 @@ old 14), blocks4ops 108/113 (rec 106). Both keep-best policies from rounds 12 / 
 Full-loop seed 3: 95/95 in 126 s.
 rec2 logistics 9/47 and logistics_dp 9/47 at the 3.75 h graceful limit (12 h rec: 9 and 17; the dp run's
 17 came after the 4 h mark, so this is a budget effect, not a regression of cheap validation).
+
+### rec2 batch complete (cheap validation, r2c1, 4 h SLURM limit, 3.6 h graceful)
+
+| domain | rec2 | rec (12 h) | note |
+|---|---|---|---|
+| miconic (25) | 19 | 18 | best policy from round 12 |
+| blocks4ops (113) | 108 | 106 | best from round 21 |
+| logistics (47) | 9 | 9 | budget-bound |
+| logistics_dp (47) | 9 | 17 | budget-bound (17 came after 6.7 h) |
+| reward (35) | best 16 in the log, no stats row | best 5 | killed by SLURM |
+| spanner (162) | best 130 in the log, no stats row | killed | killed by SLURM |
+| barman (30) | 0, climbing complexity 7 on two problems | killed | killed by SLURM |
+| grid, storage | no policy, complexity 12+ / 15+ on two problems | killed | killed by SLURM |
+| sokoban | stuck in the first feature pool (no SIW plan) | same | killed by SLURM |
+| blocks, delivery | running | | |
+
+Infrastructure finding: five runs were killed by SLURM at 4 h although the graceful deadline was 3.6 h,
+because the deadline is only checked between phases and a grounding at complexity ≥ 7 on multi-object
+instances outlasts the reserve. When that happens the keep-best policy and the stats row are lost (reward's
+16/35, spanner's 130/162 exist only in the log). Fix in progress (H26): write the best policy to the output
+path whenever it improves, and write the stats row at the graceful request, not only at exit.
