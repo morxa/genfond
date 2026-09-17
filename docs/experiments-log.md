@@ -1132,3 +1132,12 @@ policy file, including the four killed at 4 h.
 Running (H28, diversity for the plateau seeds 3–5 under H27): `planners.siw.restarts: 2` (`pp-r2-s*`) and
 `optimal_model_limit: 6` (`pp-L6-s*`); the flat 95-problem blocks4ops set under rec3 and H27.
 H27 workstation miconic (25): 24/25 at the 55 min budget.
+
+## Benchmark consolidation (Till's request, 2026-09-17)
+
+`domains/` reorganised on `learn-from-examples` (88189e7): one directory per domain encoding under
+`deterministic/`, held-out instances in `test/`, FOND tree untouched, `d2l/` and `deterministic-new/` gone
+(unparseable, duplicate or redundant), problem names unique, `run_benchmarks.bash` non-recursive with the
+deterministic tree as default. Full map in `docs/benchmarks.md`. Result directories and the hyp/* branches on
+the cluster still use the old paths; the mapping is: deterministic-new/X → deterministic/X (delivery, grid,
+logistics, reward, spanner), blocks3ops-heldout → blocks3ops/test, d2l/blocks3ops → blocks-atomic.
