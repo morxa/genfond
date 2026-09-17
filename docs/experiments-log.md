@@ -1025,7 +1025,7 @@ rec2 logistics 9/47 and logistics_dp 9/47 at the 3.75 h graceful limit (12 h rec
 | grid, storage | no policy, complexity 12+ / 15+ on two problems | killed | killed by SLURM |
 | sokoban | stuck in the first feature pool (no SIW plan) | same | killed by SLURM |
 | blocks (35) | 27 | 29 | rec3: 35/35 in 23 s |
-| delivery | running | | |
+| delivery (225) | 140 | 139 | |
 
 Infrastructure finding: five runs were killed by SLURM at 4 h although the graceful deadline was 3.6 h,
 because the deadline is only checked between phases and a grounding at complexity ≥ 7 on multi-object
