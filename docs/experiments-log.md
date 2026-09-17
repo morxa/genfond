@@ -1151,3 +1151,8 @@ blocks4ops flat, H27 cluster arm (3.6 h): best single policy 48/95 at round 16, 
 (rec3 36; workstation H27 run 78 at 55 min — a different trajectory, same picture). blocks4ops with arbitrary
 goals is not solved by the current loop; its general policy needs the same kind of goal-relative concepts as
 blocks3ops but the loop does not find it on either set. Open, next candidate after H28.
+Correction: the flat 95 instances are a subset of the 113-problem run (95 + 18 in `old/`), so the 113/113
+policy solves every flat instance. The loop *can* express and find the blocks4ops policy; on the flat set alone
+it does not, because the 18 small `old/` instances (2–15 blocks, another generator) steer the early plan
+sample. Same trajectory effect as blocks3ops seeds 3–5, not an expressivity gap — H28's diversity arms are
+the right test for it too.
