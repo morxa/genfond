@@ -1218,3 +1218,6 @@ dropping 1/2/4 trailing actions when the full prefix has no plan, `prefix_plan_m
 root-anchored plans join the problem's example plans in front, exempt from the caps, and the refutation is
 dropped. Launched: full loop seeds 0–5 (`px-s*`, cluster worktree `prefix`, = H29 setting + H30) and the flat
 blocks4ops set (`px-b4flat`).
+H30 first seeds (full loop): seed 2 **95/95 in 84 s**, seed 3 95/95 in 77 s, seed 5 **95/95 in 44 s** — seeds
+2 and 5 are exactly the two that sit at 90/91 for hours under H29 alone (still running there). Seeds 0, 1, 4
+are at 91/95 after 11–15 rounds with prefix plans being added for the 10–11-block problems; running.
