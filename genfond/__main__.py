@@ -154,6 +154,28 @@ def main():
         "gracefully (pickles the last policy, verifies it, writes stats) same as a normal end",
     )
     config_args.add_argument(
+        "--round-time-limit",
+        type=float,
+        help="wall-clock budget in seconds for one solver attempt of a round (the whole lazy-pairs "
+        "loop, not a single clingo solve); each solve gets min(solve_time_limit, what is left)",
+    )
+    config_args.add_argument(
+        "--lazy-pairs-warm-start",
+        action=argparse.BooleanOptionalAction,
+        # Must default to None, not False: ConfigHandler skips None overrides.
+        default=None,
+        help="carry each lazy iteration's cost into the next one as clingo's initial optimisation "
+        "bound, so a timed-out iteration cannot come back with a worse incumbent",
+    )
+    config_args.add_argument(
+        "--frontier-lower-bound-abort",
+        action=argparse.BooleanOptionalAction,
+        # Must default to None, not False: ConfigHandler skips None overrides.
+        default=None,
+        help="stop a round as soon as a proven-optimal solve needs a frontier transition; that "
+        "count is a lower bound over every model of the round, so no policy exists in it",
+    )
+    config_args.add_argument(
         "--lazy-pairs",
         action=argparse.BooleanOptionalAction,
         # Must default to None, not False: ConfigHandler skips None overrides.

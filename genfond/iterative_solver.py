@@ -158,8 +158,12 @@ def solve(
         "anchoredTransitions",
         "anchoredProblems",
         "anchorsDropped",
+        # Set by the frontier lower-bound abort (lazy_pairs._frontier_lower_bound) and by the
+        # non-lazy equivalent below; per-round, like the keys above.
+        "frontierLowerBound",
     ):
         stats.pop(key, None)
+    stats["frontierLowerBoundAbort"] = False
     if config.get("minimize_good_signatures", "none") != "none" and config["solve_prog"] != "solve_datalog_sig.lp":
         # good_sig/1 (and the two #program parts Solver grounds for it) only exist in
         # solve_datalog_sig.lp; grounding them against another solve_prog would fail inside
@@ -291,6 +295,33 @@ def solve(
         stats["forcedOccurrences"] = forced.num_occurrences
         stats["forcedInconsistent"] = forced.inconsistent
 
+    def solver_deadline() -> Optional[float]:
+        """The wall-clock instant this solver attempt must stop at.
+
+        `round_time_limit` is applied per *attempt* rather than per round: the anchored solve and
+        the unanchored fallback each get the full budget. Giving them one shared budget would let
+        an anchored attempt that spends all of it leave the fallback -- the only solve whose
+        answer the round is allowed to use -- with nothing, which is strictly worse than not
+        having the budget at all.
+        """
+        limit = config.get("round_time_limit")
+        if not limit:
+            return wall_deadline
+        deadline = time.perf_counter() + float(limit)
+        return deadline if wall_deadline is None else min(wall_deadline, deadline)
+
+    def _proves_no_policy(solver: Solver, status: SolveStatus) -> bool:
+        """Whether this round's solve proved that no zero-frontier model exists.
+
+        A proven-optimal model with a frontier component above zero is a *lower bound* on the
+        frontier count over every model of the round (see `lazy_pairs._frontier_lower_bound`),
+        and `solve_step` accepts only a zero-frontier model as a policy. So the round is settled:
+        its only remaining use is the frontier states it selected, which the caller expands.
+        """
+        return (
+            config.get("frontier_lower_bound_abort", True) and status == SolveStatus.OPTIMAL and solver.prune_count > 0
+        )
+
     def _run_solver(use_anchors: bool) -> tuple[Solver, SolveStatus]:
         """One clingo run over the instance, with or without the anchor constraint.
 
@@ -310,7 +341,7 @@ def solve(
             time_limit=config["solve_time_limit"],
             minimize_good_signatures=config.get("minimize_good_signatures", "none"),
             minimize_selected_count=config.get("minimize_selected_count", "none"),
-            wall_deadline=wall_deadline,
+            wall_deadline=solver_deadline(),
             plan_label_heuristic=config.get("plan_label_heuristic", False),
             anchors=use_anchors,
         )
@@ -326,11 +357,28 @@ def solve(
                 stats,
                 forced=forced,
                 optimal_model_limit=optimal_model_limit,
+                frontier_lower_bound_abort=config.get("frontier_lower_bound_abort", True),
+                warm_start=config.get("lazy_pairs_warm_start", True),
+                # The loop narrows the Solver's own wall_deadline, so the round budget is
+                # already accounted for by `solver_deadline()` above; passing it again would
+                # restart the clock at the loop's first iteration.
+                round_time_limit=None,
             )
         else:
             solver.solve()
             status = solver.status
-            if optimal_model_limit > 1 and status == SolveStatus.OPTIMAL:
+            if _proves_no_policy(solver, status):
+                # The single solve is the whole round here, so there is no loop to cut short --
+                # but the conclusion is the same one `lazy_pairs._frontier_lower_bound` draws,
+                # and it is worth saying so and worth not paying for an enumeration whose models
+                # are all discarded as frontier-bearing a few lines below.
+                log.info(
+                    "Frontier lower bound %d > 0 proven by the round's solve; no policy in this round",
+                    solver.prune_count,
+                )
+                stats["frontierLowerBound"] = solver.prune_count
+                stats["frontierLowerBoundAbort"] = True
+            elif optimal_model_limit > 1 and status == SolveStatus.OPTIMAL:
                 # The lazy loop does this itself (it has to run the enumeration on its *final*
                 # grounded program and re-check every model against the pairs it never grounded);
                 # here the grounded program is the whole problem, so every enumerated model of the
@@ -344,7 +392,7 @@ def solve(
         stats["anchoredProblems"] = len(feature_pool.anchored_problems)
         stats["anchorsDropped"] = feature_pool.anchors_dropped
     solver, status = _run_solver(anchored)
-    if anchored and status in (SolveStatus.UNSATISFIABLE, SolveStatus.UNKNOWN):
+    if anchored and (status in (SolveStatus.UNSATISFIABLE, SolveStatus.UNKNOWN) or _proves_no_policy(solver, status)):
         # The anchors are a preference, never a refutation: an anchored occurrence may share a
         # signature class with one that has to be bad elsewhere, and with the quotient that makes
         # the round unsatisfiable even though a policy exists. So this round's *answer* must
@@ -352,9 +400,20 @@ def solve(
         # bookkeeping in `ProblemIterator` sound, since only the unanchored solve is evidence
         # about what this complexity level can express. UNKNOWN (the solve budget ran out before
         # any model) is retried for the same reason: the anchored attempt proves nothing either
-        # way, and a cheaper unanchored program may still find one.
-        log.info("Anchored solve unsatisfiable; retrying without anchors")
+        # way, and a cheaper unanchored program may still find one. So is a proven frontier lower
+        # bound: `:- anchor(I,S,A), not good_action(I,S,A)` is a constraint the unanchored round
+        # does not carry, so "every model of this program needs a frontier transition" is a
+        # statement about the anchored program only -- the unanchored round may well have a
+        # zero-frontier policy. With the abort above this fallback costs seconds rather than the
+        # nine or ten further 300 s solves the loop used to spend refining that model.
+        log.info(
+            "Anchored solve %s; retrying without anchors",
+            "needs a frontier transition in every model" if solver.solution else "unsatisfiable",
+        )
         stats["anchorFallbacks"] = int(stats.get("anchorFallbacks", 0)) + 1
+        # Whatever the anchored attempt concluded describes a program this round will not use.
+        stats["frontierLowerBoundAbort"] = False
+        stats.pop("frontierLowerBound", None)
         solver, status = _run_solver(False)
     stats["solveStatus"] = status.name
     # Whether the round *proved* its answer. A model whose cost was never proved optimal must
@@ -1082,10 +1141,28 @@ def solve_iteratively(
             # Expand the unexpanded states the model relied on, then retry the same
             # configuration. Must not fall through: the model is not a valid policy.
             assert planner_compute_plans, "A frontier can only arise from plan-restricted expansion"
+            # A frontier state whose problem is already at max_plans_per_problem cannot yield
+            # anything the iterator would keep (`record_frontier_expansion` drops the plan), so
+            # the planner call is pure cost. Skipping it also gives up the chance of learning
+            # that the state is a dead end, which is deliberate: the round is already told to
+            # stop growing this problem's plan set.
+            expandable = [
+                frontier_state
+                for frontier_state in frontier_states
+                if not problem_iterator.plan_cap_reached(frontier_state.problem_name)
+            ]
+            if len(expandable) < len(frontier_states):
+                skipped = len(frontier_states) - len(expandable)
+                log.info(
+                    "Skipping %d of %d frontier state(s): their problem is at max_plans_per_problem",
+                    skipped,
+                    len(frontier_states),
+                )
+                stats["frontierStatesSkipped"] = int(stats.get("frontierStatesSkipped", 0)) + skipped
             new_plans, dead_states = expand_frontier(
                 domain,
                 problems_by_name,
-                frontier_states,
+                expandable,
                 planner_compute_plans,
                 planner_config,
                 config,
@@ -1217,6 +1294,10 @@ def solve_iteratively(
         # once here so a run that stopped early still reports what was seeded.
         stats["prefixPlansAdded"] = problem_iterator.prefix_plans_added
         stats["prefixPlanFailures"] = problem_iterator.prefix_plan_failures
+    if problem_iterator.frontier_plans_dropped:
+        # Counted by the iterator for the same reason: plans the frontier expansion found and
+        # `max_plans_per_problem` threw away, i.e. planner calls that bought nothing.
+        stats["frontierPlansDropped"] = problem_iterator.frontier_plans_dropped
     # Normally seeded by solve_step's first round (`stats.get("totalSolveCpuTime", 0) + ...`);
     # __main__ reads it unconditionally (unlike bestSolve*, which are guarded by `if policy:`).
     # The wall-budget/stop-request break above can end this loop before solve_step ever runs a

@@ -17,6 +17,8 @@ Three things are checked here:
 (c) the off switch -- with `anchor_policy_labels` false no `anchor/3` fact is emitted at all.
 """
 
+from typing import Optional, Sequence
+
 from pddl.core import Plan
 from pddl.logic import constants
 
@@ -158,12 +160,12 @@ class _UnsatisfiableWhenAnchored(Solver):
         type(self).calls.append(self._anchored)
         super().__init__(*args, **kwargs)
 
-    def solve(self) -> bool:
+    def solve(self, bound: Optional[Sequence[int]] = None) -> bool:
         if self._anchored:
             self.status = SolveStatus.UNSATISFIABLE
             self.optimal = True
             return False
-        return super().solve()
+        return super().solve(bound=bound)
 
 
 def test_an_unsatisfiable_anchored_solve_is_retried_without_anchors(monkeypatch, simple_blocks, caplog):

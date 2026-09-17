@@ -119,6 +119,40 @@ def _feasible_candidates(solver: Solver, pairs: LazyPairs, limit: int) -> None:
     solver.candidates = feasible
 
 
+def _frontier_lower_bound(solver: Solver) -> bool:
+    """Whether this solve *proves* that the round cannot yield a policy.
+
+    The argument, and the one thing the lazy loop can conclude without ever grounding the rest
+    of the separation layer:
+
+    * The grounded program at any iteration carries a *subset* of the full round's separation
+      constraints (`sig_pair`/`dist` pairs are only ever added, never removed), so every model
+      of the full round is a model of it. That is the same relaxation argument the loop's UNSAT
+      case rests on, and it holds at every iteration -- including the first even when
+      `fix_forced_labels` seeded batch 0, since a seeded pair is part of the full encoding too.
+    * `#minimize { 1@3,... : good_trans(I,S1,A,S2), pruned(I,S2) }` is the *highest*-priority
+      level (see solve_datalog_sig.lp), so clingo minimises the frontier-transition count
+      lexicographically first. A proven-optimal cost vector therefore carries the minimum
+      frontier count over all models of the relaxation.
+    * Hence if that minimum is k > 0, no model of the relaxation -- and so no model of the full
+      round -- has fewer than k frontier transitions. `iterative_solver.solve_step` accepts only
+      a zero-frontier model as a policy, so the round has no policy, however many more pairs the
+      loop would go on to add.
+
+    Both halves matter. A model whose cost was never *proved* optimal bounds the minimum from
+    above, not below, and proves nothing -- hence `solver.optimal`. And `prune_count` reads the
+    level positionally (`cost_utils.prune_cost`), returning 0 both for a model that uses no
+    frontier transition and for an instance with no reachable `pruned/2` state at all, which is
+    exactly when there is nothing to conclude.
+
+    What the caller still owes: the anchored program carries one constraint the full round does
+    *not* (`:- anchor(I,S,A), not good_action(I,S,A)`, a preference), so a lower bound proven
+    under anchors is a statement about the anchored round only. `iterative_solver.solve` re-solves
+    without anchors before believing it.
+    """
+    return solver.optimal and bool(solver.solution) and solver.prune_count > 0
+
+
 def solve_with_lazy_pairs(
     solver: Solver,
     signatures: Sequence[ActionSignature],
@@ -126,6 +160,9 @@ def solve_with_lazy_pairs(
     stats: Optional[MutableMapping[str, Any]] = None,
     forced: Optional[ForcedLabels] = None,
     optimal_model_limit: int = 1,
+    frontier_lower_bound_abort: bool = True,
+    warm_start: bool = True,
+    round_time_limit: Optional[float] = None,
 ) -> SolveStatus:
     """Solve, adding violated separation pairs until the model satisfies them all.
 
@@ -147,9 +184,35 @@ def solve_with_lazy_pairs(
       when the *last* solve proved its own cost optimal.
     * It has no model. Then nothing is known: it is not a refutation, since the relaxation may
       well be satisfiable and the solver just did not get there. The loop reports `UNKNOWN`.
+
+    `frontier_lower_bound_abort` stops the loop as soon as an iteration *proves* it needs a
+    frontier transition; see `_frontier_lower_bound` for the argument. `warm_start` carries each
+    iteration's cost into the next one as clingo's initial optimisation bound, and
+    `round_time_limit` caps the whole loop (not each solve) in seconds.
     """
     pairs = LazyPairs(signatures)
     total_pairs = pairs.index.num_pairs()
+    if stats is not None:
+        # Per-round keys: a round that does not abort must not report the previous round's.
+        stats.pop("frontierLowerBound", None)
+        stats["frontierLowerBoundAbort"] = False
+    if round_time_limit is not None:
+        # `Solver.solve` takes whichever of `time_limit` and `wall_deadline` runs out first and
+        # recomputes it on every call, so narrowing `wall_deadline` here gives each iteration
+        # `min(solve_time_limit, remaining round budget)` with no further plumbing. The Solver is
+        # built fresh per round (`iterative_solver._run_solver`), so this cannot leak into
+        # another round.
+        round_deadline = time.perf_counter() + round_time_limit
+        solver.wall_deadline = (
+            round_deadline if solver.wall_deadline is None else min(solver.wall_deadline, round_deadline)
+        )
+    # The previous iteration's cost vector, replayed as clingo's initial bound. See
+    # `Solver.solve(bound=...)`: it hides the models worse than the bound, so an UNSAT under it
+    # is no refutation and has to be re-solved without it. Once that happens the optimum has
+    # demonstrably risen above the last model's cost and warm starting is switched off for the
+    # rest of the round, so the re-solve is paid for at most once.
+    warm_bound: Optional[list[int]] = None
+    warm_start_active = warm_start
     if forced is not None:
         seeded_violated, seeded = _seed_forced_pairs(solver, pairs, forced, batch_size)
         if stats is not None:
@@ -157,7 +220,21 @@ def solve_with_lazy_pairs(
             stats["lazyPairsSeededViolated"] = seeded_violated
     for iteration in range(1, len(signatures) ** 2 + 2):
         start = time.perf_counter()
-        solver.solve()
+        bound = warm_bound if warm_start_active and warm_bound is not None else None
+        solver.solve(bound=bound)
+        if bound is not None and solver.status in (SolveStatus.UNSATISFIABLE, SolveStatus.UNKNOWN):
+            # The pairs added since the bound was taken raised the optimum above it (or the
+            # budget ran out proving it). Neither says anything about the relaxation itself, so
+            # the bound is dropped and the iteration re-solved unrestricted.
+            log.info(
+                f"Lazy pairs: iteration {iteration} has nothing at or below the warm-start bound"
+                f" {bound} ({solver.status.name}); re-solving without it"
+            )
+            if stats is not None:
+                stats["lazyWarmStartRelaxed"] = int(stats.get("lazyWarmStartRelaxed", 0)) + 1
+            warm_start_active = False
+            warm_bound = None
+            solver.solve()
         elapsed = time.perf_counter() - start
         if solver.status == SolveStatus.UNSATISFIABLE:
             # Every model of the full problem is a model of the relaxation, so an unsatisfiable
@@ -174,6 +251,18 @@ def solve_with_lazy_pairs(
             )
             _record(stats, iteration, pairs, total_pairs, optimal=False)
             return SolveStatus.UNKNOWN
+        if warm_start_active and solver.solution:
+            warm_bound = list(solver.cost)
+        if frontier_lower_bound_abort and _frontier_lower_bound(solver):
+            log.info(
+                f"Frontier lower bound {solver.prune_count} > 0 proven after lazy iteration"
+                f" {iteration}; no policy in this round"
+            )
+            if stats is not None:
+                stats["frontierLowerBound"] = solver.prune_count
+                stats["frontierLowerBoundAbort"] = True
+            _record(stats, iteration, pairs, total_pairs, optimal=True)
+            return SolveStatus.OPTIMAL
         solution = solver.solution
         violated, batch = pairs.violated_pairs(
             _selected(solution, "f_selected"),

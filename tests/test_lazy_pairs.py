@@ -149,8 +149,8 @@ class _CutOffSolver:
     def __getattr__(self, name):
         return getattr(self._solver, name)
 
-    def solve(self):
-        found = self._solver.solve()
+    def solve(self, bound=None):
+        found = self._solver.solve(bound=bound)
         if found:
             self._solver.status = SolveStatus.SATISFIABLE
             self._solver.optimal = False
@@ -195,7 +195,7 @@ class _NoModelSolver:
     def __getattr__(self, name):
         return getattr(self._solver, name)
 
-    def solve(self):
+    def solve(self, bound=None):
         self._solver.solution = dict()
         self._solver.cost = []
         self._solver.status = SolveStatus.UNKNOWN

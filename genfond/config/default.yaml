@@ -205,6 +205,14 @@ clingo_options: []
 # seen so far is kept. Such a model is still a valid policy -- it satisfies every constraint --
 # but its cost is only an upper bound, so the round no longer refutes its complexity level.
 solve_time_limit: null
+# Wall-clock budget in seconds for one solver *attempt* of a round -- the whole lazy-pairs loop
+# rather than a single clingo call, so a round whose iterations each fit inside solve_time_limit
+# can no longer spend ten of them. Each clingo call then gets min(solve_time_limit, whatever is
+# left of the round budget). null (default) leaves the round unbounded, which is the previous
+# behaviour exactly. The budget is per attempt: an anchored round and its unanchored fallback
+# (anchor_policy_labels) get one each, since only the fallback's answer is ever used and leaving
+# it with an exhausted budget would be worse than having no budget at all.
+round_time_limit: null
 # Wall-clock budget in seconds for the *whole run*. null (default) leaves it unbounded -- the
 # previous behaviour exactly. The budget is laid out, earliest deadline first, as:
 #
@@ -279,6 +287,24 @@ emit_object_facts: true
 lazy_pairs: false
 # How many violated pairs one lazy iteration may add (the smallest distinguishing sets first).
 lazy_pairs_batch: 5000
+# Carry each lazy iteration's cost vector into the next one as clingo's initial optimisation
+# bound (--opt-mode=opt,<b>..., inclusive). Adding pairs can only raise the optimum, so the bound
+# is a search restriction rather than a constraint: a solve that comes back UNSAT under it has
+# only shown the optimum rose above the last model's cost, and the iteration is re-solved without
+# it (once per round -- warm starting then stays off). What it buys is that a *timed-out*
+# iteration can no longer come back with an incumbent worse than the one the round already had,
+# which is what made a blocks3ops round go [0,17] -> [43,70] -> [2,48] over three 300 s solves.
+lazy_pairs_warm_start: true
+# Stop a round as soon as a *proven-optimal* solve reports a non-zero frontier-transition count.
+# The frontier count is the highest-priority #minimize level and the grounded program is always a
+# relaxation of the full round (pairs are only ever added), so such a cost is a lower bound: no
+# model of the round has fewer frontier transitions, and solve_step accepts only a zero-frontier
+# model as a policy. Continuing the lazy loop can therefore only refine a model that can never
+# become a policy -- measured at roughly nine further 300 s solves per round on blocks3ops. The
+# round still returns that model, because the caller wants exactly one thing from it: the
+# frontier states to expand. See lazy_pairs._frontier_lower_bound and
+# docs/frontier-bound-results.md.
+frontier_lower_bound_abort: true
 # How many optimal models of the same cost a round may enumerate and validate before picking
 # one. clingo returns whichever optimal model it happened to prove first, and equal-cost models
 # are not equally good policies: on blocks3ops a cost-3 model on `c_equal_closure(on, on_g)`

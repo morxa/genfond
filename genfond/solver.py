@@ -7,7 +7,7 @@ from typing import Any, Mapping, Optional, Sequence
 
 import clingo
 
-from .cost_utils import feature_cost
+from .cost_utils import feature_cost, prune_cost
 from .problem_iterator import MAX_COST
 from .shutdown import stop_requested
 
@@ -175,6 +175,15 @@ class Solver:
         """`self.cost`'s feature/concept/role complexity component; see `feature_cost()`."""
         return feature_cost(self.cost, self.minimize_good_signatures, self.minimize_selected_count)
 
+    @property
+    def prune_count(self) -> int:
+        """`self.cost`'s frontier-transition component; see `prune_cost()`.
+
+        0 both when the model uses no frontier transition and when the instance has no reachable
+        `pruned/2` state at all, in which case the level is missing from the vector entirely.
+        """
+        return prune_cost(self.cost, self.minimize_good_signatures, self.minimize_selected_count)
+
     def on_model(self, model: clingo.Model) -> None:
         if not self.solution:
             log.info("Found first solution")
@@ -192,7 +201,7 @@ class Solver:
         self.control.add(name, [], facts)
         self.control.ground([(name, []), ("pairs", [clingo.Number(batch)])])
 
-    def solve(self) -> bool:
+    def solve(self, bound: Optional[Sequence[int]] = None) -> bool:
         """Solve the grounded program; return whether a model was found.
 
         With `time_limit` and/or `wall_deadline` set the solve is anytime: it is cancelled once
@@ -212,7 +221,9 @@ class Solver:
         # Constraints added since the previous solve can only raise the optimum, so a bound
         # carried over from it would be unsound. clingo does not keep one, but say so anyway.
         assert isinstance(self.control.configuration.solve, clingo.Configuration)
-        self.control.configuration.solve.opt_mode = "opt"
+        self.control.configuration.solve.opt_mode = (
+            "opt" if bound is None else "opt," + ",".join(str(int(level)) for level in bound)
+        )
         # A previous solve's model must not be mistaken for this one's best-so-far: in the lazy
         # loop the same Control is solved repeatedly, and a solve that is cut off before its
         # first model has to report "no model", not the model of the round before.
@@ -267,9 +278,10 @@ class Solver:
             self.status = SolveStatus.UNKNOWN
         self.optimal = self.status in (SolveStatus.OPTIMAL, SolveStatus.UNSATISFIABLE)
         log.info(
-            "clingo solve [opt-strategy=%s%s]: %s in %.2fs%s, cost %s",
+            "clingo solve [opt-strategy=%s%s%s]: %s in %.2fs%s, cost %s",
             self.opt_strategy,
             f", limit={self.time_limit:g}s" if self.time_limit is not None else "",
+            f", warm bound={list(bound)}" if bound is not None else "",
             self.status.name,
             self.elapsed,
             " (timed out)" if self.timed_out else "",

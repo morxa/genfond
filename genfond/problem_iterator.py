@@ -139,6 +139,11 @@ class ProblemIterator:
         self.dead_states: dict[str, set[State]] = dict()
         self.frontier_expansions = 0
         self.frontier_progress = False
+        # How many plans the frontier expansion found but could not keep because their problem
+        # was already at `max_plans_per_problem`. Read out by `iterative_solver` as the
+        # `frontierPlansDropped` stat; every one of them is a planner call that bought nothing,
+        # which is what `plan_cap_reached` lets the caller avoid up front.
+        self.frontier_plans_dropped = 0
         self.all_features = False
         self.last_step = LastStep.START
         self.complexity = self.config["min_complexity"]
@@ -206,6 +211,15 @@ class ProblemIterator:
                 cap,
             )
         return reached
+
+    def plan_cap_reached(self, problem_name: str) -> bool:
+        """Whether `problem_name` can still take another example plan.
+
+        The public face of `_plan_cap_reached`, for callers that want to know *before* doing the
+        work whose result would be dropped -- `solve_iteratively` skips the planner call for a
+        frontier state whose problem is already capped.
+        """
+        return self._plan_cap_reached(problem_name)
 
     def _accept_plan(self, problem_name: str, plan: Plan) -> bool:
         """Whether `plan` earns its keep: reaches a state not already covered for this problem.
@@ -333,10 +347,19 @@ class ProblemIterator:
         for problem_name, new_plans in plans.items():
             active = self.active_plans.setdefault(problem_name, [])
             known = {plan_key(plan) for plan in active}
-            for plan in new_plans:
+            for index, plan in enumerate(new_plans):
                 if self._plan_cap_reached(problem_name):
                     # Capped: no more plans go into this problem this round, regardless of
-                    # how many more the planner proposed for it.
+                    # how many more the planner proposed for it. Each of those cost a planner
+                    # call, so say how many were thrown away rather than dropping them silently.
+                    dropped = len(new_plans) - index
+                    self.frontier_plans_dropped += dropped
+                    log.info(
+                        "Dropping %d frontier plan(s) for %s: it is already at" " max_plans_per_problem=%s",
+                        dropped,
+                        problem_name,
+                        self.config.get("max_plans_per_problem"),
+                    )
                     break
                 if plan_key(plan) in known:
                     # The planner is deterministic, so a frontier state that the new plan
