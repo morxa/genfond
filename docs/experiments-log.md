@@ -969,3 +969,20 @@ a problem, defer it instead of expanding unrestrictedly, and/or put a state budg
 give 77/95 and 71/95 without the closure concept (seed 0: 95/95). r2c0 loses visitall (8/12 at the 35 min
 budget). So the role offset is what costs visitall, and without it blocks3ops depends on the equal-cost
 tie-break — exactly H22's target. Running: r0c1 + `optimal_model_limit: 3`, seeds 0–2, ≤7 → 95.
+
+## RESULT: role offset 0 + concept offset 1 + optimal-model enumeration (`hyp/opt-enum`, cluster, full 95-problem loop)
+
+Config = recommended config with `role_complexity_offset: 0`, `concept_complexity_offset: 1`,
+`optimal_model_limit: 3` (`claude-experiments/r0c1-L3-s*.yaml` in the cluster worktree `optenum`), 1 thread,
+modern partition:
+
+| seed | full 95-problem loop | ≤7-block training → on 95 (workstation) |
+|---|---|---|
+| 0 | **95/95 in 157 s**, best at round 11 | 95/95, 25 s, 1 switch |
+| 1 | running | 95/95, 24 s, 1 switch |
+| 2 | **95/95 in 20 s**, best at round 11 | running |
+
+Against the previous full-loop figure (2 of 5 runs 95/95 in ~19 min, the rest at 28/95), the loop now
+converges in seconds: without the role offset the closure concept and its siblings tie at equal cost early,
+and the coverage tie-break over all 95 problems picks the general one. visitall-12 is 12/12 in 2.5 s under
+the same offsets (H24). Pending: seed 1, the rec2 domains under this setting, and the regression suites.
