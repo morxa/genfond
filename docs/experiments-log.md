@@ -1104,3 +1104,9 @@ rec4 = rec3 + H27 policy-conformant plans (running).
 | barman (30) | killed | 0 | 0 | |
 | grid (26) | killed | killed | 1 (max complexity) | |
 | storage, sokoban | killed | killed | killed | |
+H27 workstation regressions: visitall-12 12/12 in 1.4 s, visitall-500 500/500 in 10 min (2 policy plans),
+blocks4ops on the flat 95-problem directory (not the 113-problem cluster suite, which includes `old/`):
+78/95 at the 55 min budget (best single policy 43/95 at round 13, final combination 78) — a different, harder
+problem set than the cluster's, so not comparable with the 113/113 above; worth a cluster run of that set.
+Housekeeping: seven stale local waiter loops from 2026-09-14/15 were still alive because their `pgrep -f`
+pattern matched the waiting shell itself; killed.
