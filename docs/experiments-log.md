@@ -1197,3 +1197,14 @@ blocks4ops flat under H28 (H27 + diversity, 3.6 h): restarts 2 → 57/95 (best s
 enumeration limit 6 → **80/95** (best single 80 at round 14). Together with 36 (rec3) and 63 (H27): every arm
 finds its best policy around round 14–16 and drifts afterwards, the same signature as blocks3ops. H29 on the
 flat set is running (33/95 at round 30 after 40 min); H29 seeds 2 and 5 sit at 90/91 from round 9/11.
+
+**H29 seed 2 diagnosis:** round 9 gives the cost-8 near-general policy P (90/95, 3 training problems). Round
+10 adds blocks-010-5, which P fails on. With anchors (10 transitions, 3 problems) the cheapest models are
+frontier models of cost 18–19 (`[1,19]`, `[3,18]`, `[2,18]`): on the enlarged instance no anchored model near
+cost 8 exists, because 010-5's example plans (SIW, restarts 1, cap 8) do not contain the trajectory a general
+policy takes on it, and H27 cannot supply one — P fails on 010-5, so it has no trajectory there. Three
+frontier rounds later the loop is at complexity 5 with patchwork costs. The missing piece is therefore the
+*new* problem's plans: H30 (in progress) executes P on the newly added problem as far as it gets, re-roots
+the problem at the last state before the failure (cycle or no applicable rule) and asks SIW for the rest,
+splicing the two into a root-anchored example plan ("policy-prefix plans", reusing `frontier.py`), so a small
+modification of P is feasible on the enlarged instance.
