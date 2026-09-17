@@ -1243,3 +1243,17 @@ model exists on the enlarged instance) — and every later solve of that round f
 non-optimally (`[7,42]`, `[6,31]`, …, timed out). Two things to check (diagnostic agent running): why the
 plan-restricted space of the new problem has alive states without an on-plan good successor although a
 spliced root-anchored plan was added, and whether the budget rather than expressivity now binds at 11 blocks.
+
+**H30 stall diagnosed (seed 1 log, agent report):** the prefix plan is fine (root-anchored, goal-reaching,
+accepted, no dead ends, all frontier states in the new problem). The first lazy-pairs iteration grounds no
+separation facts, so its proven-optimal frontier count is a *lower bound* for the whole round: `[6,0]` at
+complexity 4, `[5,0]` after expansion, `[1,0]` at complexity 5, `[0,0]` at complexity 6 — a zero-frontier
+policy for the 11-block instance provably needs complexity 6 (the same climb happened at 4 blocks in rounds
+5–11). Nothing reads that proof: each of rounds 12–14 then spends 9–10 further 300 s solves refining the
+separation layer of a model that cannot be a policy (≈105 of 121 min), and round 15 (complexity 6) finds the
+optimum `[0,17]` at 295 s but the lazy loop keeps running 300 s timeouts whose incumbents regress
+(`[43,70]`…) until the wall budget ends. Anchors never fall back because a frontier-bearing SAT model is
+neither UNSAT nor UNKNOWN. Also: frontier-expansion plans are silently dropped once `max_plans_per_problem`
+is hit. H31 (in progress): (1) stop the lazy loop as soon as a proven-optimal relaxation has a non-zero
+frontier count and return it; (2) widen the anchor fallback to that case; (3) a round-level solve budget with
+warm-started bounds so timed-out iterations cannot regress; (4) log/skip capped frontier plans.
