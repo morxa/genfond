@@ -997,3 +997,5 @@ regression suites unchanged (gripper-local 5/5, miconic-local 4/4, blocks4ops-cl
 4/4, all ≤4 s). Workstation ≤7-block training, seed 2: 27/30 after 25 min → 26/95 (cost climbs 18 → 23 across
 rounds 19–22 with 4 feasible siblings each time), while the full loop with the same seed converges in 20 s.
 The small-suite training remains trajectory-sensitive; the full loop is the configuration to report.
+Held-out (12 instances, 8–30 blocks): the full-loop policies of seeds 0 and 2 both solve **12/12**.
+**blocks4ops (113): 113/113 in 3.8 min** (rec: 106/113 at 12 h; original system 52/113).
