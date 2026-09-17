@@ -1057,3 +1057,15 @@ the best policy on every problem it solves as an example plan (policy-conformant
 found once stays feasible in every later round.
 rec3 miconic (25): 14/25 (rec2 19, rec 18, original 14) — the only domain so far where the new setting is
 worse than the role-offset setting; rec3 delivery (225): **171/225** (rec2 140, rec 139).
+
+## H27: policy-conformant example plans (`hyp/policy-plans`, 1479325, on `hyp/combo`; 258 tests)
+
+The executors can now return the ground actions they applied; for every problem the round's policy solves
+during validation the trajectory is stored as an example plan in front of the problem's SIW plans (exempt
+from `max_plans_per_problem` and from the `min_number_of_plans` floor; deduplicated by state set), and the
+refutation bookkeeping is invalidated like after a plan addition (the add-a-problem branch drops its carried
+bound when plans were added). `policy_conformant_plans: true` by default. Found on the way: the
+add-a-problem branch reset the problem's plan list, which would have discarded any plan recorded before the
+problem joined the training set (now `setdefault`). A/B launched: full 95-problem loop, seeds 0–5 (`pp-s*`,
+cluster worktree `policyplans`, 4 h graceful) against the r0c1-L3 arms; regression and cross-domain quick
+suites on the workstation (`results-ab/pp-reg.summary`).
