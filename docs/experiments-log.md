@@ -1081,3 +1081,4 @@ which is where the run's time went; sokoban stuck in the first feature pool agai
 H27 full loop pp-s4: 95/95 in 389 s. rec4 (H27): blocks4ops 113/113 in 231 s, blocks 35/35 in 85 s.
 The flood is the per-transition DEBUG line in `state_space_generator` (one line per successor, each with two
 full state strings); future batch configs carry `log: {state_space_generator: INFO}`.
+rec3 storage: killed at 4 h without a policy (complexity climb on two problems), as in rec2. rec3 complete.
