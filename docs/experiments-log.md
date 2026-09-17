@@ -1221,3 +1221,19 @@ blocks4ops set (`px-b4flat`).
 H30 first seeds (full loop): seed 2 **95/95 in 84 s**, seed 3 95/95 in 77 s, seed 5 **95/95 in 44 s** — seeds
 2 and 5 are exactly the two that sit at 90/91 for hours under H29 alone (still running there). Seeds 0, 1, 4
 are at 91/95 after 11–15 rounds with prefix plans being added for the 10–11-block problems; running.
+
+### H29 result (full loop, seeds 0–5, 4 h graceful)
+
+| seed | rec3 | H27 | H29 (H27 + anchors) | H30 (+ prefix plans) |
+|---|---|---|---|---|
+| 0 | 95 in 157 s | 93 | **95 in 67 s** | running (best 91 at round 15) |
+| 1 | 92 | 95 at 3.6 h | **95 in 73 s** | running (91 at round 11) |
+| 2 | 95 in 20 s | 95 in 47 s | 90 (stuck from round 9) | **95 in 84 s** |
+| 3 | 95 in 126 s | 40 | **95 in 259 s** | **95 in 77 s** |
+| 4 | 36 | 95 in 389 s | **95 in 117 s** | running (91 at round 11) |
+| 5 | 30 | 95 in 96 s | 91 (stuck from round 11) | **95 in 44 s** |
+
+H29 alone: 4 of 6 seeds at 95 within 5 min, the other two frozen at the near-general policy — anchoring keeps
+the best policy preferred but cannot help on the added problem it fails on. blocks4ops flat under H29: 39/95
+(best 34), no better than rec3 (36). H30 so far: 3 of 3 finished seeds at 95 within 90 s, including the two
+H29 stragglers.
