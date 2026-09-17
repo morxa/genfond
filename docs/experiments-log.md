@@ -1189,3 +1189,6 @@ graceful) and the flat blocks4ops set (`an-b4flat`).
 Note: a push with the branch's inherited upstream fast-forwarded `origin/hyp/policy-plans` to e68be54 (H27 +
 H29 with anchors off by default); the cluster worktree `policyplans` stays at 1479325. Restoring the remote
 ref needs a force push, which is left to Till.
+H29 first seeds (full loop): seed 0 **95/95 in 67 s**, seed 1 **95/95 in 73 s** (seed 1 was 92 under rec3 and
+95 only at 3.6 h under H27). Anchors are active in the decisive rounds (6–11 transitions from 2–3 problems)
+with an occasional fallback.
