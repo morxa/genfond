@@ -979,7 +979,7 @@ modern partition:
 | seed | full 95-problem loop | ≤7-block training → on 95 (workstation) |
 |---|---|---|
 | 0 | **95/95 in 157 s**, best at round 11 | 95/95, 25 s, 1 switch |
-| 1 | best 91/95 at round 11, then patchworks (38/95 at 1 h; still running) | 95/95, 24 s, 1 switch |
+| 1 | best 91/95 at round 11, final combination 92/95 at the 3.6 h limit | 95/95, 24 s, 1 switch |
 | 2 | **95/95 in 20 s**, best at round 11 | 27/30 after 25 min → 26/95 |
 
 Against the previous full-loop figure (2 of 5 runs 95/95 in ~19 min, the rest at 28/95), the loop now
@@ -1045,3 +1045,13 @@ solve at complexity ≥ 9 hits the 300 s budget, 81 GB); rec2 grid was killed at
 grounding-bound like the pre-fix blocks3ops and needs a different idea, not a budget.
 rec3 logistics_dp (47): **18/47 in 3.3 h** (rec 17 at 12 h, rec2 9 at the 3.75 h limit; the final round
 combined a 15/47 keep-best with the last policy).
+
+**Seed 1 diagnosis (full loop):** round 11 enumerates 4 optimal models of cost 5, 2 survive the pair check,
+coverages [91, 87]; the general cost-8 policy is more expensive and so never enumerated there. Round 12 adds
+a problem the cost-5 policy fails on, and the minimum cost jumps to 16 (with frontier transitions, cost
+vectors `[1, 16]`): the general policy is *not feasible* on the enlarged instance although it solves every
+problem when executed — the newly added problem's sampled SIW plans (restarts 1, cap 8) do not contain the
+trajectory the general policy takes, so under the plan-restricted state space it is infeasible. Whether the
+sample happens to contain that trajectory is what the seed decides. H27 (in progress): add the trajectory of
+the best policy on every problem it solves as an example plan (policy-conformant plans), so a general policy
+found once stays feasible in every later round.
