@@ -991,3 +991,9 @@ the same offsets (H24). Pending: seed 1, the rec2 domains under this setting, an
 Launched under the new setting (`claude-experiments/rec3.yaml` in the cluster worktree `optenum` = rec +
 role offset 0 + limit 3): the twelve rec2 domains as `rec3` (modern partition, 4 h graceful), visitall-500
 (`r0c1-L3-vis500`), the regression suites and the held-out set on the workstation.
+
+Early rec3 / regression numbers under the new setting: **blocks (35) 35/35 in 23 s** (rec: 29/35 after 12 h);
+regression suites unchanged (gripper-local 5/5, miconic-local 4/4, blocks4ops-clear-local 4/4, delivery-local
+4/4, all ≤4 s). Workstation ≤7-block training, seed 2: 27/30 after 25 min → 26/95 (cost climbs 18 → 23 across
+rounds 19–22 with 4 feasible siblings each time), while the full loop with the same seed converges in 20 s.
+The small-suite training remains trajectory-sensitive; the full loop is the configuration to report.
