@@ -1,7 +1,7 @@
 import enum
 import logging
 import sys
-from typing import Any, Collection, Iterator, Mapping, MutableMapping, Optional, Sequence
+from typing import TYPE_CHECKING, Any, Callable, Collection, Iterator, Mapping, MutableMapping, Optional, Sequence
 
 from pddl.action import Action
 from pddl.core import Domain, Plan, Problem
@@ -9,6 +9,12 @@ from pddl.core import Domain, Plan, Problem
 from .cost_utils import feature_cost
 from .ground import state_string
 from .state_space_generator import State, plan_visited_states
+
+if TYPE_CHECKING:
+    # Only for the type of `on_problem_added`. `genfond.prefix_plans` imports this module (for
+    # `plan_from_actions`) and pulls in the planner and the executors on the way, so importing it
+    # here at runtime would be a cycle.
+    from .prefix_plans import PrefixPlans
 
 log = logging.getLogger("genfond.problem_iterator")
 
@@ -88,6 +94,7 @@ class ProblemIterator:
         config: Mapping,
         plans: Optional[Mapping[str, Iterator[Plan]]] = None,
         plan_coverage: Optional[PlanStateCoverage] = None,
+        on_problem_added: Optional[Callable[[Problem], "PrefixPlans"]] = None,
     ):
         self.problems = problems
         self.config = config
@@ -95,6 +102,12 @@ class ProblemIterator:
         # None (the default, and what every existing test passes) disables the dedupe entirely:
         # every plan the iterator is handed is kept, exactly as before this was added.
         self.plan_coverage = plan_coverage
+        # Called once for each problem that joins the training set, before that problem's first
+        # round, and expected to return example plans to seed it with (policy-prefix plans, H30
+        # -- see `genfond.prefix_plans`). The iterator knows nothing about how they are built:
+        # it only needs somewhere to put them. None (the default, and what every existing test
+        # passes) means no problem is ever seeded with anything.
+        self.on_problem_added = on_problem_added
 
     def __iter__(self) -> "ProblemIterator":
         self.active_problems: list[Problem] = []
@@ -108,6 +121,14 @@ class ProblemIterator:
         # subtract this. Empty unless `policy_conformant_plans` is on, which makes both
         # subtractions no-ops.
         self.policy_plan_counts: dict[str, int] = dict()
+        # Problems the `on_problem_added` hook has already run for, so a problem that leaves the
+        # training set (`unselect_problems`) and rejoins it later is not seeded twice.
+        self._prefix_plans_done: set[str] = set()
+        # How many policy-prefix plans were added over the run, and for how many problems the
+        # hook ran and came back empty-handed. Read out by `iterative_solver` as the
+        # `prefixPlansAdded` / `prefixPlanFailures` stats.
+        self.prefix_plans_added = 0
+        self.prefix_plan_failures = 0
         # Whether policy-conformant plans were added since the last success. Such an addition
         # changes the state space of problems already in the training set, which breaks the
         # monotonicity argument `_add_next_problem` uses to carry `succ_complexity - 1` over as
@@ -251,6 +272,52 @@ class ProblemIterator:
             self._invalidate_refutations()
             self.plans_added_since_success = True
         return added, problems_affected
+
+    def _seed_prefix_plans(self, problem: Problem) -> None:
+        """Run the `on_problem_added` hook for a problem that just joined the training set.
+
+        The plans it returns (policy-prefix plans, H30) are treated exactly like the
+        policy-conformant plans of `record_policy_plans`: stored in *front* of the problem's own
+        example plans, counted in `policy_plan_counts` so neither `max_plans_per_problem` nor the
+        `min_number_of_plans` floor applies to them, and deduped by plan identity and state
+        coverage. They are the reason the problem's instance can express the policy that was
+        already almost right, so capping them away would defeat the mechanism.
+
+        Called *after* `_add_next_problem` has set `refuted_complexity`, because adding plans
+        drops that bound again: the state space this round is solved over is not the one the
+        refutation was established over (the same reasoning as `_invalidate_refutations`, which
+        is not called directly here only because its optional complexity restart would undo the
+        `complexity = succ_complexity` this branch has just set).
+        """
+        if self.on_problem_added is None or problem.name in self._prefix_plans_done:
+            return
+        self._prefix_plans_done.add(problem.name)
+        result = self.on_problem_added(problem)
+        active = self.active_plans.setdefault(problem.name, [])
+        known = {plan_key(plan) for plan in active}
+        accepted = []
+        for plan in result.plans:
+            if not plan.actions or plan_key(plan) in known:
+                continue
+            if not self._accept_plan(problem.name, plan):
+                continue
+            known.add(plan_key(plan))
+            accepted.append(plan)
+        if not accepted:
+            if result.attempted:
+                self.prefix_plan_failures += 1
+            return
+        self.active_plans[problem.name] = accepted + active
+        self.policy_plan_counts[problem.name] = self.policy_plan_counts.get(problem.name, 0) + len(accepted)
+        self.prefix_plans_added += len(accepted)
+        self.refuted_complexity = self.config["min_complexity"] - 1
+        log.info(
+            "Added %d policy-prefix plan(s) for %s (prefix length %d, backoff %d)",
+            len(accepted),
+            problem.name,
+            result.prefix_length,
+            result.backoff,
+        )
 
     def record_frontier_expansion(
         self, plans: Mapping[str, list[Plan]], dead_states: Mapping[str, set[State]]
@@ -438,6 +505,10 @@ class ProblemIterator:
                 if self.plan_coverage is not None:
                     self.plan_coverage.add(next_problem.name, next_plan)
                 self.active_plans[next_problem.name].append(next_plan)
+        # Last, so the prefix plans are deduped against the floor batch that was just drawn (a
+        # plan reaching no state those already cover cannot change the state space) and so the
+        # refutation bound this method just set is dropped again if any plan is actually added.
+        self._seed_prefix_plans(next_problem)
 
     def __next__(self) -> Mapping[str, Any]:
         assert self.last_result != Result.UNKNOWN, "You must set the result of the last problem before calling next"

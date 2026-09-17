@@ -24,6 +24,7 @@ from .frontier import FrontierState, collect_frontier_states, expand_frontier
 from .generate_policy import generate_policy
 from .lazy_pairs import DEFAULT_BATCH, solve_with_lazy_pairs
 from .policy import PolicyType
+from .prefix_plans import PrefixPlans, policy_prefix_plans
 from .problem_iterator import (
     MAX_COST,
     OneShotProblemIterator,
@@ -957,11 +958,45 @@ def solve_iteratively(
             "anchor_policy_labels without policy_conformant_plans: the best policy's trajectories"
             " are not example plans, so most anchored steps will be missing from the state space"
         )
+    # Policy-prefix example plans (H30): a problem joins the training set precisely because the
+    # best policy so far fails on it, and its SIW plans have nothing to do with what that policy
+    # does -- so the enlarged instance has no model anywhere near the policy's cost and the round
+    # drifts into a patchwork. H27 cannot fill that gap (it only records trajectories of problems
+    # the policy *solves*), so the prefix the policy got right is completed by the planner and
+    # seeded as an example plan before the new problem's first round. Same `use_example_plans`
+    # gate as the other two: without a plan-restricted state space nothing is missing from it.
+    prefix_plans_enabled = bool(config.get("policy_prefix_plans", False)) and bool(config["use_example_plans"])
+    if prefix_plans_enabled and planner_compute_plans is None:
+        # use_example_plans is what creates the planner, so this cannot happen; the guard is here
+        # because the hook below would otherwise have to assert it on every call.
+        log.warning("policy_prefix_plans needs a planner; no policy-prefix plans will be built")
+        prefix_plans_enabled = False
+    if prefix_plans_enabled:
+        log.info("Policy-prefix example plans are enabled")
+
+    def _prefix_plans_for(problem: Problem) -> PrefixPlans:
+        """Seed a newly added problem with plans built from the best policy's own prefix.
+
+        Reads `best_policy` at call time -- the hook runs inside `ProblemIterator.__next__`, so
+        it always sees the best policy as of the round that is about to start. Before the first
+        success there is none, and nothing is attempted (which is not counted as a failure).
+        """
+        if not prefix_plans_enabled or best_policy is None:
+            return PrefixPlans()
+        assert planner_compute_plans is not None
+        return policy_prefix_plans(domain, problem, best_policy, config, planner_compute_plans, planner_config)
+
     problem_iterator: ProblemIterator | OneShotProblemIterator
     if one_shot:
         problem_iterator = OneShotProblemIterator(problems, config, plans=example_plans, plan_coverage=plan_coverage)
     else:
-        problem_iterator = ProblemIterator(problems, config, plans=example_plans, plan_coverage=plan_coverage)
+        problem_iterator = ProblemIterator(
+            problems,
+            config,
+            plans=example_plans,
+            plan_coverage=plan_coverage,
+            on_problem_added=_prefix_plans_for if prefix_plans_enabled else None,
+        )
     # One round's validated candidate policies, as (policy, solved problems, per-problem
     # outcomes). `solve_step` scores every equal-cost candidate through `_validate_candidate`
     # below and returns the winner; this is what lets the winner's result be reused here instead
@@ -1177,6 +1212,11 @@ def solve_iteratively(
             )
             problem_iterator.set_last_result(Result.NO_SOLUTION)
             stats["failureReason"] = "maxcomplexity"
+    if problem_iterator.prefix_plans_added or problem_iterator.prefix_plan_failures:
+        # Counted by the iterator, which is where the hook runs (`_seed_prefix_plans`); read out
+        # once here so a run that stopped early still reports what was seeded.
+        stats["prefixPlansAdded"] = problem_iterator.prefix_plans_added
+        stats["prefixPlanFailures"] = problem_iterator.prefix_plan_failures
     # Normally seeded by solve_step's first round (`stats.get("totalSolveCpuTime", 0) + ...`);
     # __main__ reads it unconditionally (unlike bestSolve*, which are guarded by `if policy:`).
     # The wall-budget/stop-request break above can end this loop before solve_step ever runs a

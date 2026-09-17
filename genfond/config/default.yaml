@@ -108,6 +108,38 @@ max_plans_per_problem: null
 # there is, and capping it away is exactly what would reintroduce the infeasibility above.
 # Set to false to switch the mechanism off entirely.
 policy_conformant_plans: true
+# Seed a problem that joins the training set with example plans built from what the best policy
+# so far already gets right on it ("policy-prefix plans"). Like policy_conformant_plans, this
+# only has an effect together with use_example_plans and is inert for the rule-based
+# state/trans/d2l types, so it can default to true here.
+#
+# Why: a problem is added to the training set precisely because the best policy P fails on it,
+# and its example plans come from SIW, which knows nothing about P. On the enlarged instance
+# there is then no model anywhere near P's cost (frontier models 18-19 against P's 8 were
+# measured on blocks3ops with --type datalog-sig), and the loop spends hours on patchworks.
+# policy_conformant_plans cannot close that gap: it records P's trajectories only on the problems
+# P *solves*, and the new problem is by definition not one of them.
+#
+# The mechanism executes P on the new problem, cuts the trajectory where P went wrong (at the
+# first visit of the state it loops back to, or at the end of the trajectory when it runs out of
+# applicable actions, capped at prefix_plan_max_length), re-roots the problem at that state and
+# asks the planner to finish from there, then splices prefix and suffix into one root-anchored
+# plan. Costs one policy execution plus up to prefix_plan_backoff + 1 planner calls per problem
+# added, and only ever on problems that are joining the training set anyway.
+policy_prefix_plans: true
+# How many plans to ask the planner for from the prefix's end state. The planner yields lazily,
+# so this is what it actually pays for. More plans means a wider state space around the point
+# where the policy went wrong, at the usual grounding cost.
+prefix_plan_count: 2
+# How many shorter prefixes to try when the full prefix yields no plan at all: attempt k drops
+# the last 2^k actions (1, 2, 4, ...). The steps a policy takes just before it starts looping are
+# the ones most likely to have been the wrong ones, and backing off past them is what makes a
+# dead-ended prefix recoverable. 0 tries only the full prefix.
+prefix_plan_backoff: 3
+# Hard cap on the prefix length. A policy that neither loops nor gets stuck runs until
+# policy_steps or validation_time_limit, and nothing else bounds how long the recorded trajectory
+# is; a plan of that length would be replayed into the state space of every later round.
+prefix_plan_max_length: 200
 # Anchor the next round's labels to the best policy so far: every transition along the
 # trajectories that policy took on the problems it solved (the same trajectories
 # policy_conformant_plans records, but only those of the *best* policy, not of every candidate
