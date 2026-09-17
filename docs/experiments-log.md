@@ -1082,3 +1082,25 @@ H27 full loop pp-s4: 95/95 in 389 s. rec4 (H27): blocks4ops 113/113 in 231 s, bl
 The flood is the per-transition DEBUG line in `state_space_generator` (one line per successor, each with two
 full state strings); future batch configs carry `log: {state_space_generator: INFO}`.
 rec3 storage: killed at 4 h without a policy (complexity climb on two problems), as in rec2. rec3 complete.
+
+### Cross-domain summary so far (4 h graceful, seed 0, 1 thread)
+
+rec2 = cheap validation, role offset 2 / concept offset 1; rec3 = rec2 + role offset 0 + enumeration limit 3;
+rec4 = rec3 + H27 policy-conformant plans (running).
+
+| domain (problems) | rec (12 h) | rec2 | rec3 | rec4 |
+|---|---|---|---|---|
+| blocks3ops (95), full loop | 95 in 19 min (2 of 5 runs) | – | 95 in 20 s–6 min (seeds 0,2,3), 92 (seed 1) | 95 (seeds 2,4,5 so far) |
+| blocks4ops (113) | 106 | 108 | **113** in 3.8 min | **113** in 3.9 min |
+| blocks (35) | 29 | 27 | **35** in 23 s | **35** in 85 s |
+| visitall (500) | 500 in 3 h | – | **500** in 10.5 min | |
+| visitall (12/36) | 8 | – | 12 in 2.5 s | |
+| delivery (225) | 139 | 140 | **171** | |
+| miconic (25) | 18 | **19** | 14 | |
+| logistics (47) | 9 | 9 | **15** | |
+| logistics_dp (47) | 17 (12 h) | 9 | **18** | |
+| reward (35) | 5 | 16 (log only) | 15 (log only) | |
+| spanner (162) | killed | 130 (log only) | 137 (log only) | |
+| barman (30) | killed | 0 | 0 | |
+| grid (26) | killed | killed | 1 (max complexity) | |
+| storage, sokoban | killed | killed | killed | |
