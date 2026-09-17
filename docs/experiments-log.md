@@ -1237,3 +1237,9 @@ H29 alone: 4 of 6 seeds at 95 within 5 min, the other two frozen at the near-gen
 the best policy preferred but cannot help on the added problem it fails on. blocks4ops flat under H29: 39/95
 (best 34), no better than rec3 (36). H30 so far: 3 of 3 finished seeds at 95 within 90 s, including the two
 H29 stragglers.
+H30 seeds 0/1/4 (running) stall differently: after the prefix plan for the 10–11-block problem is added, the
+first anchored solve is OPTIMAL with cost `[6, 0]` — six frontier transitions are *required* (no zero-frontier
+model exists on the enlarged instance) — and every later solve of that round family hits the 300 s budget
+non-optimally (`[7,42]`, `[6,31]`, …, timed out). Two things to check (diagnostic agent running): why the
+plan-restricted space of the new problem has alive states without an on-plan good successor although a
+spliced root-anchored plan was added, and whether the budget rather than expressivity now binds at 11 blocks.
