@@ -1286,3 +1286,24 @@ H31 first seeds: seed 2 95/95 in 116 s, seed 5 95/95 in 98 s; the lower-bound ab
 running seeds (bounds 1–7 proven after lazy iteration 1). Seeds 0/1/3/4 and blocks4ops flat running.
 H31 seeds 3 and 4: **95/95 in 246 s and 495 s** (both 95 under H29, 95/93 under H30). Four of four finished
 seeds at 95 within 9 min. Seeds 0 (best 83 at round 13) and 1 (best 28 at round 2) running.
+
+### H31 result (full loop, seeds 0–5, 4 h graceful) and the picture across H27–H31
+
+| seed | rec3 | H27 | H29 | H30 | H31 |
+|---|---|---|---|---|---|
+| 0 | 95 (157 s) | 93 | **95 (67 s)** | 91 | 83 (best at round 13; 34 fast rounds) |
+| 1 | 92 | 95 (3.6 h) | **95 (73 s)** | 91 | 34 (bad trajectory from round 2; 41 rounds) |
+| 2 | 95 (20 s) | 95 (47 s) | 90 | **95 (84 s)** | **95 (116 s)** |
+| 3 | 95 (126 s) | 40 | 95 (259 s) | **95 (77 s)** | **95 (246 s)** |
+| 4 | 36 | 95 (389 s) | **95 (117 s)** | 93 | **95 (495 s)** |
+| 5 | 30 | 95 (96 s) | 91 | **95 (44 s)** | **95 (98 s)** |
+
+H31 does what it was built for: the two failing seeds no longer burn hours in doomed rounds (34 and 41
+rounds, every solve under 5 s, 25–43 lower-bound aborts), they simply converge to patchworks of cost 13–16
+on a 7–8-problem training set after an unlucky early sample (seed 1's best is 34/95 from a cost-4 policy
+in round 2). blocks4ops flat: 41/95. Every seed reaches 95/95 under at least one of H29/H30/H31, and every
+remaining failure is an early-sample trajectory, not a budget or an expressivity limit any more. Since rounds
+are now seconds, the natural next step is in-loop diversity on stall rather than a bigger budget: H32 (in
+progress) resamples the training problems' example plans with a fresh planner seed when the best coverage
+has not improved for N rounds (the in-loop form of a seed portfolio), keeping the policy-conformant and
+prefix plans. rec5 = the twelve cross-domain suites under the H31 stack submitted.
