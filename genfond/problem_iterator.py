@@ -1,8 +1,9 @@
 import enum
 import logging
 import sys
-from typing import Any, Collection, Iterator, Mapping, MutableMapping, Optional
+from typing import Any, Collection, Iterator, Mapping, MutableMapping, Optional, Sequence
 
+from pddl.action import Action
 from pddl.core import Domain, Plan, Problem
 
 from .cost_utils import feature_cost
@@ -12,6 +13,19 @@ from .state_space_generator import State, plan_visited_states
 log = logging.getLogger("genfond.problem_iterator")
 
 MAX_COST = sys.maxsize
+
+
+def plan_from_actions(actions: Sequence[Action]) -> Plan:
+    """Turn a sequence of ground actions into a `Plan`, the representation every plan consumer
+    in this codebase uses (`siw_planner.to_pddl_plan`, `frontier._root_anchored_plan`,
+    `StateSpaceGraph.__init__`, which calls `Plan.instantiate(domain)` to get the actions back).
+
+    The caller is responsible for the plan being *root-anchored*: `StateSpaceGraph` always
+    replays a plan from `problem.init`, so a trajectory that does not start there is matched
+    against the wrong states. Policy executions always start at `problem.init`, so their
+    trajectories are root-anchored by construction.
+    """
+    return Plan([(action.name, list(action.parameters)) for action in actions])
 
 
 def plan_key(plan: Plan) -> tuple:
@@ -88,6 +102,17 @@ class ProblemIterator:
         # Problems for which a max_plans_per_problem cap has already been logged, so the log
         # line appears once per problem instead of once per round for the rest of the run.
         self._plan_cap_logged: set[str] = set()
+        # How many of `active_plans[name]` are policy-conformant plans (see
+        # `record_policy_plans`). They are stored at the *front* of the list and are exempt
+        # from both `max_plans_per_problem` and the `min_number_of_plans` floor, so both counts
+        # subtract this. Empty unless `policy_conformant_plans` is on, which makes both
+        # subtractions no-ops.
+        self.policy_plan_counts: dict[str, int] = dict()
+        # Whether policy-conformant plans were added since the last success. Such an addition
+        # changes the state space of problems already in the training set, which breaks the
+        # monotonicity argument `_add_next_problem` uses to carry `succ_complexity - 1` over as
+        # a refutation.
+        self.plans_added_since_success = False
         self.selected_states: dict[str, set[State]] = dict()
         self.new_states: dict[str, set[State]] = dict()
         self.dead_states: dict[str, set[State]] = dict()
@@ -147,7 +172,11 @@ class ProblemIterator:
         cap = self.config.get("max_plans_per_problem")
         if cap is None:
             return False
-        reached = len(self.active_plans.get(problem_name, [])) >= cap
+        # Policy-conformant plans do not count towards the cap: the cap exists to stop runaway
+        # *search* growth (INC_PLANS, frontier expansion), and a trajectory a working policy
+        # actually took is the most valuable plan there is -- capping those away is exactly
+        # what would reintroduce the infeasibility this mechanism removes.
+        reached = len(self.active_plans.get(problem_name, [])) - self.policy_plan_counts.get(problem_name, 0) >= cap
         if reached and problem_name not in self._plan_cap_logged:
             self._plan_cap_logged.add(problem_name)
             log.info(
@@ -172,6 +201,56 @@ class ProblemIterator:
             problem_name,
         )
         return False
+
+    def record_policy_plans(self, plans: Mapping[str, Plan]) -> tuple[int, int]:
+        """Take the trajectories a validated policy took on the problems it solved.
+
+        A policy that solves a problem demonstrates a trajectory through that problem's state
+        space; unless an example plan already covers it, the plan-restricted `StateSpaceGraph`
+        does not contain that trajectory, and the very policy that produced it is therefore
+        *infeasible* on the ASP instance of every later round. Recording it as an example plan
+        keeps it feasible, so the next round (which typically adds a failing problem to the
+        training set) can still select the policy that already solved everything else instead of
+        having to jump to a much more expensive patchwork.
+
+        Plans are keyed by problem name and recorded for *every* problem the policy solved, not
+        only the ones currently in the training set: a problem gets added to the training set
+        precisely when it is still unsolved, and the plans that matter for it are the ones its
+        already-solved neighbours contribute.
+
+        Placement and caps:
+
+        - Policy plans go in *front* of a problem's existing example plans and are counted in
+          `policy_plan_counts`, which `_plan_cap_reached` and the `min_number_of_plans` floor
+          both subtract. They are therefore never dropped by `max_plans_per_problem`, and never
+          suppress the planner's own plans either.
+        - They are deduped both against the plans the problem already has (`plan_key`) and by
+          the state coverage tracker (`_accept_plan`), so a trajectory that reaches no state the
+          existing plans do not already cover is discarded: it cannot change the state space.
+
+        Returns `(plans added, problems affected)`.
+        """
+        added = 0
+        problems_affected = 0
+        for problem_name, plan in plans.items():
+            if not plan.actions:
+                # The goal already held at `problem.init`; nothing to demonstrate.
+                continue
+            active = self.active_plans.setdefault(problem_name, [])
+            if plan_key(plan) in {plan_key(known) for known in active}:
+                continue
+            if not self._accept_plan(problem_name, plan):
+                continue
+            self.active_plans[problem_name] = [plan] + active
+            self.policy_plan_counts[problem_name] = self.policy_plan_counts.get(problem_name, 0) + 1
+            added += 1
+            problems_affected += 1
+        if added:
+            # The state space of the next round changed, so nothing is refuted any more -- the
+            # same reasoning as for INC_PLANS and frontier expansion.
+            self._invalidate_refutations()
+            self.plans_added_since_success = True
+        return added, problems_affected
 
     def record_frontier_expansion(
         self, plans: Mapping[str, list[Plan]], dead_states: Mapping[str, set[State]]
@@ -235,6 +314,9 @@ class ProblemIterator:
         if result == Result.SUCCESS:
             assert cost
             self.active_problems_solved = True
+            # `succ_complexity` is (re)established below over the state space this round was
+            # solved over; policy plans recorded after this point invalidate it again.
+            self.plans_added_since_success = False
             # Keeping this as a *preference* is sound either way: the next round is asked to
             # beat the cost we actually achieved, which is a real upper bound whether or not
             # it is the optimum. Only the refutation below depends on optimality. `max_cost`
@@ -316,18 +398,36 @@ class ProblemIterator:
             self.refuted_complexity = self.config["min_complexity"] - 1
         else:
             self.active_problems.append(next_problem)
-            # Adding an instance is monotone: a selection that solves the larger set also
-            # solves every subset, so "no solution below `succ_complexity`" carries over
-            # and the sweep resumes there instead of at `min_complexity`. That bound is
-            # unconditional -- it was established before the success tightened `max_cost`,
-            # which is reset here anyway.
-            self.refuted_complexity = self.succ_complexity - 1
+            if self.plans_added_since_success:
+                # Policy-conformant plans were added *after* the success that established
+                # `succ_complexity`, so that refutation was made over a smaller state space
+                # than the next round will be solved over. The monotonicity argument below
+                # only covers adding an instance, not enlarging an existing one's state
+                # space, so the bound does not survive -- same reasoning as
+                # `_invalidate_refutations`.
+                self.refuted_complexity = self.config["min_complexity"] - 1
+            else:
+                # Adding an instance is monotone: a selection that solves the larger set also
+                # solves every subset, so "no solution below `succ_complexity`" carries over
+                # and the sweep resumes there instead of at `min_complexity`. That bound is
+                # unconditional -- it was established before the success tightened `max_cost`,
+                # which is reset here anyway.
+                self.refuted_complexity = self.succ_complexity - 1
         if self.plan_iterators:
-            self.active_plans[next_problem.name] = []
+            # setdefault, not `= []`: a problem may already hold policy-conformant plans
+            # recorded while it was still outside the training set (`record_policy_plans`),
+            # and those are the whole point of the mechanism. Without any, this is `= []`.
+            self.active_plans.setdefault(next_problem.name, [])
             # min_number_of_plans is a deliberate floor, not runaway growth, so it is exempt
             # from max_plans_per_problem: the cap only stops *further* growth from INC_PLANS or
             # frontier expansion, via _plan_cap_reached there.
-            while len(self.active_plans[next_problem.name]) < self.config["min_number_of_plans"]:
+            # Policy-conformant plans are excluded from the floor too: they are not planner
+            # samples, and letting them suppress the planner's own diversity would defeat
+            # min_number_of_plans.
+            while (
+                len(self.active_plans[next_problem.name]) - self.policy_plan_counts.get(next_problem.name, 0)
+                < self.config["min_number_of_plans"]
+            ):
                 next_plan = next(self.plan_iterators[next_problem.name], None)
                 if next_plan is None:
                     break

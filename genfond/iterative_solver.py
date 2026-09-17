@@ -10,6 +10,7 @@ from collections.abc import Iterator
 from typing import Any, Callable, Collection, Mapping, MutableMapping, Optional, Sequence
 
 import tqdm
+from pddl.action import Action
 from pddl.core import Domain, Plan, Problem
 from tqdm.contrib.logging import logging_redirect_tqdm
 
@@ -23,7 +24,14 @@ from .frontier import FrontierState, collect_frontier_states, expand_frontier
 from .generate_policy import generate_policy
 from .lazy_pairs import DEFAULT_BATCH, solve_with_lazy_pairs
 from .policy import PolicyType
-from .problem_iterator import MAX_COST, OneShotProblemIterator, PlanStateCoverage, ProblemIterator, Result
+from .problem_iterator import (
+    MAX_COST,
+    OneShotProblemIterator,
+    PlanStateCoverage,
+    ProblemIterator,
+    Result,
+    plan_from_actions,
+)
 from .rule_policy import Policy
 from .shutdown import stop_requested
 from .solver import Solver, SolveStatus
@@ -379,6 +387,7 @@ def _test_policy_on_problems(
     show_progress: bool = False,
     wall_deadline: Optional[float] = None,
     outcomes: Optional[MutableMapping[str, bool]] = None,
+    trajectories: Optional[MutableMapping[str, Plan]] = None,
 ) -> list[Problem]:
     """Execute `policy` on problems in `problems`, `validation_iterations` times each (capped at
     `validation_time_limit` seconds per execution) -- the cheap, in-loop validation used both by
@@ -431,6 +440,13 @@ def _test_policy_on_problems(
     It lets a caller that must not record into the iterator yet (`solve_iteratively`'s per-
     candidate validation: the losing candidates' results must not count) replay the winner's
     results afterwards instead of re-running the whole test.
+
+    `trajectories`, when given, is filled with `problem name -> Plan` for exactly the problems
+    the policy *solved*, holding the action sequence the first solving execution took (the
+    policy-conformant plans of `policy_conformant_plans`; see
+    `ProblemIterator.record_policy_plans`). It is the only thing that asks `execute_policy` for
+    its trajectory: left at None, `execute_policy` is called exactly as it always was, with no
+    extra keyword -- which is also what keeps every existing `execute_policy` mock working.
     """
     iterations = config["validation_iterations"]
     time_limit = config.get("validation_time_limit")
@@ -456,12 +472,30 @@ def _test_policy_on_problems(
             log.info(f"Testing policy on {problem.name} {iterations} time(s) ...")
             plan_lengths = []
             solved = True
+            # The trajectory of the first execution of this problem. Execution is deterministic
+            # given the seed for a datalog policy, but `validation_iterations > 1` still runs it
+            # several times; the first one that got through is the one recorded.
+            first_trajectory: Optional[list[Action]] = None
             for _ in range(iterations):
                 stopped_by = _deadline_hit()
                 if stopped_by is not None:
                     break
                 try:
-                    plan_lengths.append(len(execute_policy(domain, problem, policy, config, time_limit=time_limit)))
+                    if trajectories is None:
+                        plan_lengths.append(
+                            len(execute_policy(domain, problem, policy, config, time_limit=time_limit))
+                        )
+                    else:
+                        taken: list[Action] = []
+                        plan_lengths.append(
+                            len(
+                                execute_policy(
+                                    domain, problem, policy, config, time_limit=time_limit, out_actions=taken
+                                )
+                            )
+                        )
+                        if first_trajectory is None:
+                            first_trajectory = taken
                 except NoActionError:
                     log.info(f"Policy does not solve {problem.name}, no action in reachable state")
                     solved = False
@@ -503,6 +537,10 @@ def _test_policy_on_problems(
                 )
                 solved_problems.append(problem)
                 consecutive_failures = 0
+                if trajectories is not None and first_trajectory:
+                    # An empty trajectory means the goal already held at `problem.init`; it is
+                    # useless as an example plan (siw_planner drops those too).
+                    trajectories[problem.name] = plan_from_actions(first_trajectory)
             else:
                 consecutive_failures += 1
                 if max_consecutive_failures is not None and consecutive_failures >= max_consecutive_failures:
@@ -829,6 +867,16 @@ def solve_iteratively(
     # Only meaningful once there are extra plans to dedupe (INC_PLANS / frontier expansion);
     # without use_example_plans the iterator never calls plan_coverage.add() at all.
     plan_coverage = PlanStateCoverage(domain, problems_by_name) if config["use_example_plans"] else None
+    # Policy-conformant example plans (H27): whenever a candidate policy is validated and solves
+    # a problem, the trajectory it took is recorded as an example plan for that problem, so the
+    # plan-restricted state space of every later round contains it and the policy that produced
+    # it stays feasible on the ASP instance. Only meaningful with `use_example_plans` -- without
+    # it `StateSpaceGraph` is not plan-restricted in the first place, so no trajectory can ever
+    # be missing from it. That gate is also what keeps the default `true` harmless for the
+    # rule-based state/trans/d2l types, none of which use example plans.
+    policy_conformant_plans = bool(config.get("policy_conformant_plans", False)) and bool(config["use_example_plans"])
+    if policy_conformant_plans:
+        log.info("Policy-conformant example plans are enabled")
     problem_iterator: ProblemIterator | OneShotProblemIterator
     if one_shot:
         problem_iterator = OneShotProblemIterator(problems, config, plans=example_plans, plan_coverage=plan_coverage)
@@ -842,10 +890,14 @@ def solve_iteratively(
     # default `optimal_model_limit: 1` there is only ever one candidate, `solve_step` never calls
     # the validator at all, and this list stays empty -- the round then takes the same testing
     # path it always did.
-    candidate_results: list[tuple[Policy | DatalogPolicy, list[Problem], dict[str, bool]]] = []
+    # The fourth element is the candidate's policy-conformant trajectories (empty when the
+    # mechanism is off); only the *winning* candidate's are recorded as example plans, so a
+    # losing sibling never grows the state space -- same rule as for `outcomes`.
+    candidate_results: list[tuple[Policy | DatalogPolicy, list[Problem], dict[str, bool], dict[str, Plan]]] = []
 
     def _validate_candidate(candidate: Policy | DatalogPolicy) -> list[Problem]:
         outcomes: dict[str, bool] = dict()
+        candidate_trajectories: dict[str, Plan] = dict()
         candidate_solved = _test_policy_on_problems(
             domain,
             problems,
@@ -858,8 +910,9 @@ def solve_iteratively(
             show_progress=True,
             wall_deadline=wall_deadline,
             outcomes=outcomes,
+            trajectories=candidate_trajectories if policy_conformant_plans else None,
         )
-        candidate_results.append((candidate, candidate_solved, outcomes))
+        candidate_results.append((candidate, candidate_solved, outcomes, candidate_trajectories))
         return candidate_solved
 
     for iter_kwargs in problem_iterator:
@@ -929,9 +982,12 @@ def solve_iteratively(
         # `_validate_candidate` deliberately left alone while the candidates were still
         # competing. With `optimal_model_limit: 1` there are no candidates and the round takes
         # the `else` branch, exactly as before.
-        cached = next(((solved_c, out) for cand, solved_c, out in candidate_results if cand is policy), None)
+        round_trajectories: dict[str, Plan] = dict()
+        cached = next(
+            ((solved_c, out, traj) for cand, solved_c, out, traj in candidate_results if cand is policy), None
+        )
         if cached is not None:
-            round_solved, cached_outcomes = cached
+            round_solved, cached_outcomes, round_trajectories = cached
             for name, was_solved in cached_outcomes.items():
                 problem_iterator.set_solved(problems_by_name[name], was_solved)
         else:
@@ -956,7 +1012,17 @@ def solve_iteratively(
                 stats=stats,
                 show_progress=True,
                 wall_deadline=wall_deadline,
+                trajectories=round_trajectories if policy_conformant_plans else None,
             )
+        if policy_conformant_plans and round_trajectories:
+            # Record before the wall-deadline check below: the plans are a by-product of work
+            # already done, and adding them costs nothing even if the run ends here. They do not
+            # trigger a round of their own -- they are simply part of the next round's state
+            # space, and `record_policy_plans` invalidates the refuted complexity levels the
+            # same way INC_PLANS and frontier expansion do.
+            added, problems_affected = problem_iterator.record_policy_plans(round_trajectories)
+            stats["policyPlansAdded"] = int(stats.get("policyPlansAdded", 0)) + added
+            log.info("Added %d policy-conformant plan(s) for %d problem(s)", added, problems_affected)
         if stats.get("validationStoppedBy") is not None:
             # In-loop validation itself hit the wall-clock deadline or a pending stop signal
             # mid-test (see _test_policy_on_problems's wall_deadline handling) -- a single

@@ -161,8 +161,22 @@ def get_next_state(states: Collection[State], _) -> State:
 
 
 def execute_rule_policy(
-    domain: Domain, problem: Problem, policy: Policy, config: dict, time_limit: Optional[float] = None
+    domain: Domain,
+    problem: Problem,
+    policy: Policy,
+    config: dict,
+    time_limit: Optional[float] = None,
+    out_actions: Optional[list[Action]] = None,
 ) -> list[str]:
+    """Run `policy` from `problem.init` and return the action strings it applied.
+
+    `out_actions`, when given, is additionally filled with the *ground actions* themselves, in
+    the order they were applied -- the same trajectory the returned strings describe, but in a
+    form a `pddl.core.Plan` can be rebuilt from (see `problem_iterator.plan_from_actions`).
+    Existing callers pass nothing and are unaffected. The list is appended to as execution
+    proceeds, so on a failure it holds the prefix taken before the failure; only a call that
+    returns normally has a trajectory that actually reaches the goal.
+    """
     log.info(
         f"Executing policy:\n{policy}\nin {domain.name} for problem {problem.name} with features {policy.features}"
     )
@@ -276,6 +290,8 @@ def execute_rule_policy(
                     state = new_state
                     num_steps += 1
                     actions_taken.append(action_string(action))
+                    if out_actions is not None:
+                        out_actions.append(action)
                     break
             if found_rule:
                 break

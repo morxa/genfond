@@ -87,6 +87,27 @@ min_number_of_plans: 5
 # is a deliberate floor, not runaway growth, so it is exempt; a problem may start out above the
 # cap if min_number_of_plans is set higher than it.
 max_plans_per_problem: null
+# Record, as an example plan, the trajectory a validated policy actually took on every problem
+# it solved ("policy-conformant plans"). Only has an effect together with use_example_plans,
+# which is what restricts StateSpaceGraph to the sampled plans in the first place; for the
+# rule-based state/trans/d2l types (use_example_plans: false) this is inert, which is why it can
+# default to true here rather than only in the datalog configs.
+#
+# Why: a round's policy P may solve almost every problem when *executed*, yet a policy P* that
+# also solves the next added problem is infeasible on the ASP instance, because the sampled SIW
+# plans do not contain the trajectory P* takes -- the plan-restricted state space simply lacks
+# those transitions. The minimum feature cost then jumps and the run drifts into patchwork
+# policies, with the outcome decided by which seed happened to sample a conformant plan.
+# Recording P's own trajectories removes that dependence on the sample.
+#
+# The trajectory is a free by-product of the in-loop validation that already runs, so this costs
+# no extra execution; it does grow the state space, deduped against the existing plans both by
+# plan identity and by state coverage (PlanStateCoverage). Policy plans are stored in front of a
+# problem's other example plans and are exempt from max_plans_per_problem and from the
+# min_number_of_plans floor -- a trajectory a working policy took is the most valuable plan
+# there is, and capping it away is exactly what would reintroduce the infeasibility above.
+# Set to false to switch the mechanism off entirely.
+policy_conformant_plans: true
 planner: siw
 planners:
   topk_planner:

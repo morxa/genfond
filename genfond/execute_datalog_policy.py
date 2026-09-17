@@ -78,7 +78,17 @@ def execute_datalog_policy(
     datalog_policy: DatalogPolicy,
     config: ConfigHandler,
     time_limit: Optional[float] = None,
+    out_actions: Optional[list[Action]] = None,
 ) -> list[str]:
+    """Run `datalog_policy` from `problem.init` and return the action strings it applied.
+
+    `out_actions`, when given, is additionally filled with the *ground actions* themselves, in
+    the order they were applied -- the same trajectory the returned strings describe, but in a
+    form a `pddl.core.Plan` can be rebuilt from (see `problem_iterator.plan_from_actions`).
+    Existing callers pass nothing and are unaffected. The list is appended to as execution
+    proceeds, so on a failure it holds the prefix taken before the failure; only a call that
+    returns normally has a trajectory that actually reaches the goal.
+    """
     log.info(f"Executing policy:\n{datalog_policy}\nin {domain.name} for problem {problem.name}")
     # See execute_rule_policy.execute_rule_policy for why this is a per-step monotonic-clock
     # check rather than a signal-based interrupt or a policy_steps substitute.
@@ -279,6 +289,8 @@ def execute_datalog_policy(
             state = new_state
             num_steps += 1
             actions_taken.append(action_string(action))
+            if out_actions is not None:
+                out_actions.append(action)
             break
 
         if not found_rule:
