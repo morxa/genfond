@@ -1141,3 +1141,9 @@ H27 workstation miconic (25): 24/25 at the 55 min budget.
 deterministic tree as default. Full map in `docs/benchmarks.md`. Result directories and the hyp/* branches on
 the cluster still use the old paths; the mapping is: deterministic-new/X → deterministic/X (delivery, grid,
 logistics, reward, spanner), blocks3ops-heldout → blocks3ops/test, d2l/blocks3ops → blocks-atomic.
+
+**blocks4ops, flat 95-problem set (2–20 blocks, arbitrary goals; the 113-set adds `old/`):** rec3 setting
+36/95 at the 3.6 h limit (best 35 at round 32) versus 78/95 in 55 min with H27 on the workstation; the
+H27 cluster arm is running. So the 113/113 figures above rest on the extra 18 instances steering the
+trajectory; on the generated set alone blocks4ops behaves like blocks3ops before the fixes and H27 is what
+moves it. H28 seed 5: 95/95 under both arms (restarts 2: 318 s, limit 6: 423 s; H27 alone 96 s).
