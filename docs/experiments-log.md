@@ -940,7 +940,7 @@ smaller offsets, each on the 12-problem `deterministic-new/visitall` suite (40 m
 | r2c1 (current) | 8/36 in the 12 h run | 30/30 → 95/95 (2 of 3 seeds) | yes |
 | r1c1 | 7/12, 36 min | 30/30 → **95/95** | 7 |
 | **r0c1** | **12/12 in 2.4 s** | 30/30 → **95/95** | 8 |
-| r2c0 | running | running | |
+| r2c0 | 8/12 at the 35 min budget | 26/30 at the 30 min budget → 26/95 | no |
 
 Reading: the concept offset (1) is what makes `c_equal_closure` affordable early; the role offset buys
 nothing on blocks3ops at this suite size and costs visitall its complexity-6 role. r0c1 is the new
