@@ -5,6 +5,7 @@ import resource
 import statistics
 import sys
 import time
+import uuid
 from collections.abc import Iterator
 from typing import Any, Callable, Collection, Mapping, MutableMapping, Optional, Sequence
 
@@ -12,6 +13,7 @@ import tqdm
 from pddl.core import Domain, Plan, Problem
 from tqdm.contrib.logging import logging_redirect_tqdm
 
+from .checkpoint import PROVISIONAL_COLUMN, append_stats_row, checkpoint_best_policy
 from .cost_utils import feature_cost
 from .datalog_policy import DatalogPolicy
 from .execute_datalog_policy import CycleError, ExecutionTimeout, NoActionError
@@ -725,12 +727,46 @@ def _final_cost_minimization_pass(
     return best_policy, best_solved
 
 
+def _write_provisional_stats_row(config: Mapping, stats: Mapping[str, Any]) -> None:
+    """Append a provisional row for the in-progress run, tagged with `stats["runId"]`.
+
+    Called the moment `solve_iteratively`'s round loop notices a graceful stop (SIGTERM/SIGINT,
+    or an exhausted `--max-wall-time` budget) -- well before the run would otherwise finish -- so
+    a hard kill that follows (SLURM's SIGKILL after the SIGTERM warning) still leaves a row
+    behind. `__main__.py` deletes this row (`checkpoint.remove_provisional_row`, matched by
+    `runId`) right before it appends the real final row for the same run, so a run that does
+    finish never leaves a duplicate. See `genfond/checkpoint.py` for what this can and cannot
+    protect against, and `checkpoint_best_policy` (used at the two coverage-improvement call
+    sites below) for the accompanying policy checkpoint.
+    """
+    if not config.get("checkpoint_best_policy", True):
+        return
+    stats_path = config.get("stats")
+    if not stats_path:
+        return
+    row = dict(stats)
+    row[PROVISIONAL_COLUMN] = 1
+    append_stats_row(stats_path, row, create_if_missing=False)
+    log.info(f"Wrote provisional stats row (runId {stats.get('runId')}) to {stats_path}")
+
+
 def solve_iteratively(
-    domain: Domain, problems: list[Problem], config: Mapping, one_shot: bool = False
+    domain: Domain,
+    problems: list[Problem],
+    config: Mapping,
+    one_shot: bool = False,
+    extra_stats: Optional[Mapping[str, Any]] = None,
 ) -> tuple[Optional[Policy | DatalogPolicy], list[Problem], dict[str, str | int | float]]:
     policy = None
     problems.sort(key=lambda p: len(p.objects))
     stats: dict[str, str | int | float] = dict()
+    # A per-run id (not just informational): `_write_provisional_stats_row` and
+    # `checkpoint.remove_provisional_row` use it to tag/find this run's provisional row across
+    # the stats CSV's other rows -- including other runs' own provisional/final rows, which may
+    # be appended concurrently by a parallel SLURM array job sharing the same --stats path.
+    stats["runId"] = uuid.uuid4().hex
+    if extra_stats:
+        stats.update(extra_stats)
     # `keep_best_policy` (default True) tracks the best policy seen across the whole run -- by
     # (problems solved on the full `problems` list, then lower feature cost) -- instead of just
     # returning whichever policy the loop happens to end on. A policy learned early from a small
@@ -844,6 +880,7 @@ def solve_iteratively(
             )
             stats["stoppedBy"] = "wall_time"
             stats["wallBudgetUsed"] = time.perf_counter() - wall_time_start
+            _write_provisional_stats_row(config, stats)
             break
         if stop_requested():
             # SIGINT/SIGTERM (see genfond.shutdown); a round already in flight was already cut
@@ -851,6 +888,7 @@ def solve_iteratively(
             log.warning("Stop requested; stopping without starting another round")
             stats["stoppedBy"] = "signal"
             stats["wallBudgetUsed"] = time.perf_counter() - wall_time_start
+            _write_provisional_stats_row(config, stats)
             break
         result, new_policy, frontier_states = solve_step(
             **iter_kwargs,
@@ -934,6 +972,7 @@ def solve_iteratively(
             )
             stats["stoppedBy"] = stats.pop("validationStoppedBy")
             stats["wallBudgetUsed"] = time.perf_counter() - wall_time_start
+            _write_provisional_stats_row(config, stats)
             break
         solved = len(round_solved) == len(problems)
         if keep_best_policy:
@@ -948,7 +987,16 @@ def solve_iteratively(
                 assert best_cost is not None
                 is_new_best = (len(round_solved), -round_cost) > (len(best_solved), -best_cost)
             if is_new_best:
+                # Only a strict increase in coverage over the *previous* best is checkpointed
+                # here -- a tie broken purely by feature cost does not change what "the best
+                # policy so far" solves, so re-pickling it would not change what a kill loses.
+                improved_coverage = best_policy is None or len(round_solved) > len(best_solved)
                 best_policy, best_solved, best_cost, best_round = policy, round_solved, round_cost, round_num
+                stats["bestSolved"] = len(best_solved)
+                stats["bestCost"] = best_cost
+                stats["bestRound"] = best_round
+                if improved_coverage:
+                    checkpoint_best_policy(best_policy, len(best_solved), len(problems), config)
             log.info(
                 "Policy solves %d/%d (best so far %d/%d from round %s)",
                 len(round_solved),
@@ -1005,7 +1053,10 @@ def solve_iteratively(
             assert best_cost is not None
             is_new_best = (len(solved_problems), -final_cost) > (len(best_solved), -best_cost)
         if is_new_best:
+            improved_coverage = best_policy is None or len(solved_problems) > len(best_solved)
             best_policy, best_solved, best_cost, best_round = policy, solved_problems, final_cost, "final_pass"
+            if improved_coverage:
+                checkpoint_best_policy(best_policy, len(best_solved), len(problems), config)
         assert best_policy is not None and best_cost is not None and best_round is not None
         stats["lastSolved"] = len(solved_problems)
         stats["bestSolved"] = len(best_solved)

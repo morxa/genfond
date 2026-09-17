@@ -365,6 +365,22 @@ final_pass_max_pool: null
 # returned without this). false restores the old behaviour: always return the last policy, and
 # the in-loop test stops at the first problem it cannot solve again.
 keep_best_policy: true
+# Output policy path (mirrors --output/-o) and stats CSV path (mirrors --stats), duplicated into
+# the config (rather than read straight off the CLI args) so genfond/checkpoint.py can see them
+# from inside solve_iteratively -- see the config-layering gotcha in AGENTS.md: a bare CLI flag
+# has no effect on config unless a default already exists here for ConfigHandler to merge onto.
+# null unless set via --output/--stats (the common case) or a --config file.
+output: null
+stats: null
+# Checkpoint progress immediately instead of only at the very end of the run, so a hard kill
+# (e.g. SLURM's SIGKILL following the graceful SIGTERM warning) cannot lose it: the best-coverage
+# policy (see keep_best_policy) is pickled to `output` atomically every time it improves, and a
+# provisional row is appended to `stats` the moment a graceful stop is noticed, deleted again
+# right before the final row for the same run is appended. See genfond/checkpoint.py for exactly
+# what this can and cannot protect against (grounding itself is one blocking call with no poll
+# point). true (default) is a pure safety net: it changes what survives a kill, never what a run
+# that completes normally returns or writes.
+checkpoint_best_policy: true
 unselect_problems: false
 visualize_state_graphs: false
 unrestricted_feature_generator:

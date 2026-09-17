@@ -1,8 +1,6 @@
 import argparse
-import csv
 import logging
 import os
-import pickle
 import random
 import resource
 import signal
@@ -11,13 +9,13 @@ import time
 
 import pddl
 import tqdm
-from filelock import FileLock
 from tqdm.contrib.logging import logging_redirect_tqdm
 
 from genfond.config_handler import DEFAULT_TYPE_CONFIGS, ConfigHandler
 from genfond.cost_utils import feature_cost
 from genfond.execute_policy import execute_policy
 
+from .checkpoint import append_stats_row, atomic_pickle_dump, remove_provisional_row
 from .iterative_solver import pnames, solve_iteratively
 from .shutdown import request_stop, stop_requested
 
@@ -258,11 +256,10 @@ def main():
         "domain": name,
         "constraintType": args.type,
     }
-    policy, succs, solve_stats = solve_iteratively(domain, problems, config, one_shot=args.one_shot)
+    policy, succs, solve_stats = solve_iteratively(domain, problems, config, one_shot=args.one_shot, extra_stats=stats)
     stats.update(solve_stats)
     if args.output:
-        with open(args.output, "wb") as f:
-            pickle.dump(policy, f)
+        atomic_pickle_dump(policy, args.output)
     log.info("Verifying policy ...")
     with logging_redirect_tqdm():
         for problem in tqdm.tqdm([p for p in problems if p not in succs], disable=None):
@@ -279,8 +276,7 @@ def main():
     )
     log.info("Final policy: {}".format(policy))
     if args.output:
-        with open(args.output, "wb") as f:
-            pickle.dump(policy, f)
+        atomic_pickle_dump(policy, args.output)
     total_wall_time = time.perf_counter() - total_wall_time_start
     total_cpu_time = time.process_time() - total_cpu_time_start
     mem_usage = (resource.getrusage(resource.RUSAGE_SELF).ru_maxrss) / 1024
@@ -319,23 +315,14 @@ def main():
     log.info("Total CPU time: {:.2f}s".format(total_cpu_time))
     log.info("Total memory usage: {:.2f}MB".format(mem_usage))
     if args.stats:
-        lock = FileLock(args.stats + ".lock")
-        with lock:
-            # The key set differs between runs (e.g. failureReason only exists on failure), so
-            # rows appended to an existing file must follow its header or the columns shift.
-            fieldnames: list[str] = list(stats.keys())
-            file_exists = os.path.isfile(args.stats)
-            if file_exists:
-                with open(args.stats) as f:
-                    fieldnames = next(csv.reader(f))
-                dropped = set(stats) - set(fieldnames)
-                if dropped:
-                    log.warning(f"Stats keys not in the header of {args.stats}, dropped: {sorted(dropped)}")
-            with open(args.stats, "a") as f:
-                writer = csv.DictWriter(f, fieldnames=fieldnames, restval="", extrasaction="ignore")
-                if not file_exists:
-                    writer.writeheader()
-                writer.writerow(stats)
+        # This run reached a normal end (whether or not every problem was solved), so it is no
+        # longer "in progress": drop the provisional row `_write_provisional_stats_row`
+        # (iterative_solver.py) may have appended when a graceful stop was noticed mid-run,
+        # before appending the real row below -- otherwise a run that stopped early via SIGTERM
+        # but still made it here would leave both.
+        stats["provisional"] = 0
+        remove_provisional_row(args.stats, str(stats["runId"]))
+        append_stats_row(args.stats, stats)
     if len(succs) == len(problems):
         sys.exit(0)
     else:
