@@ -1257,3 +1257,28 @@ neither UNSAT nor UNKNOWN. Also: frontier-expansion plans are silently dropped o
 is hit. H31 (in progress): (1) stop the lazy loop as soon as a proven-optimal relaxation has a non-zero
 frontier count and return it; (2) widen the anchor fallback to that case; (3) a round-level solve budget with
 warm-started bounds so timed-out iterations cannot regress; (4) log/skip capped frontier plans.
+
+### H30 result (full loop, seeds 0–5, 4 h graceful) and H31 launch
+
+| seed | H29 | H30 (+ prefix plans) |
+|---|---|---|
+| 0 | 95 in 67 s | 91 (best 91 at round 15; stalled on 010-5 as diagnosed) |
+| 1 | 95 in 73 s | 91 (stalled on 011-5) |
+| 2 | 90 | **95 in 84 s** |
+| 3 | 95 in 259 s | **95 in 77 s** |
+| 4 | 95 in 117 s | 93 (best 91 at round 11) |
+| 5 | 91 | **95 in 44 s** |
+
+H30 fixes the two H29 stragglers and breaks three seeds H29 had: the prefix plan makes the 10–11-block
+problem's instance large enough that complexity 4–5 provably needs frontier transitions and the round budget
+is burnt before complexity 6 (the diagnosis above). blocks4ops flat under H30: 41/95. Union over H29/H30:
+every seed reaches 95 under one of the two, none of the failures is an expressivity limit.
+
+H31 (`hyp/frontier-bound`, 19e2452, on `hyp/prefix-plans`; 309 tests): the lazy-pairs loop stops as soon as
+a proven-optimal iteration has a non-zero frontier count (a valid lower bound at every iteration, since each
+grounded program is a relaxation of the full round) and returns FRONTIER; the anchor fallback also triggers
+on that proof; `lazy_pairs_warm_start` passes the previous incumbent as clingo's initial bound (a search
+heuristic, dropped on UNSAT — a grounded bound would be unsound because added pairs raise the optimum);
+optional `round_time_limit`; capped frontier plans are logged and their planner calls skipped
+(`frontierPlansDropped`). Launched: full loop seeds 0–5 (`fb-s*`, cluster worktree `fbound`, H30 setting +
+H31 defaults) and blocks4ops flat (`fb-b4flat`).
