@@ -1043,3 +1043,5 @@ b531de1 with `claude-experiments/rec3.yaml` (the new setting) for the next batch
 rec3 grid (26): 1/26, stopped by max complexity after 2.9 h on two 11-object training problems (every
 solve at complexity ≥ 9 hits the 300 s budget, 81 GB); rec2 grid was killed at 4 h with no policy. grid is
 grounding-bound like the pre-fix blocks3ops and needs a different idea, not a budget.
+rec3 logistics_dp (47): **18/47 in 3.3 h** (rec 17 at 12 h, rec2 9 at the 3.75 h limit; the final round
+combined a 15/47 keep-best with the last policy).
