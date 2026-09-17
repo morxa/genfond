@@ -1072,3 +1072,5 @@ suites on the workstation (`results-ab/pp-reg.summary`).
 rec3 logistics (47): **15/47** (rec 9, rec2 9).
 H27 first numbers: full loop pp-s2 95/95 in 47 s (81 policy plans recorded), pp-s5 95/95 in 96 s; regression
 suites unchanged (1–3 policy plans each); blocks-new (12) 12/12 in 43 s.
+rec4 = the twelve rec2/rec3 domains under H27 + the rec3 setting (cluster worktree `policyplans`, standard
+partition, 4 h graceful) submitted for the three-way comparison rec2 / rec3 / rec4.
