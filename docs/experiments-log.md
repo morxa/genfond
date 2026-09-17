@@ -1032,3 +1032,11 @@ because the deadline is only checked between phases and a grounding at complexit
 instances outlasts the reserve. When that happens the keep-best policy and the stats row are lost (reward's
 16/35, spanner's 130/162 exist only in the log). Fix in progress (H26): write the best policy to the output
 path whenever it improves, and write the stats row at the graceful request, not only at exit.
+
+## H26: checkpoint the best policy and the stats row (`hyp/checkpoint-best`, b531de1, merged into `hyp/combo`; 249 tests)
+
+`genfond/checkpoint.py`: whenever the best coverage improves the policy is pickled atomically to the output
+path; on a graceful-stop request a provisional stats row (keyed by a per-run id) is appended and replaced by
+the final row at exit. `checkpoint_best_policy: true` by default. A kill that lands inside `clingo.ground()`
+still loses the stats row, but never the best policy any more. Cluster worktree `combo9` = `hyp/combo` @
+b531de1 with `claude-experiments/rec3.yaml` (the new setting) for the next batches.
