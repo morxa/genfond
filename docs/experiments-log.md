@@ -1090,23 +1090,45 @@ rec4 = rec3 + H27 policy-conformant plans (running).
 
 | domain (problems) | rec (12 h) | rec2 | rec3 | rec4 |
 |---|---|---|---|---|
-| blocks3ops (95), full loop | 95 in 19 min (2 of 5 runs) | – | 95 in 20 s–6 min (seeds 0,2,3), 92 (seed 1) | 95 (seeds 2,4,5 so far) |
+| blocks3ops (95), full loop, seeds 0–5 | 95 in 19 min (2 of 5 runs) | – | 95, 92, 95, 95, 36, 30 | 93, 95, 95, 40, 95, 95 |
 | blocks4ops (113) | 106 | 108 | **113** in 3.8 min | **113** in 3.9 min |
 | blocks (35) | 29 | 27 | **35** in 23 s | **35** in 85 s |
 | visitall (500) | 500 in 3 h | – | **500** in 10.5 min | |
 | visitall (12/36) | 8 | – | 12 in 2.5 s | |
-| delivery (225) | 139 | 140 | **171** | |
-| miconic (25) | 18 | **19** | 14 | |
-| logistics (47) | 9 | 9 | **15** | |
-| logistics_dp (47) | 17 (12 h) | 9 | **18** | |
-| reward (35) | 5 | 16 (log only) | 15 (log only) | |
-| spanner (162) | killed | 130 (log only) | 137 (log only) | |
-| barman (30) | killed | 0 | 0 | |
-| grid (26) | killed | killed | 1 (max complexity) | |
-| storage, sokoban | killed | killed | killed | |
+| delivery (225) | 139 | 140 | **171** | 162 |
+| miconic (25) | 18 | 19 | 14 | **21** |
+| logistics (47) | 9 | 9 | 15 | **19** |
+| logistics_dp (47) | 17 (12 h) | 9 | 18 | **23** |
+| reward (35) | 5 | 16 (log only) | 15 (log only) | **20** (checkpointed) |
+| spanner (162) | killed | 130 (log only) | 137 (log only) | 129 (checkpointed) |
+| barman (30) | killed | 0 | 0 | 0 |
+| grid (26) | killed | killed | 1 (max complexity) | 1 |
+| storage (30) | killed | killed | killed | 3 (checkpointed) |
+| sokoban | killed | killed | killed | killed (no SIW plan) |
 H27 workstation regressions: visitall-12 12/12 in 1.4 s, visitall-500 500/500 in 10 min (2 policy plans),
 blocks4ops on the flat 95-problem directory (not the 113-problem cluster suite, which includes `old/`):
 78/95 at the 55 min budget (best single policy 43/95 at round 13, final combination 78) — a different, harder
 problem set than the cluster's, so not comparable with the 113/113 above; worth a cluster run of that set.
 Housekeeping: seven stale local waiter loops from 2026-09-14/15 were still alive because their `pgrep -f`
 pattern matched the waiting shell itself; killed.
+
+### H27 result (full loop, seeds 0–5, 4 h graceful)
+
+| seed | rec3 setting | + H27 policy plans |
+|---|---|---|
+| 0 | 95 in 157 s | best 91 at round 13, final combination 93 |
+| 1 | best 91, final 92 | best 89 at round 13, final combination **95** at 3.6 h |
+| 2 | 95 in 20 s | 95 in 47 s |
+| 3 | 95 in 126 s | 40 (best 40 at round 47) |
+| 4 | 36 | 95 in 389 s |
+| 5 | 30 | 95 in 96 s |
+
+Policy plans lift the tail (two seeds from 30–36 to 95, seed 1 to 95) but do not remove the dependence on
+the early plan sample: seed 3 never sees a general candidate and seed 0 loses one round to a sibling. Mean
+80.5 → 85.5 of 95; 3 → 4 seeds at 95. Cross-domain (rec4 column above): miconic 21/25 (best of all
+settings), logistics 19 and logistics_dp 23 (best), reward 20/35 and storage 3/30 checkpointed for the first
+time, delivery 162 (rec3 171), spanner 129 (rec3 137). H26 checkpointing worked: every rec4 job left a
+policy file, including the four killed at 4 h.
+Running (H28, diversity for the plateau seeds 3–5 under H27): `planners.siw.restarts: 2` (`pp-r2-s*`) and
+`optimal_model_limit: 6` (`pp-L6-s*`); the flat 95-problem blocks4ops set under rec3 and H27.
+H27 workstation miconic (25): 24/25 at the 55 min budget.
