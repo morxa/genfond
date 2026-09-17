@@ -1307,3 +1307,5 @@ are now seconds, the natural next step is in-loop diversity on stall rather than
 progress) resamples the training problems' example plans with a fresh planner seed when the best coverage
 has not improved for N rounds (the in-loop form of a seed portfolio), keeping the policy-conformant and
 prefix plans. rec5 = the twelve cross-domain suites under the H31 stack submitted.
+rec5 (H31 stack) first results: blocks4ops **113/113 in 82 s** (rec3 3.8 min, rec4 3.9 min), blocks 35/35 in
+64 s. Ten rec5 jobs running.
