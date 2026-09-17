@@ -1069,3 +1069,6 @@ add-a-problem branch reset the problem's plan list, which would have discarded a
 problem joined the training set (now `setdefault`). A/B launched: full 95-problem loop, seeds 0–5 (`pp-s*`,
 cluster worktree `policyplans`, 4 h graceful) against the r0c1-L3 arms; regression and cross-domain quick
 suites on the workstation (`results-ab/pp-reg.summary`).
+rec3 logistics (47): **15/47** (rec 9, rec2 9).
+H27 first numbers: full loop pp-s2 95/95 in 47 s (81 policy plans recorded), pp-s5 95/95 in 96 s; regression
+suites unchanged (1–3 policy plans each); blocks-new (12) 12/12 in 43 s.
