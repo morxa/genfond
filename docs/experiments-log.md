@@ -1208,3 +1208,13 @@ frontier rounds later the loop is at complexity 5 with patchwork costs. The miss
 the problem at the last state before the failure (cycle or no applicable rule) and asks SIW for the rest,
 splicing the two into a root-anchored example plan ("policy-prefix plans", reusing `frontier.py`), so a small
 modification of P is feasible on the enlarged instance.
+
+## H30: policy-prefix example plans (`hyp/prefix-plans`, 975deab, on `hyp/anchor-labels`; 289 tests)
+
+`policy_prefix_plans: true` (default, inert without example plans): when a problem is added to the training
+set and a best policy exists, the policy is executed on it, the trajectory is cut at the first repeated state
+(or at the failure), the problem is re-rooted there and SIW plans the rest (`prefix_plan_count: 2`, backoff
+dropping 1/2/4 trailing actions when the full prefix has no plan, `prefix_plan_max_length: 200`); the spliced
+root-anchored plans join the problem's example plans in front, exempt from the caps, and the refutation is
+dropped. Launched: full loop seeds 0–5 (`px-s*`, cluster worktree `prefix`, = H29 setting + H30) and the flat
+blocks4ops set (`px-b4flat`).
