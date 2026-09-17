@@ -957,3 +957,14 @@ candidate default (one seed so far; seeds 1–2 and the rec2 domains still to co
 Enumeration turned seed 0's fork trajectory (30/95 after 24 min) into a 10 s run at 91/95, without the
 closure concept; the coverage-based tie-break chooses a sibling model twice. Not yet the 95/95 policy for
 that seed. Cluster: full 95-problem loop with limit 3 for seeds 1 and 2 running (`L3-s1`, `L3-s2`, 4 h).
+
+**Sokoban diagnosed** (desk-03, 12 min verbose run on the first problem): SIW finds no plan for
+p032-microban-sequential, so the round has no example plans and `StateSpaceGraph` falls back to the
+unrestricted expansion of an 8-object sokoban instance; the feature-pool stage never returns and the graceful
+stop cannot interrupt it. Same stage in rec2. Candidate H25 (not started): when the planner yields no plan for
+a problem, defer it instead of expanding unrestrictedly, and/or put a state budget on the expansion.
+
+**H24, seeds 1–2:** r0c1 keeps visitall at 12/12 in 2.5 s for all seeds, but on blocks3ops ≤7 seeds 1 and 2
+give 77/95 and 71/95 without the closure concept (seed 0: 95/95). r2c0 loses visitall (8/12 at the 35 min
+budget). So the role offset is what costs visitall, and without it blocks3ops depends on the equal-cost
+tie-break — exactly H22's target. Running: r0c1 + `optimal_model_limit: 3`, seeds 0–2, ≤7 → 95.
