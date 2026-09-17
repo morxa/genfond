@@ -1147,3 +1147,7 @@ logistics, reward, spanner), blocks3ops-heldout → blocks3ops/test, d2l/blocks3
 H27 cluster arm is running. So the 113/113 figures above rest on the extra 18 instances steering the
 trajectory; on the generated set alone blocks4ops behaves like blocks3ops before the fixes and H27 is what
 moves it. H28 seed 5: 95/95 under both arms (restarts 2: 318 s, limit 6: 423 s; H27 alone 96 s).
+blocks4ops flat, H27 cluster arm (3.6 h): best single policy 48/95 at round 16, final combination **63/95**
+(rec3 36; workstation H27 run 78 at 55 min — a different trajectory, same picture). blocks4ops with arbitrary
+goals is not solved by the current loop; its general policy needs the same kind of goal-relative concepts as
+blocks3ops but the loop does not find it on either set. Open, next candidate after H28.
