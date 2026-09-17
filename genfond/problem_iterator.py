@@ -20,6 +20,13 @@ log = logging.getLogger("genfond.problem_iterator")
 
 MAX_COST = sys.maxsize
 
+# How many plans beyond the number actually wanted `resample_planner_plans` may pull from a
+# problem's plan stream before giving up on finding new ones. Pulling a plan runs real search, so
+# the resample must not turn into an unbounded planner loop when the stream keeps handing back
+# plans the problem already has.
+RESAMPLE_DRAW_LIMIT_FACTOR = 4
+RESAMPLE_DRAW_LIMIT_MARGIN = 8
+
 
 def plan_from_actions(actions: Sequence[Action]) -> Plan:
     """Turn a sequence of ground actions into a `Plan`, the representation every plan consumer
@@ -62,6 +69,16 @@ class PlanStateCoverage:
         covered |= visited
         return new
 
+    def reset(self, problem_name: str) -> None:
+        """Forget everything covered for `problem_name`.
+
+        The coverage set only ever grows, which is right as long as plans are only ever added.
+        `ProblemIterator.resample_planner_plans` *removes* plans, and the states only those plans
+        reached are then no longer covered by anything -- leaving them in would make the tracker
+        reject every replacement plan as redundant. The caller re-adds the plans it kept.
+        """
+        self.covered.pop(problem_name, None)
+
 
 class Result(enum.Enum):
     UNKNOWN = 0
@@ -92,7 +109,9 @@ class ProblemIterator:
         self,
         problems: list[Problem],
         config: Mapping,
-        plans: Optional[Mapping[str, Iterator[Plan]]] = None,
+        # A MutableMapping rather than a Mapping because `resample_planner_plans` replaces a
+        # problem's exhausted stream with a fresh one; every caller already passes a dict.
+        plans: Optional[MutableMapping[str, Iterator[Plan]]] = None,
         plan_coverage: Optional[PlanStateCoverage] = None,
         on_problem_added: Optional[Callable[[Problem], "PrefixPlans"]] = None,
     ):
@@ -332,6 +351,117 @@ class ProblemIterator:
             result.prefix_length,
             result.backoff,
         )
+
+    def resample_planner_plans(
+        self, fresh_plan_iterator: Optional[Callable[[Problem], Iterator[Plan]]] = None
+    ) -> tuple[int, int]:
+        """Throw away the *planner's* example plans of every training problem and draw new ones.
+
+        Which policy the loop converges to is decided by the example plans it happens to have
+        sampled: on blocks3ops with `--type datalog-sig`, an unlucky early sample sends 2 of 6
+        seeds into a patchwork policy (feature cost 13-16) whose coverage then never improves
+        again, while the other 4 reach 95/95 within minutes. This is the in-loop escape hatch --
+        when `solve_iteratively` sees the best coverage stall for `stall_rounds` rounds it calls
+        this and the search continues over a different sample.
+
+        What is kept and what is replaced:
+
+        - The plans in *front* of a problem's list, counted in `policy_plan_counts`, are the
+          policy-conformant trajectories of H27 and the policy-prefix plans of H30 (and are the
+          plans that carry information about the best policy so far). They are never discarded:
+          they are not samples, and the whole point of both mechanisms is that they stay in the
+          state space.
+        - Everything behind them was drawn from the planner -- the `min_number_of_plans` floor,
+          INC_PLANS additions, frontier plans. Those are the sample, and they are what is
+          replaced, one for one: a problem ends up with exactly as many planner plans as it had,
+          so neither `max_plans_per_problem` nor the `min_number_of_plans` floor can be violated
+          by a resample.
+
+        Where the replacements come from: first from the problem's own plan stream, simply
+        continued -- the planner yields lazily and dedupes within a stream, so the next plans it
+        has to offer are new ones that cost nothing extra to reach. Only when that stream runs
+        dry is `fresh_plan_iterator` asked for a new one (reseeded by the caller; see
+        `iterative_solver._fresh_plan_iterator` for why a fresh seed is not enough on its own),
+        and the problem's stream is then replaced by it so later INC_PLANS draws continue there.
+        A problem whose stream can offer nothing new keeps the plans it has.
+
+        Bookkeeping, exactly what a plan-set change requires and nothing more:
+
+        - `_invalidate_refutations`: the state space changed, so no complexity level is refuted
+          any more -- the same reasoning as INC_PLANS, `record_policy_plans` and the frontier
+          expansion. `resample_reset_complexity` additionally restarts the sweep at
+          `min_complexity`, mirroring `reset_complexity_on_state_space_change`.
+        - `plans_added_since_success`: the plan set changed after the success that established
+          `succ_complexity`, so `_add_next_problem` must not carry that bound over.
+        - `max_cost` is deliberately **left alone**. A resample is not permission to accept a
+          worse policy: the best policy so far still stands, and the next round is still asked to
+          beat its cost.
+        - No problem is added, and `last_step` is untouched: the next round runs the same
+          training set at the current complexity over the new sample.
+
+        Returns `(plans replaced, problems affected)`.
+        """
+        if not self.plan_iterators:
+            return 0, 0
+        replaced = 0
+        problems_affected = 0
+        for problem in self.active_problems:
+            name = problem.name
+            stream = self.plan_iterators.get(name)
+            if stream is None:
+                continue
+            existing = list(self.active_plans.get(name, []))
+            kept_count = self.policy_plan_counts.get(name, 0)
+            kept, discarded = existing[:kept_count], existing[kept_count:]
+            if not discarded:
+                # Nothing was sampled for this problem (only policy/prefix plans, or no plans at
+                # all), so there is nothing to resample.
+                continue
+            wanted = len(discarded)
+            # A replacement must differ from what the problem keeps *and* from what is being
+            # thrown away -- redrawing the discarded plans is not a resample.
+            excluded = {plan_key(plan) for plan in kept} | {plan_key(plan) for plan in discarded}
+            drawn: list[Plan] = []
+            fresh_used = False
+            pulls_left = RESAMPLE_DRAW_LIMIT_FACTOR * wanted + RESAMPLE_DRAW_LIMIT_MARGIN
+            while len(drawn) < wanted and pulls_left > 0:
+                plan = next(stream, None)
+                if plan is None:
+                    if fresh_used or fresh_plan_iterator is None:
+                        break
+                    fresh_used = True
+                    stream = fresh_plan_iterator(problem)
+                    continue
+                pulls_left -= 1
+                key = plan_key(plan)
+                if key in excluded:
+                    continue
+                excluded.add(key)
+                drawn.append(plan)
+            if fresh_used:
+                self.plan_iterators[name] = stream
+            if not drawn:
+                log.info("Resampling found no new example plan for %s; keeping its %d existing one(s)", name, wanted)
+                continue
+            self.active_plans[name] = kept + drawn
+            if self.plan_coverage is not None:
+                # The discarded plans' states are no longer covered by anything, so the tracker
+                # has to be rebuilt from the plans that remain rather than merely extended.
+                self.plan_coverage.reset(name)
+                for plan in self.active_plans[name]:
+                    self.plan_coverage.add(name, plan)
+            # The problem may have dropped below max_plans_per_problem again, so let the cap be
+            # reported afresh if it is hit once more.
+            self._plan_cap_logged.discard(name)
+            replaced += len(drawn)
+            problems_affected += 1
+        if replaced:
+            self._invalidate_refutations()
+            if self.config.get("resample_reset_complexity", False):
+                self.sweep_target = max(self.sweep_target, self.complexity)
+                self.complexity = self.config["min_complexity"]
+            self.plans_added_since_success = True
+        return replaced, problems_affected
 
     def record_frontier_expansion(
         self, plans: Mapping[str, list[Plan]], dead_states: Mapping[str, set[State]]

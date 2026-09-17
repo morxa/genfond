@@ -1,6 +1,7 @@
 import gc
 import logging
 import pickle
+import random
 import resource
 import statistics
 import sys
@@ -1045,6 +1046,66 @@ def solve_iteratively(
         assert planner_compute_plans is not None
         return policy_prefix_plans(domain, problem, best_policy, config, planner_compute_plans, planner_config)
 
+    # Resampling the planner's example plans when the run stalls (H32). Which policy the loop
+    # converges to is decided by the sample: on blocks3ops with `--type datalog-sig`, 2 of 6 seeds
+    # settle on a patchwork after an unlucky early sample and never improve again, while the other
+    # 4 reach 95/95. Same `use_example_plans` gate as the mechanisms above -- without a
+    # plan-restricted state space there is no sample to be unlucky with.
+    resample_on_stall = bool(config.get("resample_on_stall", False)) and bool(config["use_example_plans"])
+    if resample_on_stall and planner_compute_plans is None:
+        # As for policy_prefix_plans: use_example_plans is what creates the planner, so this
+        # cannot happen; the guard keeps the resample from having to assert it.
+        log.warning("resample_on_stall needs a planner; example plans will never be resampled")
+        resample_on_stall = False
+    stall_rounds = int(config.get("stall_rounds") or 0)
+    resample_max = int(config.get("resample_max") or 0)
+    if resample_on_stall and not (stall_rounds and resample_max):
+        log.info("resample_on_stall is on but stall_rounds/resample_max is 0; nothing will be resampled")
+        resample_on_stall = False
+    if resample_on_stall:
+        log.info(
+            "Resampling example plans on stall is enabled (stall_rounds=%d, resample_max=%d)",
+            stall_rounds,
+            resample_max,
+        )
+
+    def _fresh_plan_iterator(problem: Problem, resample_index: int) -> Iterator[Plan]:
+        """A new plan stream for `problem`, drawn with a different planner RNG state.
+
+        Two things are changed, and both are needed. The seed is the obvious one; on its own it
+        is inert, because SIW's restart 1 is the *identity* view of the task (`siw.diverse.
+        restart_view`) and the permutations the seed drives only exist from restart 2 on. With
+        the measured `planners.siw.restarts: 1` a reseeded stream would therefore replay exactly
+        the plans the resample is trying to get away from. So the resample also asks for at least
+        two restarts -- the plans of restart 1 are skipped by the caller as duplicates of what is
+        being discarded, and what is kept comes from the permuted views.
+        """
+        assert planner_compute_plans is not None
+        resample_planner_config = dict(planner_config)
+        base_seed = resample_planner_config.get("seed") or 0
+        resample_planner_config["seed"] = base_seed + resample_index * 1000003
+        restarts = resample_planner_config.get("restarts")
+        if restarts is not None:
+            resample_planner_config["restarts"] = max(int(restarts), 2)
+        return planner_compute_plans(str(domain), str(problem), resample_planner_config)
+
+    def _resample_plans(resample_index: int) -> tuple[int, int]:
+        """Resample under a reseeded global RNG, restored afterwards.
+
+        The global RNG is what policy execution draws on, so leaving it advanced would change the
+        validation results of every later round and break `--seed` reproducibility. It is reseeded
+        around the *draw*, not merely around the construction of the stream: plans are pulled
+        lazily, so a planner that draws from `random` does so inside this window.
+        """
+        rng_state = random.getstate()
+        try:
+            random.seed((config.get("seed") or 0) + resample_index * 1000003)
+            return problem_iterator.resample_planner_plans(
+                lambda problem: _fresh_plan_iterator(problem, resample_index)
+            )
+        finally:
+            random.setstate(rng_state)
+
     problem_iterator: ProblemIterator | OneShotProblemIterator
     if one_shot:
         problem_iterator = OneShotProblemIterator(problems, config, plans=example_plans, plan_coverage=plan_coverage)
@@ -1089,6 +1150,28 @@ def solve_iteratively(
         candidate_results.append((candidate, candidate_solved, outcomes, candidate_trajectories))
         return candidate_solved
 
+    # Stall bookkeeping (H32): how many rounds in a row have failed to improve on the best
+    # coverage seen so far. A round that produces no policy at all never improves anything, so it
+    # counts as a stalled round like any other -- what the counter measures is rounds spent
+    # without the run getting better, which is exactly when a different sample is worth trying.
+    rounds_since_improvement = 0
+    best_coverage_seen = -1
+    stall_rounds_max = 0
+    resamples_done = 0
+    resampled_plans = 0
+
+    def _record_round(coverage: Optional[int] = None) -> None:
+        """Note how one round ended: `coverage` is how many problems its policy solved, None for
+        a round that produced no policy."""
+        nonlocal rounds_since_improvement, best_coverage_seen, stall_rounds_max
+        if coverage is not None and coverage > best_coverage_seen:
+            best_coverage_seen = coverage
+            rounds_since_improvement = 0
+        else:
+            rounds_since_improvement += 1
+        stall_rounds_max = max(stall_rounds_max, rounds_since_improvement)
+        stats["stallRoundsMax"] = stall_rounds_max
+
     for iter_kwargs in problem_iterator:
         round_num += 1
         candidate_results.clear()
@@ -1117,6 +1200,30 @@ def solve_iteratively(
             stats["wallBudgetUsed"] = time.perf_counter() - wall_time_start
             _write_provisional_stats_row(config, stats)
             break
+        if resample_on_stall and rounds_since_improvement >= stall_rounds and resamples_done < resample_max:
+            # The best coverage has not moved for stall_rounds rounds: the loop has converged on
+            # whatever the current sample of example plans can express. Draw a different sample
+            # and let this very round run over it -- `iter_kwargs["example_plans"]` *is* the
+            # iterator's `active_plans` dict, so the new plans are already in this round's
+            # configuration; only the two values the resample may have changed are refreshed.
+            stalled_rounds = rounds_since_improvement
+            resamples_done += 1
+            replaced, affected = _resample_plans(resamples_done)
+            resampled_plans += replaced
+            rounds_since_improvement = 0
+            stats["resamples"] = resamples_done
+            stats["resampledPlans"] = resampled_plans
+            log.info(
+                "Resampling example plans after %d stalled rounds (resample %d/%d): %d problems," " %d plans replaced",
+                stalled_rounds,
+                resamples_done,
+                resample_max,
+                affected,
+                replaced,
+            )
+            iter_kwargs = dict(iter_kwargs)
+            iter_kwargs["complexity"] = problem_iterator.complexity
+            iter_kwargs["enforce_highest_complexity"] = problem_iterator.enforce_highest_complexity()
         # Anchors only make sense for problems whose states are actually in this round's
         # instance; a trajectory on a problem outside the training set has nothing to anchor to.
         anchor_plans = (
@@ -1169,6 +1276,7 @@ def solve_iteratively(
             )
             problem_iterator.record_frontier_expansion(new_plans, dead_states)
             problem_iterator.set_last_result(result)
+            _record_round()
             continue
         problem_iterator.set_last_result(
             result,
@@ -1176,6 +1284,7 @@ def solve_iteratively(
             optimal=bool(stats.get("solveOptimal", True)),
         )
         if result != Result.SUCCESS:
+            _record_round()
             continue
         assert new_policy is not None, "solve_step must return a policy on Result.SUCCESS"
         assert new_policy.cost is not None, "a Result.SUCCESS policy always has a cost"
@@ -1244,6 +1353,7 @@ def solve_iteratively(
             stats["wallBudgetUsed"] = time.perf_counter() - wall_time_start
             _write_provisional_stats_row(config, stats)
             break
+        _record_round(len(round_solved))
         solved = len(round_solved) == len(problems)
         if keep_best_policy:
             assert policy.cost is not None, "a Result.SUCCESS policy always has a cost"

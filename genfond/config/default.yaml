@@ -164,6 +164,42 @@ prefix_plan_max_length: 200
 # counted as anchorFallbacks in the stats. false (default) emits no anchor facts at all and
 # grounds exactly the program that was grounded before.
 anchor_policy_labels: false
+# Resample the planner's example plans when the run stalls. Like the three mechanisms above this
+# only has an effect together with use_example_plans and is inert for the rule-based
+# state/trans/d2l types, so it can default to true here.
+#
+# Why: which policy the loop converges to is decided by the example plans it happens to have
+# sampled. Measured on blocks3ops with --type datalog-sig (planners.siw.restarts: 1, one plan
+# sample per problem drawn at the seed the run was started with): 4 of 6 seeds reach 95/95 within
+# minutes, while the other 2 converge within a handful of rounds on a patchwork policy (feature
+# cost 13-16 on a 7-8 problem training set) whose coverage then does not improve for the next
+# 20-40 rounds. Nothing in the escalation ladder can undo an unlucky sample -- it only ever adds
+# plans to it -- so the run is stuck with it for good.
+#
+# The mechanism: when the best coverage has not strictly improved for stall_rounds rounds, every
+# training problem's *planner* plans are discarded and the same number is drawn again from a
+# stream with a different RNG state (its own stream continued where it left off, and a freshly
+# seeded one with at least two SIW restarts once that runs dry -- restart 1 is SIW's identity
+# view, so a fresh seed alone would redraw the very same plans). The policy-conformant plans of
+# policy_conformant_plans and the policy-prefix plans of policy_prefix_plans are kept: they are
+# not samples, and they are what carries the best policy so far into the next instance.
+#
+# The plan set changes, so the refuted complexity levels are dropped exactly as INC_PLANS drops
+# them. max_cost is deliberately *not* reset: a resample is not permission to accept a worse
+# policy than the one already found. No problem is added in the same step; the next round runs the
+# same training set at the current complexity over the new sample.
+resample_on_stall: true
+# How many consecutive rounds without a strict improvement of the best coverage count as a stall.
+# A round that produces no policy at all counts as a stalled round too.
+stall_rounds: 6
+# How many resamples a single run may spend. Each one throws away plans the run has already paid
+# the planner and the grounder for, so this is a small number by design.
+resample_max: 3
+# Also restart the complexity sweep at min_complexity on a resample, the way
+# reset_complexity_on_state_space_change does for every other state-space change. Off by default,
+# for the same reason: it does not change which policies are reachable, it only trades a full
+# re-sweep for smaller instances on the way back up.
+resample_reset_complexity: false
 planner: siw
 planners:
   topk_planner:
