@@ -979,8 +979,8 @@ modern partition:
 | seed | full 95-problem loop | ≤7-block training → on 95 (workstation) |
 |---|---|---|
 | 0 | **95/95 in 157 s**, best at round 11 | 95/95, 25 s, 1 switch |
-| 1 | running | 95/95, 24 s, 1 switch |
-| 2 | **95/95 in 20 s**, best at round 11 | running |
+| 1 | best 91/95 at round 11, then patchworks (38/95 at 1 h; still running) | 95/95, 24 s, 1 switch |
+| 2 | **95/95 in 20 s**, best at round 11 | 27/30 after 25 min → 26/95 |
 
 Against the previous full-loop figure (2 of 5 runs 95/95 in ~19 min, the rest at 28/95), the loop now
 converges in seconds: without the role offset the closure concept and its siblings tie at equal cost early,
@@ -999,3 +999,10 @@ rounds 19–22 with 4 feasible siblings each time), while the full loop with the
 The small-suite training remains trajectory-sensitive; the full loop is the configuration to report.
 Held-out (12 instances, 8–30 blocks): the full-loop policies of seeds 0 and 2 both solve **12/12**.
 **blocks4ops (113): 113/113 in 3.8 min** (rec: 106/113 at 12 h; original system 52/113).
+
+**H22 with the role offset kept (cluster, full loop, r2c1 + limit 3, 3.6 h graceful):** seed 1 30/95, seed 2
+33/95 — the same plateau as without enumeration. Enumeration alone does not fix the fork; only together with
+role offset 0 (above). Seeds 3–5 of the r0c1 + limit 3 full loop submitted for a robustness estimate.
+
+**rec2 (cheap validation, r2c1), first two finished at the 3.6 h graceful limit:** miconic 19/25 (rec 18,
+old 14), blocks4ops 108/113 (rec 106). Both keep-best policies from rounds 12 / 21 with later rounds patchworking.
