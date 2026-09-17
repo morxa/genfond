@@ -1079,3 +1079,5 @@ complexity 7 on two problems), reward best 15/35 at round 27 (rec2 16), spanner-
 round 6 (rec2 130) — its log grew to 32 GB of DEBUG state dumps under `VERBOSE=1` on the large instances,
 which is where the run's time went; sokoban stuck in the first feature pool again.
 H27 full loop pp-s4: 95/95 in 389 s. rec4 (H27): blocks4ops 113/113 in 231 s, blocks 35/35 in 85 s.
+The flood is the per-transition DEBUG line in `state_space_generator` (one line per successor, each with two
+full state strings); future batch configs carry `log: {state_space_generator: INFO}`.
