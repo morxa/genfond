@@ -1074,3 +1074,8 @@ H27 first numbers: full loop pp-s2 95/95 in 47 s (81 policy plans recorded), pp-
 suites unchanged (1–3 policy plans each); blocks-new (12) 12/12 in 43 s.
 rec4 = the twelve rec2/rec3 domains under H27 + the rec3 setting (cluster worktree `policyplans`, standard
 partition, 4 h graceful) submitted for the three-way comparison rec2 / rec3 / rec4.
+rec3 endings at the 4 h kill (no checkpointing on that worktree, best policies lost): barman 0/30 (climbing
+complexity 7 on two problems), reward best 15/35 at round 27 (rec2 16), spanner-162 best **137/162** at
+round 6 (rec2 130) — its log grew to 32 GB of DEBUG state dumps under `VERBOSE=1` on the large instances,
+which is where the run's time went; sokoban stuck in the first feature pool again.
+H27 full loop pp-s4: 95/95 in 389 s. rec4 (H27): blocks4ops 113/113 in 231 s, blocks 35/35 in 85 s.
