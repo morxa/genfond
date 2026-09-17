@@ -1055,3 +1055,5 @@ trajectory the general policy takes, so under the plan-restricted state space it
 sample happens to contain that trajectory is what the seed decides. H27 (in progress): add the trajectory of
 the best policy on every problem it solves as an example plan (policy-conformant plans), so a general policy
 found once stays feasible in every later round.
+rec3 miconic (25): 14/25 (rec2 19, rec 18, original 14) — the only domain so far where the new setting is
+worse than the role-offset setting; rec3 delivery (225): **171/225** (rec2 140, rec 139).
