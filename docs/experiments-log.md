@@ -951,12 +951,13 @@ candidate default (one seed so far; seeds 1–2 and the rec2 domains still to co
 | seed | limit 1 | limit 3 |
 |---|---|---|
 | 0 | 30/95 (no closure, 1 418 s: the fork trajectory) | **91/95**, 10 s, 2 model switches |
-| 1 | 95/95, 14 s | running |
-| 2 | 90/95, 13 s | running |
+| 1 | **95/95**, 14 s | 85/95, 1 502 s, 5 switches |
+| 2 | 90/95, 13 s | **95/95**, 16 s, 3 switches |
 
-Enumeration turned seed 0's fork trajectory (30/95 after 24 min) into a 10 s run at 91/95, without the
-closure concept; the coverage-based tie-break chooses a sibling model twice. Not yet the 95/95 policy for
-that seed. Cluster: full 95-problem loop with limit 3 for seeds 1 and 2 running (`L3-s1`, `L3-s2`, 4 h).
+Enumeration turned seed 0's fork trajectory (30/95 after 24 min) into a 10 s run at 91/95 and seed 2 into
+95/95, but sent seed 1 down a 25 min trajectory ending at 85/95. Mean 72 → 90 of 95, yet not a clean win:
+the coverage tie-break on the ≤7-block training set does not identify the general policy reliably, because
+several siblings tie on the small instances too. Combined with role offset 0 (H24) it is being repeated. Cluster: full 95-problem loop with limit 3 for seeds 1 and 2 running (`L3-s1`, `L3-s2`, 4 h).
 
 **Sokoban diagnosed** (desk-03, 12 min verbose run on the first problem): SIW finds no plan for
 p032-microban-sequential, so the round has no example plans and `StateSpaceGraph` falls back to the
