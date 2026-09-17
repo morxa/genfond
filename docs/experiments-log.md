@@ -1006,3 +1006,7 @@ role offset 0 (above). Seeds 3–5 of the r0c1 + limit 3 full loop submitted for
 
 **rec2 (cheap validation, r2c1), first two finished at the 3.6 h graceful limit:** miconic 19/25 (rec 18,
 old 14), blocks4ops 108/113 (rec 106). Both keep-best policies from rounds 12 / 21 with later rounds patchworking.
+**visitall (500) under the new setting: 500/500 in 10.5 min** (rec 3 h, original system 43 min).
+Full-loop seed 3: 95/95 in 126 s.
+rec2 logistics 9/47 and logistics_dp 9/47 at the 3.75 h graceful limit (12 h rec: 9 and 17; the dp run's
+17 came after the 4 h mark, so this is a budget effect, not a regression of cheap validation).
