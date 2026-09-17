@@ -1309,3 +1309,17 @@ has not improved for N rounds (the in-loop form of a seed portfolio), keeping th
 prefix plans. rec5 = the twelve cross-domain suites under the H31 stack submitted.
 rec5 (H31 stack) first results: blocks4ops **113/113 in 82 s** (rec3 3.8 min, rec4 3.9 min), blocks 35/35 in
 64 s. Ten rec5 jobs running.
+
+## H32: resample example plans on stall (`hyp/resample-on-stall`, e1584fb, on `hyp/frontier-bound`; 323 tests)
+
+`resample_on_stall: true`, `stall_rounds: 6`, `resample_max: 3`: when the best coverage has not improved
+for six rounds, every training problem's planner plans are replaced (policy-conformant and prefix plans are
+kept) by continuing the problem's lazy SIW stream or, when exhausted, a fresh stream with
+`planners.siw.seed += k·1000003` and `restarts ≥ 2`; refutations are invalidated, `max_cost` and the training
+set stay. Finding on the way (agent): SIW's diversity RNG is `random.Random(f"{siw.seed}:{restart}")`, and
+restart 1 is the identity permutation — so with `restarts: 1` **all six seeds drew the same SIW plans**;
+`--seed` only varies policy execution (rule order, bindings, successor draws), hence which problems count as
+solved, which are added and in which order, and which H27/H30 plans the instance carries. The seed
+dependence is therefore in the execution/addition order, one step removed from the plan sample; the resample
+still acts at the right level (the plan set). Launched: full loop seeds 0–5 (`rs-s*`, cluster worktree
+`resample`, H31 stack + H32) and blocks4ops flat (`rs-b4flat`).
