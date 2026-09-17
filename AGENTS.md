@@ -201,7 +201,7 @@ For feature work, start with `solver.py` → `config_handler.py` → `iterative_
 
 Solver-level tests should prefer the raw-ASP fixtures; they are far faster. `tests/helpers.py` holds shared assertions (`get_action`).
 
-`domains/` holds the benchmark suites (`non-deterministic/`, `deterministic/`, `deterministic-new/`, `d2l/`) used for manual runs and benchmarking, not by the test suite.
+`domains/` holds the benchmark suites (`deterministic/<domain>[/test]`, `non-deterministic/`, `suites/`) used for manual runs and benchmarking, not by the test suite; see `docs/benchmarks.md` for the layout and provenance.
 
 ## Common Pitfalls
 

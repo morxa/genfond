@@ -4,7 +4,7 @@
 
 A problem counts as solved only if every one of --policy-iterations executions reaches the
 goal, mirroring the verification loop in genfond/__main__.py. Used for the held-out
-generalisation check (domains/suites/blocks3ops-heldout) that the training run never sees.
+generalisation check (domains/deterministic/blocks3ops/test, also linked as domains/suites/blocks3ops-heldout) that the training run never sees.
 """
 
 import argparse

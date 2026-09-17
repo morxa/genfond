@@ -1,1 +1,0 @@
-../blocks3ops/domain.pddl

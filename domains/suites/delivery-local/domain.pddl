@@ -1,1 +1,1 @@
-../../deterministic-new/delivery/domain.pddl
+../../deterministic/delivery/domain.pddl

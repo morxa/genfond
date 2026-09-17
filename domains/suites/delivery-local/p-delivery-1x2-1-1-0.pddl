@@ -1,1 +1,1 @@
-../../deterministic-new/delivery/p-delivery-1x2-1-1-0.pddl
+../../deterministic/delivery/p-delivery-1x2-1-1-0.pddl
