@@ -1174,3 +1174,18 @@ feasible; nothing yet keeps it *preferred*. Candidate H29: after a best-coverage
 round with the failing problems' policy-plans only (or cap plans on newly added problems to the
 policy-conformant ones) so the enlarged instance stays close to the one the general policy came from.
 Not started. blocks4ops-flat under both arms is running.
+
+## H29: policy-anchored labels (`hyp/anchor-labels`, e68be54, on `hyp/policy-plans`; 271 tests)
+
+`anchor_policy_labels: true` (default false): every transition along the best policy's recorded trajectories
+on the problems currently in the training set is emitted as `anchor(I,S,A)` and a separate `#program anchor.`
+part adds `:- anchor(I,S,A), not good_action(I,S,A).`, so the round's model must agree with the best policy
+wherever it already succeeds (in the signature encoding one anchored occurrence forces the whole signature
+class, which is the program's own consequence). Anchors are a preference, never evidence: an anchored
+UNSAT/UNKNOWN re-solves the identical instance without anchors (`anchorFallbacks`) and only that solve can
+refute a complexity level. Anchors whose step is not in the round's graph are dropped and counted. Launched:
+full 95-problem loop, seeds 0–5 (`an-s*`, cluster worktree `anchor`, rec3 setting + H27 + anchors, 4 h
+graceful) and the flat blocks4ops set (`an-b4flat`).
+Note: a push with the branch's inherited upstream fast-forwarded `origin/hyp/policy-plans` to e68be54 (H27 +
+H29 with anchors off by default); the cluster worktree `policyplans` stays at 1479325. Restoring the remote
+ref needs a force push, which is left to Till.
