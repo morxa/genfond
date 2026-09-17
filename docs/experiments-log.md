@@ -1156,3 +1156,21 @@ policy solves every flat instance. The loop *can* express and find the blocks4op
 it does not, because the 18 small `old/` instances (2–15 blocks, another generator) steer the early plan
 sample. Same trajectory effect as blocks3ops seeds 3–5, not an expressivity gap — H28's diversity arms are
 the right test for it too.
+
+### H28 result (H27 + diversity, full loop, 4 h graceful)
+
+| seed | H27 (restarts 1, limit 3) | restarts 2 | limit 6 |
+|---|---|---|---|
+| 3 | 40 | 95 (best single 86 at round 13, final combination at 3.6 h) | 95 (best 93 at round 13, final at 3.6 h) |
+| 4 | 95 in 389 s | 93 (best 88 at round 13) | 32 (best 31 at round 34) |
+| 5 | 95 in 96 s | 95 in 318 s | 95 in 423 s |
+
+Neither arm is a clean improvement: each moves which seed plateaus rather than removing the plateau (seed 4
+under limit 6 falls to 32). The invariant across all runs is that a near-general policy (86–93/95) appears
+around round 11–13 and the loop then drifts for hours; where 95 is reached late it is the final combination
+that recovers it. The plateau is therefore in what happens *after* the near-general policy: the next added
+problem enlarges the instance until the general policy is no longer the cheapest model. H27 keeps it
+feasible; nothing yet keeps it *preferred*. Candidate H29: after a best-coverage improvement, re-solve the
+round with the failing problems' policy-plans only (or cap plans on newly added problems to the
+policy-conformant ones) so the enlarged instance stays close to the one the general policy came from.
+Not started. blocks4ops-flat under both arms is running.
