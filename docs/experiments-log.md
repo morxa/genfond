@@ -1284,3 +1284,5 @@ optional `round_time_limit`; capped frontier plans are logged and their planner 
 H31 defaults) and blocks4ops flat (`fb-b4flat`).
 H31 first seeds: seed 2 95/95 in 116 s, seed 5 95/95 in 98 s; the lower-bound abort fires as designed in the
 running seeds (bounds 1–7 proven after lazy iteration 1). Seeds 0/1/3/4 and blocks4ops flat running.
+H31 seeds 3 and 4: **95/95 in 246 s and 495 s** (both 95 under H29, 95/93 under H30). Four of four finished
+seeds at 95 within 9 min. Seeds 0 (best 83 at round 13) and 1 (best 28 at round 2) running.
