@@ -917,3 +917,43 @@ validation block for 12 h. Merged into `hyp/combo`.
 Resubmitted under the working configuration with cheap validation (worktree combo8 @ 299d7fe, `rec2`, 4 h
 graceful): barman, sokoban, storage, miconic, blocks4ops, grid, reward, spanner, logistics, logistics_dp,
 delivery, blocks.
+
+### First batch, last two jobs (sokoban, storage; 12 h, rec)
+
+Both hit the SLURM limit without a final line. sokoban never left its first solve: the log ends at
+"Starting solver for p032-microban-sequential with max complexity 2" at 14:32 and nothing follows for 12 h,
+so the time went into state-space expansion / feature generation for a single 8-object problem, where
+neither the solve budget nor the graceful stop can interrupt. storage learned a policy in the first minutes
+and then spent the remaining 11.5 h validating it: every execution on storage-15/16 ran 20–60 min before
+detecting a length-2 cycle, ten times per problem. Cheap validation (H23) addresses storage; sokoban needs a
+budget on the state-space/feature stage (not implemented; the rec2 run will show whether it is the same
+stage again).
+
+## H24: offset compromise (`hyp/combo`, workstation, seed 0, 1 thread)
+
+visitall-36 lost to the original system because the role offset 2 delays the complexity-6 role. Arms with
+smaller offsets, each on the 12-problem `deterministic-new/visitall` suite (40 min budget) and on the
+≤7-block blocks3ops suite scored on all 95:
+
+| arm | visitall (12) | blocks3ops ≤7 → on 95 | closure rules |
+|---|---|---|---|
+| r2c1 (current) | 8/36 in the 12 h run | 30/30 → 95/95 (2 of 3 seeds) | yes |
+| r1c1 | 7/12, 36 min | 30/30 → **95/95** | 7 |
+| **r0c1** | **12/12 in 2.4 s** | 30/30 → **95/95** | 8 |
+| r2c0 | running | running | |
+
+Reading: the concept offset (1) is what makes `c_equal_closure` affordable early; the role offset buys
+nothing on blocks3ops at this suite size and costs visitall its complexity-6 role. r0c1 is the new
+candidate default (one seed so far; seeds 1–2 and the rec2 domains still to confirm).
+
+## H22 result, part 1 (workstation, ≤7-block suite, scored on 95, `hyp/opt-enum` 3d08ff7)
+
+| seed | limit 1 | limit 3 |
+|---|---|---|
+| 0 | 30/95 (no closure, 1 418 s: the fork trajectory) | **91/95**, 10 s, 2 model switches |
+| 1 | 95/95, 14 s | running |
+| 2 | 90/95, 13 s | running |
+
+Enumeration turned seed 0's fork trajectory (30/95 after 24 min) into a 10 s run at 91/95, without the
+closure concept; the coverage-based tie-break chooses a sibling model twice. Not yet the 95/95 policy for
+that seed. Cluster: full 95-problem loop with limit 3 for seeds 1 and 2 running (`L3-s1`, `L3-s2`, 4 h).
