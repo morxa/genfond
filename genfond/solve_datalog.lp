@@ -10,6 +10,9 @@
 #defined amap/5.
 #defined amap/6.
 #defined pruned/2.
+% The transitions the best policy so far took (anchor_policy_labels; see
+% feature_generator._emit_anchors), read by the `anchor` #program part at the bottom.
+#defined anchor/3.
 
 { c_selected(C) } :- concept(C).
 c_selected(name).
@@ -108,3 +111,11 @@ f_distinguished(I1, S1, I2, S2, F) :-
 
 #program min_feature_complexity(c).
 :- C < c : f_selected(F), feature_complexity(F, C); Cost < c : c_selected(Concept), concept_complexity(Concept, Cost); Cost < c : r_selected(Role), role_complexity(Role, Cost).
+
+% ------------------------------------------------------------------- policy-anchored labels
+%
+% anchor_policy_labels, exactly as in solve_datalog_sig.lp: the action the best policy so far
+% took at this state must be labelled good. Grounded only for the anchored attempt of a round;
+% the fallback re-solve leaves this part out (see iterative_solver.solve).
+#program anchor.
+:- anchor(I, S, A), not good_action(I, S, A).

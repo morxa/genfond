@@ -168,6 +168,7 @@ class FeaturePool:
         selected_states: Optional[Mapping[str, Collection[State]]] = None,
         plans: Optional[Mapping[str, Collection[Plan]]] = None,
         dead_states: Optional[Mapping[str, Collection[State]]] = None,
+        anchor_plans: Optional[Mapping[str, Plan]] = None,
     ):
         assert len({problem.name for problem in problems}) == len(problems), "Problem names must be unique."
         self.domain = domain
@@ -197,6 +198,19 @@ class FeaturePool:
         # state; only collected for the plan_label_heuristic.
         self._plan_actions: list[tuple[int, int, str]] = []
         self.forced_labels: Optional[ForcedLabels] = None
+        # The trajectories of the best policy so far, per problem name (see
+        # `_emit_anchors`); only passed when `anchor_policy_labels` is on.
+        self.anchor_plans: Mapping[str, Plan] = anchor_plans or dict()
+        # The (instance, state, action) occurrences `_emit_anchors` resolved those trajectories
+        # to. Filled by `to_clingo`; read back by `iterative_solver.solve` for the stats and to
+        # decide whether an anchored solve happens at all.
+        self.anchored_transitions: list[tuple[int, int, str]] = []
+        self.anchored_problems: set[str] = set()
+        # Anchored steps that could not be emitted: the source state is not in the instance (or
+        # is dead/goal there), or the action has an outcome that is neither alive nor pruned, so
+        # `good_trans` is unselectable for it and the anchor would make the round trivially
+        # unsatisfiable. See `_emit_anchors`.
+        self.anchors_dropped = 0
         # String keys of extra_features elements actually added to the pool (booleans and
         # numericals share self.features, so both land in _extra_feature_keys). Consulted in
         # to_clingo to apply extra_features_complexity, if set.
@@ -883,6 +897,109 @@ class FeaturePool:
             f"plan_action({instance}, {state}, {action}).\n" for instance, state, action in self._plan_actions
         )
 
+    @staticmethod
+    def _children_of(node: StateSpaceNode, action: Action) -> Optional[set[StateSpaceNode]]:
+        """`node`'s successors under `action`, or None if the action was never expanded here.
+
+        `node.children` is keyed by the grounded `Action` objects of `ground(domain, problem)`
+        while an anchor plan carries the ones `Plan.instantiate(domain)` produced. The rest of
+        this codebase (`StateSpaceGraph.__init__`'s plan matching) relies on those comparing
+        equal, so the dict lookup normally hits; the linear scan is the belt-and-braces path
+        for the case where equality holds but the hashes are not interchangeable.
+        """
+        children = node.children.get(action)
+        if children is not None:
+            return children
+        return next((succs for known, succs in node.children.items() if known == action), None)
+
+    def _emit_anchors(self) -> str:
+        """Emit ``anchor/3`` for the transitions along the best policy's own trajectories.
+
+        The loop keeps the best-coverage policy P it has seen (`keep_best_policy`) and, with
+        `policy_conformant_plans`, records the trajectory P took on every problem it solved, so
+        the plan-restricted state space still *contains* that trajectory. Containing it is not
+        enough: on the enlarged instance of the next round a cheaper patchwork model can win the
+        `#minimize` and the loop drifts away from a near-general policy. An anchor states that P
+        was not just feasible but right here: the action P took at this state must be labelled
+        good, so every model of the round agrees with P on the problems P already solved, and the
+        only thing left to optimise is how to also cover the problem that was just added.
+
+        Identification. A trajectory is replayed from `problem.init` through the very graph the
+        instance was built from, so an anchor is an (instance id, node id, action string) triple
+        -- exactly the shape of `trans/4`'s first three arguments and of `forced_good/3`. The
+        replay carries a *set* of nodes, like `plan_visited_states`: at a nondeterministic action
+        the outcome the policy happened to take is not recorded, so the action is anchored at
+        every node the plan can be at, which is the same rule `StateSpaceGraph` uses when it
+        propagates a plan suffix to all matching successors.
+
+        Signature classes. With `--type datalog-sig` goodness is a function of the action
+        signature (`good_sig`/`bad_sig` plus `:- good_sig(K), bad_sig(K).`), so anchoring one
+        occurrence already forces every occurrence of its class good, wherever it occurs -- the
+        same cross-state consequence `forced_labels` spells out as step 4. Nothing about the
+        class has to be emitted for that, and nothing may be: the class is anchored *because*
+        the program says so, and stating it separately would be the unsound half of the
+        argument. It is also why an anchor can be contradictory (P's action may share a class
+        with one that must be bad elsewhere), which is what the fallback in
+        `iterative_solver.solve` is for.
+
+        Dropped anchors. A step whose source state is not in the instance, or is dead or a goal
+        there, has no `good_action` to force; a step whose action has an outcome that is neither
+        alive nor pruned can never be good (`solve_datalog*.lp`'s second constraint), so
+        anchoring it would make the round unsatisfiable on its own and every round would pay for
+        the fallback. Both are skipped and counted instead. Anchors are a preference, not a
+        correctness condition, so dropping one only weakens the preference.
+        """
+        anchors: list[tuple[int, int, str]] = []
+        seen: set[tuple[int, int, str]] = set()
+        for problem_name, plan in self.anchor_plans.items():
+            if problem_name not in self.problem_name_to_id:
+                # Not in this round's training set, so none of its states are in the instance.
+                continue
+            problem_id = self.problem_name_to_id[problem_name]
+            problem = self.problems[problem_name]
+            graph = self.state_graphs[problem_name]
+            root = graph.nodes.get(problem.init)
+            nodes = [root] if root is not None else []
+            for action in plan.instantiate(self.domain):
+                action_str = f'"{action.name}({",".join([str(p) for p in action.parameters])})"'
+                successors: dict[int, StateSpaceNode] = dict()
+                for node in nodes:
+                    children = self._children_of(node, action)
+                    if children is None:
+                        # The plan leaves the graph here (the source node was never expanded, or
+                        # the step is not applicable in it); there is nothing left to anchor.
+                        self.anchors_dropped += 1
+                        continue
+                    successors.update({child.id: child for child in children})
+                    if node.alive != Alive.ALIVE or check_formula(node.state, problem.goal):
+                        # The good_trans choice only ranges over alive non-goal states, so
+                        # good_action cannot hold here at all.
+                        self.anchors_dropped += 1
+                        continue
+                    if not all(child.alive in (Alive.ALIVE, Alive.PRUNED) for child in children):
+                        self.anchors_dropped += 1
+                        continue
+                    key = (problem_id, node.id, action_str)
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    anchors.append(key)
+                nodes = list(successors.values())
+        self.anchored_transitions = anchors
+        self.anchored_problems = {self.problem_id_to_name[instance] for instance, _, _ in anchors}
+        log.info(
+            "Anchoring %d transition(s) from the best policy (%d problems)",
+            len(anchors),
+            len(self.anchored_problems),
+        )
+        if self.anchors_dropped:
+            log.info(
+                "Dropped %d anchored step(s) the instance cannot express (off-graph, dead/goal"
+                " source state, or an unselectable outcome)",
+                self.anchors_dropped,
+            )
+        return "".join(f"anchor({instance}, {state}, {action}).\n" for instance, state, action in anchors)
+
     def to_clingo(self) -> str:
         stats = {
             "num_skipped_feature_evals": 0,
@@ -954,6 +1071,8 @@ class FeaturePool:
                 clingo_program += self._emit_forced_labels()
         if self.config.get("plan_label_heuristic", False):
             clingo_program += self._emit_plan_actions()
+        if self.config.get("anchor_policy_labels", False) and self.anchor_plans:
+            clingo_program += self._emit_anchors()
         log.info(
             f'Generated program with {stats["num_feature_evals"]} feature evaluations ({stats["num_skipped_feature_evals"]} skipped), '
             f'{stats["num_concept_evals"]} concept evaluations ({stats["num_skipped_concept_evals"]} skipped), '

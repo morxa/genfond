@@ -108,6 +108,30 @@ max_plans_per_problem: null
 # there is, and capping it away is exactly what would reintroduce the infeasibility above.
 # Set to false to switch the mechanism off entirely.
 policy_conformant_plans: true
+# Anchor the next round's labels to the best policy so far: every transition along the
+# trajectories that policy took on the problems it solved (the same trajectories
+# policy_conformant_plans records, but only those of the *best* policy, not of every candidate
+# that ever solved something) is emitted as `anchor(I, S, A)` and constrained to be labelled
+# good. solve_datalog.lp / solve_datalog_sig.lp only, and -- like policy_conformant_plans --
+# inert without use_example_plans; it also needs keep_best_policy, which is what defines "best".
+#
+# Why: policy_conformant_plans keeps a near-general policy P *feasible* on the enlarged instance
+# of the next round; it does not keep it *preferred*. Once a problem P fails on joins the
+# training set, a cheaper patchwork model can win the #minimize, and the loop drifts away from P
+# for hours. An anchor turns "P is still available" into "the model must agree with P wherever P
+# already worked", leaving the optimisation only the question of how to also cover the new
+# problem.
+#
+# Anchors are a preference, never a refutation. They can be contradictory -- with the signature
+# quotient (--type datalog-sig) anchoring one occurrence forces its whole class good, and that
+# class may have to be bad at some other state -- so an anchored solve that comes back
+# unsatisfiable (or that runs out of its solve budget without a model) is immediately re-solved
+# on the same instance without the anchor constraint, and only that second solve is ever taken
+# as evidence about the complexity level (see the refuted-complexity bookkeeping in
+# problem_iterator.py). The cost is at most one extra clingo solve per round that hits it,
+# counted as anchorFallbacks in the stats. false (default) emits no anchor facts at all and
+# grounds exactly the program that was grounded before.
+anchor_policy_labels: false
 planner: siw
 planners:
   topk_planner:

@@ -38,6 +38,11 @@
 #defined forced_good/3.
 #defined forced_bad/3.
 #defined plan_action/3.
+% The transitions the best policy so far took on the problems it solved (anchor_policy_labels;
+% see feature_generator._emit_anchors). Facts only -- the constraint that reads them lives in
+% the `anchor` #program part at the bottom, so the very same instance can be re-solved without
+% them when the anchored attempt is unsatisfiable.
+#defined anchor/3.
 
 { c_selected(C) } :- concept(C).
 c_selected(name).
@@ -180,3 +185,19 @@ sig_hit(D) :- dist(k, D, r(R)), r_selected(R).
 % --heuristic=Domain, which Solver adds along with this part.
 #program plan_heuristic.
 #heuristic good_trans(I, S, A, S2) : trans(I, S, A, S2), plan_action(I, S, A). [1,true]
+
+% ------------------------------------------------------------------- policy-anchored labels
+%
+% anchor_policy_labels: the action the best policy so far took at this state must be labelled
+% good, so the round's model agrees with that policy wherever it already worked and the
+% #minimize only decides how to cover what it did not. Stated exactly like forced_good/3 --
+% as a constraint on good_action rather than as a rule deriving it, so the obligations that
+% come with taking an action (all outcomes safe, safe_state) are not dropped.
+%
+% Grounded only when Solver is asked for it: the anchored solve gets this part, and the
+% fallback re-solve of the same round does not (see iterative_solver.solve). An anchor can be
+% contradictory -- with the signature quotient, anchoring one occurrence forces its whole class
+% good, and that class may have to be bad at some other state -- so the fallback is not an
+% optimisation but the thing that keeps an anchored round from ever losing a policy.
+#program anchor.
+:- anchor(I, S, A), not good_action(I, S, A).

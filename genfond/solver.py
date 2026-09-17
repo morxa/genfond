@@ -96,6 +96,7 @@ class Solver:
         minimize_selected_count: str = "none",
         wall_deadline: Optional[float] = None,
         plan_label_heuristic: bool = False,
+        anchors: bool = False,
     ):
         self.asp_code = asp_code
         self.minimize_good_signatures = minimize_good_signatures
@@ -143,6 +144,12 @@ class Solver:
             raise ValueError(f"Unknown minimize_selected_count: {minimize_selected_count!r}")
         if plan_label_heuristic:
             parts.append(("plan_heuristic", []))
+        if anchors:
+            # `:- anchor(I,S,A), not good_action(I,S,A).` (solve_datalog*.lp). The anchor/3 facts
+            # are part of the instance either way; leaving this part out is what makes the same
+            # instance solvable again without them -- the fallback re-solve of an anchored round
+            # builds a second Solver over the very same `asp_code` with anchors=False.
+            parts.append(("anchor", []))
         self.control.ground(parts)
         assert isinstance(self.control.configuration.solve, clingo.Configuration)
         self.control.configuration.solve.parallel_mode = num_threads or os.cpu_count()

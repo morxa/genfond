@@ -124,6 +124,10 @@ def solve(
     enforce_highest_complexity: bool = False,
     plans: Optional[MutableMapping[str, Collection[Plan]]] = None,
     dead_states: Optional[Mapping[str, set[State]]] = None,
+    # The best policy's own trajectories on the problems it solved (H29,
+    # `anchor_policy_labels`). Restricted to `problems` by the caller; see
+    # `FeaturePool._emit_anchors`.
+    anchor_plans: Optional[Mapping[str, Plan]] = None,
     allow_frontier: bool = True,
     stats: Optional[MutableMapping[str, Any]] = None,
     wall_deadline: Optional[float] = None,
@@ -148,6 +152,11 @@ def solve(
         "optimalModelChosenCoverage",
         "optimalModelChosenIndex",
         "optimalModelCoverages",
+        # Per-round anchor numbers, for the same reason: a round that anchors nothing must not
+        # report the previous round's. `anchorFallbacks` is cumulative and deliberately kept.
+        "anchoredTransitions",
+        "anchoredProblems",
+        "anchorsDropped",
     ):
         stats.pop(key, None)
     if config.get("minimize_good_signatures", "none") != "none" and config["solve_prog"] != "solve_datalog_sig.lp":
@@ -174,6 +183,16 @@ def solve(
                 f"{key}=True needs solve_prog='solve_datalog_sig.lp' (--type datalog-sig),"
                 f" got {config['solve_prog']!r}"
             )
+    if config.get("anchor_policy_labels", False) and config["solve_prog"] not in (
+        "solve_datalog.lp",
+        "solve_datalog_sig.lp",
+    ):
+        # anchor/3 and the `anchor` #program part only exist in the two datalog programs;
+        # grounding the part elsewhere would fail inside clingo.
+        raise ValueError(
+            "anchor_policy_labels=True needs solve_prog='solve_datalog_sig.lp' or"
+            f" 'solve_datalog.lp' (--type datalog-sig/datalog), got {config['solve_prog']!r}"
+        )
     log.debug("Generating feature pool ...")
     feature_pool = FeaturePool(
         domain,
@@ -183,6 +202,7 @@ def solve(
         all_generators=all_generators,
         plans=plans,
         dead_states=dead_states,
+        anchor_plans=anchor_plans,
     )
     stats["featurePoolSize"] = len(feature_pool.features)
     # `max_pool_size` (only ever passed by `_final_cost_minimization_pass`, from
@@ -261,21 +281,6 @@ def solve(
             sum(state_counts),
         )
     )
-    solver = Solver(
-        asp_instance,
-        config["num_threads"],
-        max_cost=max_cost,
-        max_prune_cost=max_prune_cost(config, max_cost, allow_frontier),
-        min_feature_complexity=complexity if enforce_highest_complexity else None,
-        solve_prog=config["solve_prog"],
-        opt_strategy=config["clingo_opt_strategy"],
-        clingo_options=config["clingo_options"],
-        time_limit=config["solve_time_limit"],
-        minimize_good_signatures=config.get("minimize_good_signatures", "none"),
-        minimize_selected_count=config.get("minimize_selected_count", "none"),
-        wall_deadline=wall_deadline,
-        plan_label_heuristic=config.get("plan_label_heuristic", False),
-    )
     forced = feature_pool.forced_labels
     if forced is not None:
         stats["forcedGoodActions"] = len(forced.good)
@@ -284,27 +289,72 @@ def solve(
         stats["forcedBadSignatures"] = len(forced.bad_signatures)
         stats["forcedOccurrences"] = forced.num_occurrences
         stats["forcedInconsistent"] = forced.inconsistent
-    if config.get("lazy_pairs", False) and config.get("emit_action_signatures", False):
-        # The instance carries no separation pairs; they are added batch by batch in response to
-        # the models that violate them. The loop wraps the solve of this one round only, so
-        # max_cost, the min_feature_complexity program and the frontier machinery are untouched.
-        status = solve_with_lazy_pairs(
-            solver,
-            feature_pool.signatures,
-            config.get("lazy_pairs_batch") or DEFAULT_BATCH,
-            stats,
-            forced=forced,
-            optimal_model_limit=optimal_model_limit,
+
+    def _run_solver(use_anchors: bool) -> tuple[Solver, SolveStatus]:
+        """One clingo run over the instance, with or without the anchor constraint.
+
+        Everything but the `anchor` #program part is identical between the two, so the fallback
+        below re-solves the *same* round: same feature pool, same instance text (the anchor/3
+        facts stay in it either way), same budget.
+        """
+        solver = Solver(
+            asp_instance,
+            config["num_threads"],
+            max_cost=max_cost,
+            max_prune_cost=max_prune_cost(config, max_cost, allow_frontier),
+            min_feature_complexity=complexity if enforce_highest_complexity else None,
+            solve_prog=config["solve_prog"],
+            opt_strategy=config["clingo_opt_strategy"],
+            clingo_options=config["clingo_options"],
+            time_limit=config["solve_time_limit"],
+            minimize_good_signatures=config.get("minimize_good_signatures", "none"),
+            minimize_selected_count=config.get("minimize_selected_count", "none"),
+            wall_deadline=wall_deadline,
+            plan_label_heuristic=config.get("plan_label_heuristic", False),
+            anchors=use_anchors,
         )
-    else:
-        solver.solve()
-        status = solver.status
-        if optimal_model_limit > 1 and status == SolveStatus.OPTIMAL:
-            # The lazy loop does this itself (it has to run the enumeration on its *final*
-            # grounded program and re-check every model against the pairs it never grounded);
-            # here the grounded program is the whole problem, so every enumerated model of the
-            # optimal cost is feasible as it stands.
-            solver.enumerate_optimal(optimal_model_limit)
+        if config.get("lazy_pairs", False) and config.get("emit_action_signatures", False):
+            # The instance carries no separation pairs; they are added batch by batch in response
+            # to the models that violate them. The loop wraps the solve of this one round only,
+            # so max_cost, the min_feature_complexity program and the frontier machinery are
+            # untouched.
+            status = solve_with_lazy_pairs(
+                solver,
+                feature_pool.signatures,
+                config.get("lazy_pairs_batch") or DEFAULT_BATCH,
+                stats,
+                forced=forced,
+                optimal_model_limit=optimal_model_limit,
+            )
+        else:
+            solver.solve()
+            status = solver.status
+            if optimal_model_limit > 1 and status == SolveStatus.OPTIMAL:
+                # The lazy loop does this itself (it has to run the enumeration on its *final*
+                # grounded program and re-check every model against the pairs it never grounded);
+                # here the grounded program is the whole problem, so every enumerated model of the
+                # optimal cost is feasible as it stands.
+                solver.enumerate_optimal(optimal_model_limit)
+        return solver, status
+
+    anchored = bool(feature_pool.anchored_transitions)
+    if anchored:
+        stats["anchoredTransitions"] = len(feature_pool.anchored_transitions)
+        stats["anchoredProblems"] = len(feature_pool.anchored_problems)
+        stats["anchorsDropped"] = feature_pool.anchors_dropped
+    solver, status = _run_solver(anchored)
+    if anchored and status in (SolveStatus.UNSATISFIABLE, SolveStatus.UNKNOWN):
+        # The anchors are a preference, never a refutation: an anchored occurrence may share a
+        # signature class with one that has to be bad elsewhere, and with the quotient that makes
+        # the round unsatisfiable even though a policy exists. So this round's *answer* must
+        # always come from a solve without them -- which is also what keeps the refuted-complexity
+        # bookkeeping in `ProblemIterator` sound, since only the unanchored solve is evidence
+        # about what this complexity level can express. UNKNOWN (the solve budget ran out before
+        # any model) is retried for the same reason: the anchored attempt proves nothing either
+        # way, and a cheaper unanchored program may still find one.
+        log.info("Anchored solve unsatisfiable; retrying without anchors")
+        stats["anchorFallbacks"] = int(stats.get("anchorFallbacks", 0)) + 1
+        solver, status = _run_solver(False)
     stats["solveStatus"] = status.name
     # Whether the round *proved* its answer. A model whose cost was never proved optimal must
     # not be used to refute a complexity level; the iterator is told via
@@ -819,6 +869,12 @@ def solve_iteratively(
     best_solved: list[Problem] = []
     best_cost: Optional[int] = None
     best_round: Optional[str | int] = None
+    # The trajectories of `best_policy` itself, per problem name -- the plans H29 anchors on.
+    # Kept separately from the iterator's `active_plans`, which mixes in the planner's plans and
+    # the trajectories of every *other* candidate that ever solved something: anchoring those
+    # would pin labels of policies the loop has already rejected. Replaced wholesale whenever a
+    # new best policy is adopted, so it always describes exactly one policy.
+    best_trajectories: dict[str, Plan] = dict()
     round_num = 0
     # An absolute deadline (time.perf_counter()-based) for the whole run, `wall_time_reserve`
     # seconds short of `max_wall_time` so that budget is left over for the final verification
@@ -877,6 +933,30 @@ def solve_iteratively(
     policy_conformant_plans = bool(config.get("policy_conformant_plans", False)) and bool(config["use_example_plans"])
     if policy_conformant_plans:
         log.info("Policy-conformant example plans are enabled")
+    # Policy-anchored labels (H29): every transition of the best policy's own trajectories is
+    # emitted as `anchor/3` and constrained to be good, so the next round's model has to *agree*
+    # with that policy where it already worked instead of merely being allowed to. H27 keeps the
+    # policy feasible; this keeps it preferred. Same `use_example_plans` gate: without a
+    # plan-restricted state space there is no drift of the kind this addresses, and the rule-based
+    # types would not even have the `anchor` program part.
+    anchor_policy_labels = bool(config.get("anchor_policy_labels", False)) and bool(config["use_example_plans"])
+    if anchor_policy_labels and not keep_best_policy:
+        # There is no "best policy" to anchor on then -- only whichever policy the last round
+        # happened to produce, which is exactly the drifting thing this mechanism corrects.
+        log.warning("anchor_policy_labels needs keep_best_policy; no anchors will be emitted")
+        anchor_policy_labels = False
+    if anchor_policy_labels:
+        log.info("Policy-anchored labels are enabled")
+    # The trajectories are a by-product of validation, and both mechanisms consume them.
+    track_trajectories = policy_conformant_plans or anchor_policy_labels
+    if anchor_policy_labels and not policy_conformant_plans:
+        # Anchoring a transition the plan-restricted state space does not contain is a no-op at
+        # best: `_emit_anchors` drops every step that is not in the graph. H27 is what puts the
+        # best policy's trajectory there in the first place.
+        log.warning(
+            "anchor_policy_labels without policy_conformant_plans: the best policy's trajectories"
+            " are not example plans, so most anchored steps will be missing from the state space"
+        )
     problem_iterator: ProblemIterator | OneShotProblemIterator
     if one_shot:
         problem_iterator = OneShotProblemIterator(problems, config, plans=example_plans, plan_coverage=plan_coverage)
@@ -910,7 +990,7 @@ def solve_iteratively(
             show_progress=True,
             wall_deadline=wall_deadline,
             outcomes=outcomes,
-            trajectories=candidate_trajectories if policy_conformant_plans else None,
+            trajectories=candidate_trajectories if track_trajectories else None,
         )
         candidate_results.append((candidate, candidate_solved, outcomes, candidate_trajectories))
         return candidate_solved
@@ -943,6 +1023,17 @@ def solve_iteratively(
             stats["wallBudgetUsed"] = time.perf_counter() - wall_time_start
             _write_provisional_stats_row(config, stats)
             break
+        # Anchors only make sense for problems whose states are actually in this round's
+        # instance; a trajectory on a problem outside the training set has nothing to anchor to.
+        anchor_plans = (
+            {
+                problem.name: best_trajectories[problem.name]
+                for problem in iter_kwargs["active_problems"]
+                if problem.name in best_trajectories
+            }
+            if anchor_policy_labels
+            else None
+        )
         result, new_policy, frontier_states = solve_step(
             **iter_kwargs,
             domain=domain,
@@ -950,6 +1041,7 @@ def solve_iteratively(
             config=config,
             wall_deadline=wall_deadline,
             validate=_validate_candidate,
+            anchor_plans=anchor_plans,
         )
         if result == Result.FRONTIER:
             # Expand the unexpanded states the model relied on, then retry the same
@@ -1012,7 +1104,7 @@ def solve_iteratively(
                 stats=stats,
                 show_progress=True,
                 wall_deadline=wall_deadline,
-                trajectories=round_trajectories if policy_conformant_plans else None,
+                trajectories=round_trajectories if track_trajectories else None,
             )
         if policy_conformant_plans and round_trajectories:
             # Record before the wall-deadline check below: the plans are a by-product of work
@@ -1058,6 +1150,9 @@ def solve_iteratively(
                 # policy so far" solves, so re-pickling it would not change what a kill loses.
                 improved_coverage = best_policy is None or len(round_solved) > len(best_solved)
                 best_policy, best_solved, best_cost, best_round = policy, round_solved, round_cost, round_num
+                # The anchors follow the best policy, so they are replaced wholesale here rather
+                # than accumulated: a rejected policy's trajectories must not keep pinning labels.
+                best_trajectories = dict(round_trajectories)
                 stats["bestSolved"] = len(best_solved)
                 stats["bestCost"] = best_cost
                 stats["bestRound"] = best_round
@@ -1243,6 +1338,10 @@ def solve_step(
     # that bookkeeping because only it knows when the state space last changed.
     enforce_highest_complexity: bool = False,
     dead_states: Optional[Mapping[str, set[State]]] = None,
+    # The trajectories of the best policy so far, on the problems it solved and that are in this
+    # round's training set (`anchor_policy_labels`; see `FeaturePool._emit_anchors`). The round
+    # is solved twice when they turn out to be contradictory -- see the fallback in `solve`.
+    anchor_plans: Optional[Mapping[str, Plan]] = None,
     allow_frontier: bool = True,
     wall_deadline: Optional[float] = None,
     max_pool_size: Optional[int] = None,
@@ -1277,6 +1376,7 @@ def solve_step(
             enforce_highest_complexity=enforce_highest_complexity,
             plans=example_plans,
             dead_states=dead_states,
+            anchor_plans=anchor_plans,
             allow_frontier=allow_frontier,
             stats=stats,
             wall_deadline=wall_deadline,
