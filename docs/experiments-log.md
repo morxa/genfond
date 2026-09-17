@@ -986,3 +986,8 @@ Against the previous full-loop figure (2 of 5 runs 95/95 in ~19 min, the rest at
 converges in seconds: without the role offset the closure concept and its siblings tie at equal cost early,
 and the coverage tie-break over all 95 problems picks the general one. visitall-12 is 12/12 in 2.5 s under
 the same offsets (H24). Pending: seed 1, the rec2 domains under this setting, and the regression suites.
+
+`hyp/opt-enum` merged into `hyp/combo` (fast-forward to 3d08ff7; black/isort/mypy clean, 231 tests pass).
+Launched under the new setting (`claude-experiments/rec3.yaml` in the cluster worktree `optenum` = rec +
+role offset 0 + limit 3): the twelve rec2 domains as `rec3` (modern partition, 4 h graceful), visitall-500
+(`r0c1-L3-vis500`), the regression suites and the held-out set on the workstation.
