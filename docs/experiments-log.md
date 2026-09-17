@@ -1040,3 +1040,6 @@ path; on a graceful-stop request a provisional stats row (keyed by a per-run id)
 the final row at exit. `checkpoint_best_policy: true` by default. A kill that lands inside `clingo.ground()`
 still loses the stats row, but never the best policy any more. Cluster worktree `combo9` = `hyp/combo` @
 b531de1 with `claude-experiments/rec3.yaml` (the new setting) for the next batches.
+rec3 grid (26): 1/26, stopped by max complexity after 2.9 h on two 11-object training problems (every
+solve at complexity ≥ 9 hits the 300 s budget, 81 GB); rec2 grid was killed at 4 h with no policy. grid is
+grounding-bound like the pre-fix blocks3ops and needs a different idea, not a budget.
