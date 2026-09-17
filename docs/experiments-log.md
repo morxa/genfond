@@ -1193,3 +1193,7 @@ H29 first seeds (full loop): seed 0 **95/95 in 67 s**, seed 1 **95/95 in 73 s** 
 with an occasional fallback.
 H29 seeds 3 and 4: **95/95 in 259 s and 117 s** (seed 3 was 40 under H27, 95 only at 3.6 h under H28). Four
 of four finished seeds at 95 within 5 min; seeds 2 and 5 are at 90/91 after their first ten rounds and running.
+blocks4ops flat under H28 (H27 + diversity, 3.6 h): restarts 2 → 57/95 (best single 40 at round 16);
+enumeration limit 6 → **80/95** (best single 80 at round 14). Together with 36 (rec3) and 63 (H27): every arm
+finds its best policy around round 14–16 and drifts afterwards, the same signature as blocks3ops. H29 on the
+flat set is running (33/95 at round 30 after 40 min); H29 seeds 2 and 5 sit at 90/91 from round 9/11.
