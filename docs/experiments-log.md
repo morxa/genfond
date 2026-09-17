@@ -1192,3 +1192,5 @@ ref needs a force push, which is left to Till.
 H29 first seeds (full loop): seed 0 **95/95 in 67 s**, seed 1 **95/95 in 73 s** (seed 1 was 92 under rec3 and
 95 only at 3.6 h under H27). Anchors are active in the decisive rounds (6–11 transitions from 2–3 problems)
 with an occasional fallback.
+H29 seeds 3 and 4: **95/95 in 259 s and 117 s** (seed 3 was 40 under H27, 95 only at 3.6 h under H28). Four
+of four finished seeds at 95 within 5 min; seeds 2 and 5 are at 90/91 after their first ten rounds and running.
