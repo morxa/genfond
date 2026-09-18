@@ -1335,3 +1335,8 @@ the abort exposes that "max complexity reached" is treated as the end of the run
 H32's resample-on-stall is the intended answer; logistics_dp resubmitted under the H32 stack (`rs-logdp`).
 H32 seed 5: 95/95 in 103 s (one resample). Seeds 2 and 4 have used all three resamples and sit at 39 and
 84; blocks4ops flat best 81 at round 15 (one resample); running.
+H32 seed 2 trace: this seed never sees a near-general policy (best 27 at round 6, 39 at round 16) and keeps
+adding 2–5-block problems, so by the second resample the training set has 13 problems and 57 planner plans
+are replaced at once — a resample of a large patchwork set does not recover. The resample must come earlier
+and/or reset the sweep: arms `rs2-*` = `stall_rounds: 3, resample_max: 6` and `rsc-*` = `resample_reset_complexity: true`
+submitted for seeds 2 and 4.
