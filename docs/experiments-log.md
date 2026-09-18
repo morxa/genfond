@@ -1414,3 +1414,6 @@ stops cleanly after 11 s with `failureReason=no_example_plans`. The earlier barm
 were the unrestricted expansion of the two smallest instances in disguise, not learning. barman is therefore
 a planner-capability limit (SIW's width), not a learner limit; probe submitted with `planners.siw.restarts: 4`
 and `branch: true` (`df-barman-b`).
+barman probe (`restarts: 4`, `branch: true`): still no SIW plan for any instance (15 s, `no_example_plans`).
+barman is out of reach of the SIW example-plan generator; it would need the `topk_planner` (symk) or a
+width-2 search. Closed for this study as a planner limit.
