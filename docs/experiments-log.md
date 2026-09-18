@@ -1340,3 +1340,4 @@ adding 2–5-block problems, so by the second resample the training set has 13 p
 are replaced at once — a resample of a large patchwork set does not recover. The resample must come earlier
 and/or reset the sweep: arms `rs2-*` = `stall_rounds: 3, resample_max: 6` and `rsc-*` = `resample_reset_complexity: true`
 submitted for seeds 2 and 4.
+rec5 grid: 1/26, stopped by max complexity after 1.9 h (rec3 1/26 at 2.9 h) — unchanged; grid remains open.
