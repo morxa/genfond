@@ -1326,3 +1326,5 @@ still acts at the right level (the plan set). Launched: full loop seeds 0–5 (`
 H32 first seeds: seed 0 **95/95 in 110 s**, seed 1 **95/95 in 71 s** — the two seeds H31 left at 83 and 34
 (seed 0: 1 resample(s), best at round 12
 seed 1: 1 resample(s), best at round 12). Seed 2 at best 39 after 16+ rounds, seed 3 resampling; running.
+H32 seed 3: 95/95 in 254 s (one resample). Seed 2 sits at 39 after two resamples, seed 4 at 84 after one;
+seed 5 and blocks4ops flat running.
