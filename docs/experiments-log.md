@@ -1356,3 +1356,5 @@ the iterator first resamples (if H32 still may), else adds the next unsolved pro
 restart is provably futile (monotonicity), so it only pays where the sweep ended by timeout / resources /
 restricted rounds — the common case on large instances — which is why the resample goes first. Launched
 under the H33 stack: logistics_dp, logistics, grid (`nm-*`, cluster worktree `nomaxc`, 4 h graceful).
+rec5 miconic **22/25** (rec4 21, rec3 14, rec2 19), delivery **172/225** (rec3 171, rec4 162) — both the best
+figures so far under the H31 stack.
