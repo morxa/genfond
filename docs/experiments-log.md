@@ -1358,3 +1358,5 @@ restricted rounds — the common case on large instances — which is why the re
 under the H33 stack: logistics_dp, logistics, grid (`nm-*`, cluster worktree `nomaxc`, 4 h graceful).
 rec5 miconic **22/25** (rec4 21, rec3 14, rec2 19), delivery **172/225** (rec3 171, rec4 162) — both the best
 figures so far under the H31 stack.
+rec5 logistics **22/47** at the 3.75 h limit (rec4 19, rec3 15, rec 9) — best so far; this run did not hit
+max complexity within the budget.
