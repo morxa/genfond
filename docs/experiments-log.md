@@ -1360,3 +1360,22 @@ rec5 miconic **22/25** (rec4 21, rec3 14, rec2 19), delivery **172/225** (rec3 1
 figures so far under the H31 stack.
 rec5 logistics **22/47** at the 3.75 h limit (rec4 19, rec3 15, rec 9) — best so far; this run did not hit
 max complexity within the budget.
+
+### rec5 complete (H31 stack, 4 h graceful, seed 0) — cross-domain table
+
+| domain (problems) | rec (12 h) | rec2 | rec3 | rec4 (H27) | rec5 (H31 stack) |
+|---|---|---|---|---|---|
+| blocks4ops (113) | 106 | 108 | 113 (3.8 min) | 113 (3.9 min) | **113 (82 s)** |
+| blocks (35) | 29 | 27 | 35 (23 s) | 35 (85 s) | 35 (64 s) |
+| delivery (225) | 139 | 140 | 171 | 162 | **172** |
+| miconic (25) | 18 | 19 | 14 | 21 | **22** |
+| logistics (47) | 9 | 9 | 15 | 19 | **22** |
+| logistics_dp (47) | 17 | 9 | 18 | 23 | 13 (max complexity at 83 min; H33 running) |
+| reward (35) | 5 | 16 | 15 | 20 | 15 |
+| spanner (162) | – | 130 | 137 | 129 | 130 |
+| barman (30) | – | 0 | 0 | 0 | 0 |
+| grid (26) | – | – | 1 | 1 | 1 (max complexity at 1.9 h; H33 running) |
+| storage (30) | – | – | – | 3 | 3 |
+| sokoban | – | – | – | – | – (no SIW plan; H25 still open) |
+
+H32 seed 2 final: 40/95 (three resamples). Seed 4 and the follow-up arms running.
