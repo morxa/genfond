@@ -1409,3 +1409,8 @@ problem has a plan the run stops with `failureReason=no_example_plans` instead o
 queued). `max_states_per_problem` (off by default) cuts an expansion and defers the problem permanently;
 the expansion loop now polls the stop flag every 128 states so SIGTERM interrupts it. New `Result.DEFERRED`.
 Launched under the full stack: sokoban, storage, barman (`df-*`, cluster worktree `defer`).
+H25 barman: SIW finds no plan for **any** of the 30 instances (each retried with a fresh stream); the run
+stops cleanly after 11 s with `failureReason=no_example_plans`. The earlier barman runs (0/30 after 4 h)
+were the unrestricted expansion of the two smallest instances in disguise, not learning. barman is therefore
+a planner-capability limit (SIW's width), not a learner limit; probe submitted with `planners.siw.restarts: 4`
+and `branch: true` (`df-barman-b`).
