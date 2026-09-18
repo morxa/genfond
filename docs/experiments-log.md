@@ -1417,3 +1417,12 @@ and `branch: true` (`df-barman-b`).
 barman probe (`restarts: 4`, `branch: true`): still no SIW plan for any instance (15 s, `no_example_plans`).
 barman is out of reach of the SIW example-plan generator; it would need the `topk_planner` (symk) or a
 width-2 search. Closed for this study as a planner limit.
+
+## H32b: a climbing sweep is not a stall (`hyp/stall-refine`, merged with H25; 368 tests)
+
+`StallTracker`: only a round that produced a policy without improving the best coverage counts towards
+`stall_rounds`; NO_SOLUTION / FRONTIER (incl. the lower-bound abort) / timeouts do not, and a resample is
+deferred while the sweep is still climbing (`stallDeferred`). The agent showed the guard is unreachable in
+practice once the counting is fixed (a SUCCESS round always ends "climbing"), so the counting change is the
+fix. Branch = H33 + H32b + H25 (merge, one conflict in `iterative_solver.py` resolved). Launched: full loop
+seeds 0–5 (`st-s*`, cluster worktree `stall`) and blocks4ops flat (`st-b4flat`).
