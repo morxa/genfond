@@ -157,7 +157,8 @@ def state_satisfies_rule_conds(bool_feature_eval: dict[str, Cond], rule_conds: M
 
 
 def get_next_state(states: Collection[State], _) -> State:
-    return random.choice([state for state in states])
+    # See `execute_datalog_policy.get_next_state`: set order over `State`s is address-dependent.
+    return random.choice(sorted(states, key=state_string))
 
 
 def execute_rule_policy(

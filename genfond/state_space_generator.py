@@ -126,6 +126,22 @@ def apply_action_effects(state: State, action: Action) -> set[State]:
     return apply_effects(frozenset({state}), action.effect)
 
 
+def _stable_successors(state: State, action: Action) -> list[State]:
+    """`apply_action_effects` in a process-independent order.
+
+    The result is a `set[State]`, and `State` is a `frozenset` of `pddl` `Predicate`s whose hash
+    mixes in the identity hash of a class object (see `ground._stable_constants`), so its
+    iteration order changes from process to process. That order decides which successor of a
+    nondeterministic action is given the lower node id, and -- in `random_walk` -- which one a
+    draw from the seeded RNG lands on. Deterministic actions have a single successor, so the
+    sort is skipped for them and this stays free in the hot expansion loop.
+    """
+    succs = apply_action_effects(state, action)
+    if len(succs) <= 1:
+        return list(succs)
+    return sorted(succs, key=state_string)
+
+
 def apply_effects(states: Collection[State], effects: Formula | Collection[Formula]) -> set[State]:
     new_states: set[State] = set()
     for state in states:
@@ -347,7 +363,7 @@ class StateSpaceGraph:
             for action in grounded_actions:
                 if not check_formula(state, action.precondition):
                     continue
-                for succ in apply_action_effects(node.state, action):
+                for succ in _stable_successors(node.state, action):
                     plan_suffixes = [plan[1:] for plan in node.plan_suffixes if plan and plan[0] == action]
                     matches_plan = bool(plan_suffixes)
                     log.debug(
@@ -546,7 +562,7 @@ def compute_alive(nodes: Collection[StateSpaceNode]) -> None:
 
 
 def random_walk(domain: Domain, problem: Problem, initial_states: set[State], max_steps: int = 100):
-    states = list(initial_states)
+    states = sorted(initial_states, key=state_string)
     grounded_actions = ground(domain, problem)
     while True:
         state = random.choice(states)
@@ -557,7 +573,7 @@ def random_walk(domain: Domain, problem: Problem, initial_states: set[State], ma
             if not applicable_actions:
                 break
             action = random.choice(applicable_actions)
-            succ = random.choice(list(apply_action_effects(state, action)))
+            succ = random.choice(_stable_successors(state, action))
             states.append(succ)
             state = succ
             state = succ

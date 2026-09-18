@@ -70,6 +70,21 @@ def _check_types(constant: Constant, variable: Variable, type_dict: dict[TypeTag
     return any(_is_subtype(constant.type_tag, v_type, type_dict) for v_type in variable.type_tags)
 
 
+def _stable_constants(domain: Domain, problem: Problem) -> list[Constant]:
+    """The domain constants and problem objects in a process-independent order.
+
+    `domain.constants | problem.objects` is a frozenset of `pddl` `Constant`s, and
+    `Constant.__hash__` is `hash((Constant, name))` -- it mixes in the hash of the *class
+    object*, which is the default identity hash and therefore an address. Two runs of the same
+    code with the same `PYTHONHASHSEED` iterate such a set in different orders, because ASLR
+    moves the class. `Predicate.__hash__` hashes its terms, so the same is true of a `State`
+    (`frozenset[Predicate]`) and of `domain.predicates` (whose terms are `Variable`s, hashed the
+    same way). Sorting by name removes the dependence; `feature_generator.py` does the same for
+    the orders DLPlan and the ASP instance inherit.
+    """
+    return sorted(domain.constants | problem.objects, key=lambda c: str(c.name))
+
+
 def ground_action(domain: Domain, action, grounding: tuple[Constant]) -> Optional[Action]:
     if not isinstance(action, Action):
         action = [a for a in domain.actions if a.name == action][0]
@@ -87,7 +102,7 @@ def ground_action(domain: Domain, action, grounding: tuple[Constant]) -> Optiona
 
 
 def ground(domain: Domain, problem: Problem) -> list[Action]:
-    constants = domain.constants | problem.objects
+    constants = _stable_constants(domain, problem)
     operators = []
     for action in domain.actions:
         for grounding in itertools.product(constants, repeat=len(action.parameters)):
@@ -98,7 +113,7 @@ def ground(domain: Domain, problem: Problem) -> list[Action]:
 
 
 def ground_domain_predicates(domain: Domain, problem: Problem) -> set[Predicate]:
-    constants = domain.constants | problem.objects
+    constants = _stable_constants(domain, problem)
     ground_predicates = set()
     for predicate in domain.predicates:
         for grounding in itertools.product(constants, repeat=predicate.arity):

@@ -37,7 +37,10 @@ log = logging.getLogger("genfond.execution.datalog")
 
 
 def get_next_state(states: Collection[State]) -> State:
-    return random.choice([state for state in states])
+    # Sorted before the draw: `states` is a `set[State]` and `State` is a `frozenset` of `pddl`
+    # `Predicate`s, whose hash is address-dependent (see `ground._stable_constants`), so the
+    # unsorted order differs between two identically seeded processes.
+    return random.choice(sorted(states, key=state_string))
 
 
 def eval_concepts(
@@ -150,7 +153,8 @@ def execute_datalog_policy(
         roles_eval = eval_roles(instance, mapping, roles, problem, state, config | {"include_actions": False})
         bool_eval = bool_eval_state(instance, mapping, features, problem, state, config | {"include_actions": False})
 
-        for rule in random.sample(list(datalog_policy.rules), len(datalog_policy.rules)):
+        rules = sorted(datalog_policy.rules, key=repr)
+        for rule in random.sample(rules, len(rules)):
             log.debug(f"Checking rule: {rule}")
             if not state_satisfies_rule_conds(bool_eval, rule.conds):
                 log.debug(f"... Rule conditions not satisfied!")
@@ -167,7 +171,7 @@ def execute_datalog_policy(
                     if len(valid_objects) == 0:
                         break
 
-                objects[index] = [object_id_to_name[i] for i in valid_objects]
+                objects[index] = [object_id_to_name[i] for i in sorted(valid_objects)]
                 random.shuffle(objects[index])
                 if len(valid_objects) == 0:
                     break

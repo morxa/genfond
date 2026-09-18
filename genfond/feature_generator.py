@@ -13,7 +13,7 @@ from genfond.state_space_vis import draw_state_graph
 
 from .action_signatures import ActionSignature, iter_dist_set_facts
 from .forced_labels import ActionOccurrence, ForcedLabels, compute_forced_labels
-from .ground import ground, ground_domain_predicates
+from .ground import ground, ground_domain_predicates, state_string
 from .state_space_generator import (
     Alive,
     State,
@@ -43,7 +43,15 @@ def construct_vocabulary_info(domain: Domain, config: Mapping) -> VocabularyInfo
     vocabulary = VocabularyInfo()
     for predicate in domain.predicates:
         assert f"{predicate.name}_g" not in [p.name for p in domain.predicates]
-    for predicate in domain.predicates:
+    # Sorted, not set order: DLPlan enumerates primitive concepts and roles in vocabulary order,
+    # and the feature pool is serialised to the ASP instance in the order it enumerated them.
+    # `domain.predicates` is a frozenset of `pddl` `Predicate`s over `Variable` terms, and both
+    # `Predicate.__hash__` and `Variable.__hash__` mix in the identity hash of a class object
+    # (see `ground._stable_constants`), so that order changed from process to process. Two
+    # orderings of the same facts are the same program, but clingo breaks ties between equally
+    # optimal models by the order it sees them in, so an identically seeded run learned a
+    # different (equally cheap) policy.
+    for predicate in sorted(domain.predicates, key=lambda p: (str(p.name), p.arity)):
         # TODO some predicates may be static.
         vocabulary.add_predicate(predicate.name, predicate.arity)
         vocabulary.add_predicate(f"{predicate.name}_g", predicate.arity)
@@ -54,7 +62,7 @@ def construct_vocabulary_info(domain: Domain, config: Mapping) -> VocabularyInfo
             aparam_pred = get_aparam_predicate_name(i)
             assert aparam_pred not in [p.name for p in domain.predicates]
             vocabulary.add_predicate(aparam_pred, 1)
-    for constant in domain.constants:
+    for constant in sorted(domain.constants, key=lambda c: str(c.name)):
         vocabulary.add_constant(constant.name)
     return vocabulary
 
@@ -72,9 +80,15 @@ def construct_instance_info(
 ) -> tuple[InstanceInfo, dict[Predicate, Atom]]:
     instance = InstanceInfo(problem_id, vocabulary)
     map = dict()
-    for object in problem.objects:
+    # Sorted, not set order: dlplan hands out object and atom *indices* in insertion order, and
+    # those indices are what the policy executor turns back into object names when it picks a
+    # rule binding. `problem.objects` is a frozenset of `pddl` `Constant`s whose hash mixes in
+    # the identity hash of the `Constant` class, so its iteration order changes from process to
+    # process (ASLR) even with `PYTHONHASHSEED` fixed -- which made an identically seeded run
+    # bind a different object and take a different trajectory. See `ground._stable_constants`.
+    for object in sorted(problem.objects, key=lambda o: str(o.name)):
         instance.add_object(object.name)
-    for predicate in ground_domain_predicates(domain, problem):
+    for predicate in sorted(ground_domain_predicates(domain, problem), key=str):
         map[predicate] = instance.add_atom(predicate.name, [str(t) for t in predicate.terms])
         goal_predicate = Predicate(f"{predicate.name}_g", *predicate.terms)
         map[goal_predicate] = instance.add_atom(goal_predicate.name, [str(t) for t in predicate.terms])
@@ -643,9 +657,10 @@ class FeaturePool:
     def node_to_clingo(self, problem: Problem, node: StateSpaceNode, stats: dict) -> str:
         problem_id = self.problem_name_to_id[problem.name]
         clingo_program = ""
-        clingo_program += (
-            f"% " + ",".join([f'{p.name}({",".join([str(p) for p in p.terms])})' for p in node.state]) + "\n"
-        )
+        # `state_string` sorts; a `State` is a frozenset whose iteration order is
+        # address-dependent, and an instance that differs only in a comment is still an
+        # instance that does not diff clean between two identically seeded runs.
+        clingo_program += f"% {state_string(node.state)}\n"
         clingo_program += f"state({problem_id}, {node.id}).\n"
         if node.alive == Alive.PRUNED:
             clingo_program += f"pruned({problem_id}, {node.id}).\n"
