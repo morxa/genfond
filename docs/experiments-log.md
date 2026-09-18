@@ -1447,3 +1447,26 @@ across jobs**, independent of the resource request, and the seed-to-seed tables 
 run-to-run noise. The cause is being located (policy execution draws from the global RNG; a
 timing-, memory- or address-dependent consumer or an identity-hash iteration order is suspected). The
 ablation is on hold until executions are deterministic.
+
+## H34: reproducible runs (`hyp/deterministic-exec`, 2161b5b; 377 tests) — READ BEFORE INTERPRETING ANY TABLE ABOVE
+
+Root cause of the reproducibility failure (agent diagnosis): the `pddl` library hashes `Constant`/`Variable`
+as `hash((Constant, name))`, i.e. it mixes in the identity hash of the *class object*, an address that
+ASLR moves on every process and `PYTHONHASHSEED` does not pin. Every `frozenset` of atoms/objects
+(`State`, `problem.objects`, `domain.predicates`) therefore iterates in a per-process order. Two paths
+carried that into results: (1) objects are registered with DLPlan in set order, the executor maps DLPlan
+indices back and shuffles that list — same RNG draws, different binding, different action; (2) predicates
+are registered in set order, so the ASP instance's fact *set* is identical but its serialisation order
+differs and clingo returns a different, equally optimal model (on blocks3ops-local exactly two outcome
+classes in 8 runs). Ruled out: RNG draw count (identical `getstate()` at the divergence), time limits,
+`RLIMIT_AS`, job sizing. Fix: canonical sorting at every point a set order was consumed (vocabulary,
+instance objects/atoms, grounding products, successor sets, rule permutation, binding list); tests
+re-salt the hashes to simulate address layouts. Local: 8/8 byte-identical blocks3ops-local runs (before:
+2 classes), gripper/blocks4ops-clear 4/4.
+
+Consequence: every seed-to-seed number in this log was one draw from a distribution whose spread on
+blocks3ops is at least 49–95 of 95; same-seed A/B pairs were independent samples, not replicates; any
+single-run difference smaller than that spread is uninterpretable. Absolute numbers will shift on the fixed
+build (the canonical order picks a particular optimal model). Three identical seed-1 jobs (`detA/B/C`,
+cluster worktree `det` = H34 + the ablation harness) submitted to confirm byte-identical logs on the
+cluster before the ablation launches.
