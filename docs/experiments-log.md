@@ -1323,3 +1323,6 @@ solved, which are added and in which order, and which H27/H30 plans the instance
 dependence is therefore in the execution/addition order, one step removed from the plan sample; the resample
 still acts at the right level (the plan set). Launched: full loop seeds 0–5 (`rs-s*`, cluster worktree
 `resample`, H31 stack + H32) and blocks4ops flat (`rs-b4flat`).
+H32 first seeds: seed 0 **95/95 in 110 s**, seed 1 **95/95 in 71 s** — the two seeds H31 left at 83 and 34
+(seed 0: 1 resample(s), best at round 12
+seed 1: 1 resample(s), best at round 12). Seed 2 at best 39 after 16+ rounds, seed 3 resampling; running.
