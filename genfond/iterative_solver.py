@@ -38,9 +38,18 @@ from .problem_iterator import (
 from .rule_policy import Policy
 from .shutdown import stop_requested
 from .solver import Solver, SolveStatus
-from .state_space_generator import State, check_formula
+from .state_space_generator import (
+    ExpansionInterrupted,
+    ExpansionLimitExceeded,
+    State,
+    check_formula,
+)
 
 log = logging.getLogger("genfond.iterative_solver")
+
+# Where the seed indices of the planless retries (H25) start, far past any plausible
+# `resample_max`, so a retry stream and a resample stream are never the same draw.
+PLANLESS_SEED_OFFSET = 1000
 
 
 def _read_proc_status_kb(*fields: str) -> dict[str, Optional[int]]:
@@ -823,21 +832,29 @@ def _final_cost_minimization_pass(
             break
         complexity += 1
         rounds += 1
-        result, new_policy, _frontier_states = solve_step(
-            domain=domain,
-            config=config,
-            stats=stats,
-            example_plans=example_plans,
-            active_problems=active_problems,
-            complexity=complexity,
-            all_features=config["use_unrestricted_features"],
-            max_cost=max_cost,
-            enforce_highest_complexity=False,
-            dead_states=dead_states,
-            allow_frontier=False,
-            wall_deadline=wall_deadline,
-            max_pool_size=max_pool_size,
-        )
+        try:
+            result, new_policy, _frontier_states = solve_step(
+                domain=domain,
+                config=config,
+                stats=stats,
+                example_plans=example_plans,
+                active_problems=active_problems,
+                complexity=complexity,
+                all_features=config["use_unrestricted_features"],
+                max_cost=max_cost,
+                enforce_highest_complexity=False,
+                dead_states=dead_states,
+                allow_frontier=False,
+                wall_deadline=wall_deadline,
+                max_pool_size=max_pool_size,
+            )
+        except (ExpansionLimitExceeded, ExpansionInterrupted) as e:
+            # The training set is fixed here, so there is no smaller one to retry over: this pass
+            # is an optional extra that runs with a policy already in hand, and the policy it
+            # would improve on is returned unchanged.
+            log.warning("Final cost minimization pass: stopping, the state space could not be built (%s)", e)
+            stats["finalPassStoppedBy"] = "expansion"
+            break
         if result in (Result.OUT_OF_RESOURCES, Result.TIMEOUT):
             break
         if result != Result.SUCCESS:
@@ -1090,6 +1107,23 @@ def solve_iteratively(
             resample_planner_config["restarts"] = max(int(restarts), 2)
         return planner_compute_plans(str(domain), str(problem), resample_planner_config)
 
+    # Deferring problems the planner cannot plan for (H25). Same `use_example_plans` gate as the
+    # mechanisms above, applied inside the iterator (`ProblemIterator._defer_planless`): without
+    # example plans every problem is "planless" and the unrestricted expansion is the intended
+    # behaviour, so the option can default to true.
+    planless_attempts_made = 0
+
+    def _planless_plan_iterator(problem: Problem, attempt: int) -> Iterator[Plan]:
+        """A reseeded stream to retry a problem the planner found nothing for.
+
+        Shares `_fresh_plan_iterator`'s reseeding (a shifted seed plus at least two SIW restarts;
+        see its docstring for why the seed alone is inert), with an index offset far beyond any
+        `resample_max` so a retry and a resample never end up drawing the same stream.
+        """
+        nonlocal planless_attempts_made
+        planless_attempts_made += 1
+        return _fresh_plan_iterator(problem, PLANLESS_SEED_OFFSET + planless_attempts_made)
+
     def _resample_plans(resample_index: int) -> tuple[int, int]:
         """Resample under a reseeded global RNG, restored afterwards.
 
@@ -1160,6 +1194,7 @@ def solve_iteratively(
             plans=example_plans,
             plan_coverage=plan_coverage,
             on_problem_added=_prefix_plans_for if prefix_plans_enabled else None,
+            fresh_plan_iterator=_planless_plan_iterator if planner_compute_plans is not None else None,
             continuation=MaxComplexityContinuation(
                 time_left=_continuation_time_left,
                 resample_available=_resample_budget_left,
@@ -1199,6 +1234,21 @@ def solve_iteratively(
         candidate_results.append((candidate, candidate_solved, outcomes, candidate_trajectories))
         return candidate_solved
 
+    def _export_iterator_stats() -> None:
+        """Copy the counters the iterator owns into `stats`.
+
+        Called at the top of every round (so a provisional row written by an early break already
+        carries them) and once more after the loop, for a run that stopped before a round began.
+        """
+        if problem_iterator.max_complexity_continuations:
+            stats["maxComplexityContinuations"] = problem_iterator.max_complexity_continuations
+        if problem_iterator.deferred_problems:
+            stats["deferredProblems"] = len(problem_iterator.deferred_problems)
+        if problem_iterator.planless_retries_spent:
+            stats["planlessRetries"] = problem_iterator.planless_retries_spent
+        if problem_iterator.expansion_cutoffs:
+            stats["expansionCutoffs"] = problem_iterator.expansion_cutoffs
+
     def _record_round(coverage: Optional[int] = None) -> None:
         """Note how one round ended: `coverage` is how many problems its policy solved, None for
         a round that produced no policy."""
@@ -1214,11 +1264,10 @@ def solve_iteratively(
     for iter_kwargs in problem_iterator:
         round_num += 1
         candidate_results.clear()
-        if problem_iterator.max_complexity_continuations:
-            # Counted by the iterator, where the continuation happens (H33). Read out at the top
-            # of every round rather than once after the loop, so a provisional stats row written
-            # by an early break already carries it.
-            stats["maxComplexityContinuations"] = problem_iterator.max_complexity_continuations
+        # Counted by the iterator, where the continuations and deferrals happen (H33, H25). Read
+        # out at the top of every round rather than once after the loop, so a provisional stats
+        # row written by an early break already carries them.
+        _export_iterator_stats()
         if wall_deadline is not None and time.perf_counter() >= wall_deadline:
             # `max_wall_time - (wall_deadline - wall_time_start)` is what's held back in total --
             # just `wall_time_reserve` normally, or `wall_time_reserve + final_pass_budget` when
@@ -1274,15 +1323,34 @@ def solve_iteratively(
             if anchor_policy_labels
             else None
         )
-        result, new_policy, frontier_states = solve_step(
-            **iter_kwargs,
-            domain=domain,
-            stats=stats,
-            config=config,
-            wall_deadline=wall_deadline,
-            validate=_validate_candidate,
-            anchor_plans=anchor_plans,
-        )
+        try:
+            result, new_policy, frontier_states = solve_step(
+                **iter_kwargs,
+                domain=domain,
+                stats=stats,
+                config=config,
+                wall_deadline=wall_deadline,
+                validate=_validate_candidate,
+                anchor_plans=anchor_plans,
+            )
+        except ExpansionLimitExceeded as e:
+            # `max_states_per_problem`: this problem's state space cannot be enumerated here, so
+            # the round cannot be built at all. Drop the problem from the training set (it stays
+            # in the evaluation set) and retry the same configuration over what is left -- the
+            # same treatment a problem with no example plan gets, and for the same reason.
+            log.warning("%s; deferring %s and retrying the round without it", e, e.problem_name)
+            problem_iterator.defer_active_problem(problems_by_name[e.problem_name], expansion_cutoff=True)
+            problem_iterator.set_last_result(Result.DEFERRED)
+            _export_iterator_stats()
+            continue
+        except ExpansionInterrupted:
+            # SIGINT/SIGTERM during the expansion itself, which is the one phase of a round that
+            # can run for hours before `Solver.solve` ever polls the flag.
+            log.warning("Stop requested during state-space expansion; stopping")
+            stats["stoppedBy"] = "signal"
+            stats["wallBudgetUsed"] = time.perf_counter() - wall_time_start
+            _write_provisional_stats_row(config, stats)
+            break
         if result == Result.FRONTIER:
             # Expand the unexpanded states the model relied on, then retry the same
             # configuration. Must not fall through: the model is not a valid policy.
@@ -1438,6 +1506,17 @@ def solve_iteratively(
             )
             problem_iterator.set_last_result(Result.NO_SOLUTION)
             stats["failureReason"] = "maxcomplexity"
+    _export_iterator_stats()
+    if problem_iterator.stopped_without_training_problems():
+        # Every remaining problem was deferred for want of an example plan, so there was never a
+        # training set to solve over (H25). Named explicitly: the alternative this replaces is an
+        # unrestricted expansion of a problem the planner itself could not solve, which in the
+        # measured sokoban runs never returned at all.
+        log.error(
+            "No problem has an example plan (%d deferred); nothing could be trained on",
+            len(problem_iterator.deferred_problems),
+        )
+        stats["failureReason"] = "no_example_plans"
     if problem_iterator.prefix_plans_added or problem_iterator.prefix_plan_failures:
         # Counted by the iterator, which is where the hook runs (`_seed_prefix_plans`); read out
         # once here so a run that stopped early still reports what was seeded.

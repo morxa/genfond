@@ -234,6 +234,10 @@ class FeaturePool:
                 plans=(plans.get(problem.name, None) if plans else None),
                 frontier=config["frontier_expansion"],
                 dead_states=(dead_states.get(problem.name, None) if dead_states else None),
+                # null (the default) never bounds the expansion. See the config comment: this is
+                # the safety net for a problem with no example plans at all, whose expansion is
+                # unrestricted and can outlive the whole run.
+                max_states=config.get("max_states_per_problem"),
             )
             if config["visualize_state_graphs"]:
                 draw_state_graph(self.state_graphs[problem.name], f"{problem.name}_state_graph.png")

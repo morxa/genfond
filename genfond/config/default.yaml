@@ -87,6 +87,41 @@ min_number_of_plans: 5
 # is a deliberate floor, not runaway growth, so it is exempt; a problem may start out above the
 # cap if min_number_of_plans is set higher than it.
 max_plans_per_problem: null
+# Keep a problem the planner cannot produce a single example plan for out of the training set.
+# Only has an effect together with use_example_plans (without it no problem has example plans and
+# the unrestricted expansion is the intended behaviour), so this can default to true here and is
+# inert for the rule-based state/trans/d2l types.
+#
+# Why: StateSpaceGraph is only plan-restricted while there are plans to restrict it to. A problem
+# with none falls back to the *unrestricted* expansion of the whole instance -- and the problems
+# that have none are exactly the ones the planner could not solve, i.e. the hard ones. Measured
+# on sokoban with --type datalog-sig: SIW finds no plan for the smallest problem, the first round
+# starts with that problem alone, and the feature-pool stage never returns (12 h and 4 h runs,
+# repeatedly). Neither the solve budget nor the graceful stop can interrupt that phase, so the
+# run produces nothing at all.
+#
+# With this on, such a problem is deferred: it is not added to the training set, but it stays in
+# the *evaluation* set -- it still counts as unsolved and every candidate policy is still
+# executed on it -- and the next unsolved problem is added instead. It is retried whenever it
+# comes up again, each time against a freshly seeded planner stream (the same reseeding a
+# resample uses: a shifted seed and at least two SIW restarts, since restart 1 is SIW's identity
+# view of the task). If every remaining problem is planless the run stops with
+# failureReason=no_example_plans instead of expanding unrestrictedly.
+# Stats: deferredProblems, planlessRetries.
+defer_planless_problems: true
+# How many *retries* a deferred problem gets before it is skipped permanently for training (so
+# 2 means up to three attempts in total: the initial one plus two reseeded retries). Each retry
+# is a full planner run on a problem the planner has already failed on, which is why this is a
+# small number.
+planless_retries: 2
+# Safety net under defer_planless_problems: abandon a problem's state-space expansion once it has
+# generated this many states, and defer the problem for the round the way a planless one is
+# deferred. null (the default) never bounds the expansion, reproducing the previous behaviour
+# exactly. It catches the case the deferral cannot: a problem that *has* example plans, but whose
+# plan-restricted expansion is still far too large to enumerate. The count is checked per expanded
+# state, so the final total may overshoot by one state's successors.
+# Stats: expansionCutoffs.
+max_states_per_problem: null
 # Record, as an example plan, the trajectory a validated policy actually took on every problem
 # it solved ("policy-conformant plans"). Only has an effect together with use_example_plans,
 # which is what restricts StateSpaceGraph to the sampled plans in the first place; for the
