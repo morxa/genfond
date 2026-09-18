@@ -1475,3 +1475,17 @@ H33 (continue past max complexity, 3.8 h, seed 0, pre-H34 build): logistics_dp 1
 Continuing the run does not recover coverage here; the difference to rec4/rec5 is within the run-to-run
 spread H34 exposed, so no conclusion beyond "H33 does not hurt and uses the budget". To be re-measured in
 the ablation on the reproducible build.
+**Reproducibility confirmed on the cluster:** three identical seed-1 jobs on the H34 build (`detA/B/C`)
+produce byte-identical logs over 2 310 lines / 14 rounds (still running). Note the fixed build's seed 1 is
+now a poor draw (26/95 at round 14) where the pre-fix "seed 1" happened to hit 95 — as predicted, absolute
+numbers shift with the canonical ordering.
+
+## Ablation (launched 2026-09-18, cluster worktree `det` = H34 + harness, `scripts/ablation.sh`)
+
+Arms: full stack, and the stack minus H27 (policy plans), H29 (anchors), H30 (prefix plans), H32
+(resample on stall), H33 (continue past max complexity). Base = `st.yaml` (rec3 setting + anchors) with
+`planners.siw.restarts: 2` and `planners.siw.seed` = run seed, so the plan sample varies with the seed
+(restart 1 alone is the identity permutation). Seeds 0–2; ten domains (blocks3ops, blocks4ops-flat, blocks,
+delivery, miconic, logistics, logistics_dp, reward, spanner, visitall-500); 2 h limit, 1 h 50 graceful;
+4 CPUs / 16 GB (24 GB for blocks3ops); one SLURM array per arm, 10 concurrent tasks each. 180 jobs.
+Summary via `scripts/ablation_summary.py`; held-out generalisation via `scripts/heldout_eval.sh` afterwards.
