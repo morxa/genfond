@@ -1470,3 +1470,8 @@ single-run difference smaller than that spread is uninterpretable. Absolute numb
 build (the canonical order picks a particular optimal model). Three identical seed-1 jobs (`detA/B/C`,
 cluster worktree `det` = H34 + the ablation harness) submitted to confirm byte-identical logs on the
 cluster before the ablation launches.
+H33 (continue past max complexity, 3.8 h, seed 0, pre-H34 build): logistics_dp 14/47 (3 continuations,
+67 rounds; rec5 13, rec4 23), logistics 13/47 (2 continuations; rec5 22), grid 1/26 (4 continuations).
+Continuing the run does not recover coverage here; the difference to rec4/rec5 is within the run-to-run
+spread H34 exposed, so no conclusion beyond "H33 does not hurt and uses the budget". To be re-measured in
+the ablation on the reproducible build.
