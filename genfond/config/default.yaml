@@ -200,6 +200,28 @@ resample_max: 3
 # for the same reason: it does not change which policies are reachable, it only trades a full
 # re-sweep for smaller instances on the way back up.
 resample_reset_complexity: false
+# Reaching max_complexity on the current training set ends one complexity sweep, not the run.
+# Measured on logistics_dp (47 problems, --type datalog-sig, 4 h graceful wall budget): the loop
+# exhausted the sweep after 28 rounds / 84 min with 15/47 solved and stopped with
+# failureReason=maxcomplexity, leaving 2.6 h of the budget unused -- while slower variants that
+# never reached the top of the sweep reached 23/47 in the same budget. Fast rounds make this the
+# common ending rather than a rare one.
+#
+# With this on, a sweep that runs out at max_complexity while unsolved problems remain and the
+# wall-clock budget (max_wall_time) is not spent continues instead of stopping, in this order:
+#   1. resample the example plans, if resample_on_stall is on and resample_max is not used up --
+#      the state space changes, which is the one escalation that can make a policy possible the
+#      exhausted sweep could not express at any complexity;
+#   2. otherwise add the next unsolved problem outside the training set, with the normal
+#      add-a-problem bookkeeping (all accumulated plans are kept);
+#   3. otherwise stop, with the maxcomplexity reason as before.
+# Either continuation restarts the sweep at min_complexity. That is sound rather than merely
+# cheap: the pool at complexity c contains every feature of complexity < c, so nothing reachable
+# from the top of the sweep becomes unreachable from the bottom -- the restart can only cost
+# time. What it buys is size, and a continuation happens precisely because the large instances at
+# the top of the sweep produced no policy. max_cost is never loosened by a continuation.
+# Stats: maxComplexityContinuations.
+continue_after_max_complexity: true
 planner: siw
 planners:
   topk_planner:

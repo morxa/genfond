@@ -28,6 +28,7 @@ from .policy import PolicyType
 from .prefix_plans import PrefixPlans, policy_prefix_plans
 from .problem_iterator import (
     MAX_COST,
+    MaxComplexityContinuation,
     OneShotProblemIterator,
     PlanStateCoverage,
     ProblemIterator,
@@ -1106,6 +1107,49 @@ def solve_iteratively(
         finally:
             random.setstate(rng_state)
 
+    # Stall bookkeeping (H32): how many rounds in a row have failed to improve on the best
+    # coverage seen so far. A round that produces no policy at all never improves anything, so it
+    # counts as a stalled round like any other -- what the counter measures is rounds spent
+    # without the run getting better, which is exactly when a different sample is worth trying.
+    # Declared before the iterator is built because the max-complexity continuation (H33) reaches
+    # into the same counters from inside `ProblemIterator.__next__`.
+    rounds_since_improvement = 0
+    best_coverage_seen = -1
+    stall_rounds_max = 0
+    resamples_done = 0
+    resampled_plans = 0
+
+    def _do_resample() -> tuple[int, int]:
+        """Spend one resample and account for it; returns `(plans replaced, problems affected)`.
+
+        Shared by the two triggers: the stall counter (H32, at the top of the round body) and the
+        max-complexity continuation (H33, inside `ProblemIterator.__next__`). The stall counter is
+        cleared either way -- a resample is a fresh start for it, whichever trigger paid for it.
+        """
+        nonlocal resamples_done, resampled_plans, rounds_since_improvement
+        resamples_done += 1
+        replaced, affected = _resample_plans(resamples_done)
+        resampled_plans += replaced
+        rounds_since_improvement = 0
+        stats["resamples"] = resamples_done
+        stats["resampledPlans"] = resampled_plans
+        return replaced, affected
+
+    def _resample_budget_left() -> bool:
+        """Whether the max-complexity continuation may still reach for a resample."""
+        return resample_on_stall and resamples_done < resample_max
+
+    def _continuation_time_left() -> bool:
+        """Whether continuing past an exhausted complexity sweep is still worth starting.
+
+        The same two conditions the top of the round loop breaks on -- a continuation costs
+        planner calls and grows the state space, so it must not be spent on a run that is about
+        to be stopped anyway by the wall-clock deadline or a pending SIGINT/SIGTERM.
+        """
+        if stop_requested():
+            return False
+        return wall_deadline is None or time.perf_counter() < wall_deadline
+
     problem_iterator: ProblemIterator | OneShotProblemIterator
     if one_shot:
         problem_iterator = OneShotProblemIterator(problems, config, plans=example_plans, plan_coverage=plan_coverage)
@@ -1116,6 +1160,11 @@ def solve_iteratively(
             plans=example_plans,
             plan_coverage=plan_coverage,
             on_problem_added=_prefix_plans_for if prefix_plans_enabled else None,
+            continuation=MaxComplexityContinuation(
+                time_left=_continuation_time_left,
+                resample_available=_resample_budget_left,
+                resample=_do_resample,
+            ),
         )
     # One round's validated candidate policies, as (policy, solved problems, per-problem
     # outcomes). `solve_step` scores every equal-cost candidate through `_validate_candidate`
@@ -1150,16 +1199,6 @@ def solve_iteratively(
         candidate_results.append((candidate, candidate_solved, outcomes, candidate_trajectories))
         return candidate_solved
 
-    # Stall bookkeeping (H32): how many rounds in a row have failed to improve on the best
-    # coverage seen so far. A round that produces no policy at all never improves anything, so it
-    # counts as a stalled round like any other -- what the counter measures is rounds spent
-    # without the run getting better, which is exactly when a different sample is worth trying.
-    rounds_since_improvement = 0
-    best_coverage_seen = -1
-    stall_rounds_max = 0
-    resamples_done = 0
-    resampled_plans = 0
-
     def _record_round(coverage: Optional[int] = None) -> None:
         """Note how one round ended: `coverage` is how many problems its policy solved, None for
         a round that produced no policy."""
@@ -1175,6 +1214,11 @@ def solve_iteratively(
     for iter_kwargs in problem_iterator:
         round_num += 1
         candidate_results.clear()
+        if problem_iterator.max_complexity_continuations:
+            # Counted by the iterator, where the continuation happens (H33). Read out at the top
+            # of every round rather than once after the loop, so a provisional stats row written
+            # by an early break already carries it.
+            stats["maxComplexityContinuations"] = problem_iterator.max_complexity_continuations
         if wall_deadline is not None and time.perf_counter() >= wall_deadline:
             # `max_wall_time - (wall_deadline - wall_time_start)` is what's held back in total --
             # just `wall_time_reserve` normally, or `wall_time_reserve + final_pass_budget` when
@@ -1207,12 +1251,7 @@ def solve_iteratively(
             # iterator's `active_plans` dict, so the new plans are already in this round's
             # configuration; only the two values the resample may have changed are refreshed.
             stalled_rounds = rounds_since_improvement
-            resamples_done += 1
-            replaced, affected = _resample_plans(resamples_done)
-            resampled_plans += replaced
-            rounds_since_improvement = 0
-            stats["resamples"] = resamples_done
-            stats["resampledPlans"] = resampled_plans
+            replaced, affected = _do_resample()
             log.info(
                 "Resampling example plans after %d stalled rounds (resample %d/%d): %d problems," " %d plans replaced",
                 stalled_rounds,

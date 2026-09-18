@@ -80,6 +80,41 @@ class PlanStateCoverage:
         self.covered.pop(problem_name, None)
 
 
+class MaxComplexityContinuation:
+    """What `ProblemIterator` needs from its caller to keep going past an exhausted sweep (H33).
+
+    The iterator itself decides *whether* the run may continue once the complexity sweep is
+    exhausted and *how* (resample, or add the next unsolved problem). The two things it cannot
+    know on its own are whether the run still has wall-clock budget and whether H32's resample
+    is still available -- both live in `iterative_solver`. They arrive here as plain callables
+    so the iterator stays testable without the solver: the default instance says "time left, no
+    resample", which is exactly what a bare iterator should assume.
+    """
+
+    def __init__(
+        self,
+        time_left: Optional[Callable[[], bool]] = None,
+        resample_available: Optional[Callable[[], bool]] = None,
+        resample: Optional[Callable[[], tuple[int, int]]] = None,
+    ):
+        self._time_left = time_left
+        self._resample_available = resample_available
+        self._resample = resample
+
+    def time_left(self) -> bool:
+        """Whether starting another round is still worthwhile (no deadline hit, no stop pending)."""
+        return self._time_left() if self._time_left is not None else True
+
+    def resample_available(self) -> bool:
+        """Whether a resample can still be spent (`resample_on_stall` on, budget left)."""
+        return self._resample is not None and (self._resample_available is None or self._resample_available())
+
+    def resample(self) -> tuple[int, int]:
+        """Draw a new sample of planner plans; returns `(plans replaced, problems affected)`."""
+        assert self._resample is not None, "resample() is only called when resample_available() said so"
+        return self._resample()
+
+
 class Result(enum.Enum):
     UNKNOWN = 0
     SUCCESS = 1
@@ -114,10 +149,15 @@ class ProblemIterator:
         plans: Optional[MutableMapping[str, Iterator[Plan]]] = None,
         plan_coverage: Optional[PlanStateCoverage] = None,
         on_problem_added: Optional[Callable[[Problem], "PrefixPlans"]] = None,
+        continuation: Optional[MaxComplexityContinuation] = None,
     ):
         self.problems = problems
         self.config = config
         self.plan_iterators = plans
+        # What `_continue_past_max_complexity` (H33) may reach for once the complexity sweep is
+        # exhausted. The default instance grants unlimited time and no resample, so an iterator
+        # built without one continues only by adding the next unsolved problem.
+        self.continuation = continuation if continuation is not None else MaxComplexityContinuation()
         # None (the default, and what every existing test passes) disables the dedupe entirely:
         # every plan the iterator is handed is kept, exactly as before this was added.
         self.plan_coverage = plan_coverage
@@ -164,6 +204,9 @@ class ProblemIterator:
         # which is what `plan_cap_reached` lets the caller avoid up front.
         self.frontier_plans_dropped = 0
         self.all_features = False
+        # How often the run was kept alive past an exhausted complexity sweep (H33). Read out by
+        # `iterative_solver` as the `maxComplexityContinuations` stat.
+        self.max_complexity_continuations = 0
         self.last_step = LastStep.START
         self.complexity = self.config["min_complexity"]
         self.last_result = Result.SUCCESS
@@ -663,6 +706,113 @@ class ProblemIterator:
         # refutation bound this method just set is dropped again if any plan is actually added.
         self._seed_prefix_plans(next_problem)
 
+    def _restart_sweep(self) -> None:
+        """Send the complexity sweep back to `min_complexity` after a max-complexity continuation.
+
+        Restarting is sound, never merely cheap: the feature pool at complexity `c` contains
+        every feature of complexity `< c`, so every policy reachable from the level the sweep had
+        climbed to is also reachable from `min_complexity` on the way back up -- the restart can
+        only cost time, never a policy. What it buys is size: the low-complexity instances are
+        far smaller (roles alone contribute `n*m^2` grounded values per state), and a continuation
+        exists precisely because the big ones at the top of the sweep did not produce a policy --
+        several of them because they could not be grounded at all.
+
+        `sweep_target` is raised to the level the sweep had reached, the same bookkeeping
+        `_invalidate_refutations` does for `reset_complexity_on_state_space_change`: without it a
+        restarted sweep would add an example plan at `min_complexity` on the very next round
+        (`last_step == INC_COMPLEXITY` still holds from the climb) and the two would alternate at
+        one fixed level instead of the sweep ever climbing again. `last_step` goes back to START
+        for the same reason.
+
+        Refutations are deliberately *not* touched here. Each caller has already done what its
+        own state-space change requires: the resample invalidated them (`resample_planner_plans`
+        -> `_invalidate_refutations`), and `_add_next_problem` set the monotone bound it is
+        entitled to keep.
+        """
+        self.sweep_target = max(self.sweep_target, self.complexity)
+        self.complexity = self.config["min_complexity"]
+        self.last_step = LastStep.START
+
+    def _continue_past_max_complexity(self) -> bool:
+        """Keep the run alive when the complexity sweep is exhausted (H33). Returns whether it is.
+
+        Reaching `max_complexity` on the current training set is not the end of what the run can
+        try, it is only the end of one sweep. Measured on logistics_dp (47 problems,
+        `--type datalog-sig`, 4 h graceful budget): the loop exhausted the sweep after 28 rounds /
+        84 min with 15/47 solved and stopped with `failureReason=maxcomplexity`, leaving 2.6 h
+        unused, while slower variants that never reached the top of the sweep got 23/47 in the
+        same budget. Fast rounds make this the common ending, not a rare one.
+
+        In order:
+
+        1. **Resample** (H32), if one is still available. This changes the example plans, i.e.
+           the state space, which is the one escalation that can make a policy possible that the
+           exhausted sweep could not express at any complexity.
+        2. **Add the next unsolved problem** that is not in the training set yet, via the normal
+           `_add_next_problem` bookkeeping. Note what this cannot do: if the exhausted sweep
+           consisted purely of full-pool `NO_SOLUTION` rounds, every one of those levels is
+           refuted for the enlarged training set too (adding an instance is monotone), so the
+           re-climb can only pay off where the sweep was *not* cleanly refuted -- rounds that
+           timed out, ran out of resources or ran over the restricted generators. Those are
+           exactly the rounds a big instance produces, which is why this is worth trying rather
+           than stopping.
+        3. Neither available -> the caller stops with the `maxcomplexity` reason it always used.
+
+        Both continuations restart the sweep at `min_complexity` (`_restart_sweep`) and neither
+        loosens `max_cost`: the resample leaves it alone by design, and in this branch
+        `_add_next_problem`'s reset to `MAX_COST` is a no-op, because reaching here with a problem
+        left to add means the last elif of `__next__` failed on `active_problems_solved`, and a
+        training set that has not been solved since the last problem joined it still carries the
+        `MAX_COST` that `_add_next_problem`/INC_PLANS set back then.
+
+        Termination: each continuation either spends one of the finitely many resamples or moves
+        one problem into the training set, so the run cannot circle here forever.
+        """
+        if not self.config.get("continue_after_max_complexity", True):
+            return False
+        if self.complexity < self.config["max_complexity"] or not self.active_problems:
+            # A stop for some other reason (nothing to escalate below the top of the sweep, or a
+            # training set that never got started); this mechanism is about the exhausted sweep.
+            return False
+        unsolved = self.get_unsolved_problems()
+        if not unsolved:
+            return False
+        if not self.continuation.time_left():
+            log.info(
+                "Max complexity %d reached with %d unsolved problem(s); not continuing, the"
+                " wall-clock budget is spent",
+                self.complexity,
+                len(unsolved),
+            )
+            return False
+        if self.continuation.resample_available():
+            replaced, affected = self.continuation.resample()
+            if replaced:
+                log.info(
+                    "Max complexity %d reached with %d unsolved problem(s); continuing by"
+                    " resample (%d plan(s) for %d problem(s))",
+                    self.complexity,
+                    len(unsolved),
+                    replaced,
+                    affected,
+                )
+                self._restart_sweep()
+                self.max_complexity_continuations += 1
+                return True
+        next_problem = self._next_addable_problem()
+        if next_problem is not None:
+            log.info(
+                "Max complexity %d reached with %d unsolved problem(s); continuing by adding problem %s",
+                self.complexity,
+                len(unsolved),
+                next_problem.name,
+            )
+            self._add_next_problem()
+            self._restart_sweep()
+            self.max_complexity_continuations += 1
+            return True
+        return False
+
     def __next__(self) -> Mapping[str, Any]:
         assert self.last_result != Result.UNKNOWN, "You must set the result of the last problem before calling next"
         log.debug(
@@ -740,7 +890,9 @@ class ProblemIterator:
             and self._next_addable_problem() is not None
         ):
             self._add_next_problem()
-        else:
+        elif not self._continue_past_max_complexity():
+            # Nothing left to escalate and the complexity sweep cannot be restarted on anything
+            # new (H33): this is the end of the run.
             raise StopIteration
         log.debug(
             f'Next set: {", ".join([p.name for p in self.active_problems])},'
