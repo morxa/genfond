@@ -1333,3 +1333,5 @@ rec5 logistics_dp: **13/47, stopped by max complexity after 83 min** (rec4 23/47
 reaches `max_complexity` within the hour and the run terminates instead of spending its remaining budget —
 the abort exposes that "max complexity reached" is treated as the end of the run rather than as a stall.
 H32's resample-on-stall is the intended answer; logistics_dp resubmitted under the H32 stack (`rs-logdp`).
+H32 seed 5: 95/95 in 103 s (one resample). Seeds 2 and 4 have used all three resamples and sit at 39 and
+84; blocks4ops flat best 81 at round 15 (one resample); running.
