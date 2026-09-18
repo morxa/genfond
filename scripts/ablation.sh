@@ -69,9 +69,12 @@ mkdir -p "$CFGDIR"
 # domain in DOMAINS. `planners.siw.restarts: 2` on every arm/seed so the SIW seed actually
 # changes which plans are drawn -- with restarts: 1, restart 1 is SIW's identity permutation and
 # the seed is inert (see the H32 finding in docs/experiments-log.md).
+# Python with PyYAML: the poetry env locally, the apptainer image on the cluster (no poetry there).
+if command -v poetry >/dev/null 2>&1; then PYTHON="poetry run python3"; else PYTHON="apptainer run --bind $PWD genfond_env.sif python3"; fi
+
 gen_config() {
   local arm="$1" seed="$2" out="$3"
-  poetry run python3 - "$BASE" "$out" "$seed" "$arm" <<'PYEOF'
+  $PYTHON - "$BASE" "$out" "$seed" "$arm" <<'PYEOF'
 import sys
 
 import yaml
