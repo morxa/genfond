@@ -1347,3 +1347,12 @@ budget remain, whereas the slower stacks (rec4: 23/47) simply never got there. H
 max complexity with unsolved problems and budget left is treated as a stall — resample if H32 still may,
 otherwise add the next unsolved problem and restart the sweep at `min_complexity` with all accumulated
 plans — so the run ends only by budget or full coverage.
+
+## H33: continue past max complexity (`hyp/no-maxc-stop`, e9bbdac, on `hyp/resample-on-stall`; 335 tests)
+
+`continue_after_max_complexity: true`: when the sweep is exhausted with unsolved problems and budget left,
+the iterator first resamples (if H32 still may), else adds the next unsolved problem, and restarts the sweep
+(`sweep_target` raised so it climbs). Note from the agent: for a *cleanly refuted* sweep the add-problem
+restart is provably futile (monotonicity), so it only pays where the sweep ended by timeout / resources /
+restricted rounds — the common case on large instances — which is why the resample goes first. Launched
+under the H33 stack: logistics_dp, logistics, grid (`nm-*`, cluster worktree `nomaxc`, 4 h graceful).
