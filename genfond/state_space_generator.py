@@ -37,10 +37,46 @@ from pddl.logic.predicates import EqualTo
 from genfond.ground import action_string, state_string
 
 from .ground import ground
+from .shutdown import stop_requested
 
 log = logging.getLogger("genfond.state_space_generator")
 
 type State = frozenset[Formula]
+
+# How many nodes the expansion loop pops between two `stop_requested()` polls. Expanding a state
+# grounds nothing new -- the actions are grounded once up front -- so a pop is cheap and the
+# check has to be rare enough not to show up in the profile, yet frequent enough that a SIGTERM
+# is seen within a fraction of a second. The flag itself is a `threading.Event`, i.e. a bare
+# bool read, so this interval is conservative rather than necessary.
+STOP_CHECK_INTERVAL = 128
+
+
+class ExpansionInterrupted(Exception):
+    """Raised out of the expansion loop when a shutdown was requested (SIGINT/SIGTERM).
+
+    The expansion of a large unrestricted state space is the one phase of a round that can run
+    for hours without ever reaching `Solver.solve`, where the shutdown flag used to be polled
+    for the first time. A run killed in that phase produced nothing at all; raising here lets
+    `iterative_solver` stop the way it does everywhere else.
+    """
+
+
+class ExpansionLimitExceeded(Exception):
+    """Raised when `max_states_per_problem` is hit while expanding a problem.
+
+    Carries the problem it happened on so the caller can defer exactly that problem for the
+    round instead of losing the whole round. The graph is abandoned half-built and must not be
+    used: the states still in the queue were never expanded, so `compute_alive` would call them
+    alive on the strength of successors that were never generated.
+    """
+
+    def __init__(self, problem_name: str, num_states: int, max_states: int):
+        super().__init__(
+            f"Expanding {problem_name} exceeded max_states_per_problem={max_states} ({num_states} states)"
+        )
+        self.problem_name = problem_name
+        self.num_states = num_states
+        self.max_states = max_states
 
 
 def eval_function_term(term: FunctionExpression, state: State) -> float | int:
@@ -257,6 +293,7 @@ class StateSpaceGraph:
         plans: Optional[list[Plan]] = None,
         frontier: bool = False,
         dead_states: Optional[Collection[State]] = None,
+        max_states: Optional[int] = None,
     ):
         self.domain = domain
         self.problem = problem
@@ -281,7 +318,27 @@ class StateSpaceGraph:
             self.nodes = {root_state: self.root}
             queue = [self.root]
         grounded_actions = ground(domain, problem)
+        pops = 0
         while queue:
+            pops += 1
+            if pops % STOP_CHECK_INTERVAL == 0 and stop_requested():
+                # Always on, independent of max_states: without it a SIGTERM delivered during a
+                # multi-hour unrestricted expansion is only seen once that expansion finishes on
+                # its own, which is precisely the case it exists for.
+                raise ExpansionInterrupted(f"Expansion of {problem.name} interrupted by a stop request")
+            if max_states is not None and len(self.nodes) >= max_states:
+                # Checked per popped node rather than per generated successor, so the final count
+                # may overshoot by one node's worth of successors. That is deliberate: the limit
+                # is a safety net against an expansion that would never finish, not an exact
+                # budget, and one branching factor of slack costs nothing.
+                log.warning(
+                    "Expanding %s reached max_states_per_problem=%d with %d state(s) still queued;"
+                    " abandoning the expansion",
+                    problem.name,
+                    max_states,
+                    len(queue),
+                )
+                raise ExpansionLimitExceeded(problem.name, len(self.nodes), max_states)
             node = queue.pop()
             state = node.state
             if check_formula(state, problem.goal):

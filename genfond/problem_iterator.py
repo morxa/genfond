@@ -129,6 +129,10 @@ class Result(enum.Enum):
     # policy exists at this complexity -- so it must not set `refuted_complexity`. Escalation
     # otherwise proceeds exactly as after NO_SOLUTION.
     TIMEOUT = 5
+    # A problem was deferred while the round's instance was being built (`max_states_per_problem`),
+    # so no solve ran at all. Refutes nothing, tightens nothing, marks nothing solved: the
+    # iterator's own `_retry_after_defer` decides what happens next.
+    DEFERRED = 6
 
 
 class LastStep(enum.Enum):
@@ -150,10 +154,17 @@ class ProblemIterator:
         plan_coverage: Optional[PlanStateCoverage] = None,
         on_problem_added: Optional[Callable[[Problem], "PrefixPlans"]] = None,
         continuation: Optional[MaxComplexityContinuation] = None,
+        fresh_plan_iterator: Optional[Callable[[Problem, int], Iterator[Plan]]] = None,
     ):
         self.problems = problems
         self.config = config
         self.plan_iterators = plans
+        # A reseeded plan stream for one problem, given the number of attempts already spent on
+        # it -- what `defer_planless_problems` retries a planless problem with. None (the
+        # default, and what every existing test passes) means a planless problem is retried
+        # against its own stream, which for a planner that yielded nothing is a formality: the
+        # retry then only costs the `next()` that returns None again.
+        self.fresh_plan_iterator = fresh_plan_iterator
         # What `_continue_past_max_complexity` (H33) may reach for once the complexity sweep is
         # exhausted. The default instance grants unlimited time and no resample, so an iterator
         # built without one continues only by adding the next unsolved problem.
@@ -203,6 +214,32 @@ class ProblemIterator:
         # `frontierPlansDropped` stat; every one of them is a planner call that bought nothing,
         # which is what `plan_cap_reached` lets the caller avoid up front.
         self.frontier_plans_dropped = 0
+        # Problems the planner could not produce a single example plan for (H25). They stay in
+        # the *evaluation* set -- they still count as unsolved and every candidate policy is
+        # still executed on them -- but they are kept out of the training set, because without a
+        # plan `StateSpaceGraph` falls back to the unrestricted expansion of the whole instance,
+        # which on a problem the planner could not even solve is exactly the expansion that does
+        # not terminate in any useful time.
+        # name -> attempts spent so far; an attempt is one try at getting example plans for it.
+        self.planless_attempts: dict[str, int] = dict()
+        # Problems that exhausted `planless_retries` and are never offered to the training set
+        # again. `_first_addable_candidate` skips them, which is what keeps `_add_next_problem`'s
+        # "there is a problem to add" assertion true.
+        self.skipped_planless: set[str] = set()
+        # Every problem ever deferred, for the `deferredProblems` stat.
+        self.deferred_problems: set[str] = set()
+        # Reseeded retries actually spent (`planlessRetries`), and expansions abandoned at
+        # `max_states_per_problem` (`expansionCutoffs`).
+        self.planless_retries_spent = 0
+        self.expansion_cutoffs = 0
+        # The problem `_next_addable_problem` resolved (together with the plans drawn for it),
+        # waiting for the `_add_next_problem` that always follows. Drawing the plans is what
+        # decides whether a candidate is addable at all, so it happens during the resolution and
+        # must not be thrown away in between.
+        self._pending_candidate: Optional[Problem] = None
+        # Set by `defer_active_problem`: the next round runs the same configuration over the
+        # training set minus the problem that was just dropped, with no escalation.
+        self._retry_after_defer = False
         self.all_features = False
         # How often the run was kept alive past an exhausted complexity sweep (H33). Read out by
         # `iterative_solver` as the `maxComplexityContinuations` stat.
@@ -613,6 +650,16 @@ class ProblemIterator:
                 if problem.name in self.selected_states and problem not in self.active_problems:
                     del self.selected_states[problem.name]
 
+    def stopped_without_training_problems(self) -> bool:
+        """Whether the run ended with an empty training set because everything was deferred.
+
+        The one failure mode `defer_planless_problems` can produce on its own: no problem in the
+        suite has an example plan, so none of them may be trained on. `iterative_solver` reports
+        it as `failureReason=no_example_plans`, which is a far better diagnosis than the
+        unrestricted expansion that used to happen instead (and never returned).
+        """
+        return not self.active_problems and bool(self.deferred_problems)
+
     def frontier_budget_left(self) -> bool:
         """Whether another frontier expansion may still be spent on this run."""
         return self.frontier_expansions <= self.config["max_frontier_expansions"]
@@ -623,16 +670,161 @@ class ProblemIterator:
     def get_unsolved_problems(self) -> list[Problem]:
         return [problem for problem in self.problems if not self.solved[problem.name]]
 
-    def _next_addable_problem(self) -> Optional[Problem]:
-        """The next unsolved problem that is not already in the training set, if any."""
+    def _defer_planless(self) -> bool:
+        """Whether planless problems are deferred instead of added (H25).
+
+        Gated on `plan_iterators` for the same reason `policy_conformant_plans` and friends are
+        gated on `use_example_plans`: without example plans every problem is "planless", the
+        expansion is unrestricted by design, and deferring every problem would stop every run.
+        That gate is what lets the option default to true.
+        """
+        return bool(self.config.get("defer_planless_problems", False)) and bool(self.plan_iterators)
+
+    def _first_addable_candidate(self, exclude: Collection[str] = ()) -> Optional[Problem]:
+        """The next unsolved problem that is neither in the training set nor permanently skipped."""
         return next(
             (
                 problem
                 for problem in self.problems
-                if not self.solved[problem.name] and problem not in self.active_problems
+                if not self.solved[problem.name]
+                and problem not in self.active_problems
+                and problem.name not in self.skipped_planless
+                and problem.name not in exclude
             ),
             None,
         )
+
+    def _fill_plan_floor(self, problem: Problem) -> int:
+        """Draw planner plans for `problem` up to the `min_number_of_plans` floor.
+
+        Returns how many were actually drawn; a stream that has nothing (left) to offer simply
+        yields fewer. min_number_of_plans is a deliberate floor, not runaway growth, so it is
+        exempt from max_plans_per_problem -- the cap only stops *further* growth from INC_PLANS
+        or frontier expansion. Policy-conformant plans are excluded from the floor too: they are
+        not planner samples, and letting them suppress the planner's own diversity would defeat
+        min_number_of_plans.
+
+        This batch is not deduped by state coverage for the same reason, but the coverage tracker
+        is still told about it so later INC_PLANS/frontier additions are compared against the
+        true baseline.
+        """
+        assert self.plan_iterators is not None
+        name = problem.name
+        # setdefault, not `= []`: a problem may already hold policy-conformant plans recorded
+        # while it was still outside the training set (`record_policy_plans`), and those are the
+        # whole point of the mechanism. Without any, this is `= []`.
+        active = self.active_plans.setdefault(name, [])
+        drawn = 0
+        while len(active) - self.policy_plan_counts.get(name, 0) < self.config["min_number_of_plans"]:
+            next_plan = next(self.plan_iterators[name], None)
+            if next_plan is None:
+                break
+            if self.plan_coverage is not None:
+                self.plan_coverage.add(name, next_plan)
+            active.append(next_plan)
+            drawn += 1
+        return drawn
+
+    def _ensure_example_plans(self, problem: Problem) -> bool:
+        """Try to give `problem` example plans; report whether it may join the training set.
+
+        A problem is planless when, after drawing, it holds no example plan of any kind -- not
+        the planner's, not a policy-conformant one recorded while it was outside the training
+        set. Those are exactly the problems whose `StateSpaceGraph` would be built without any
+        restriction.
+
+        A retry draws from a *fresh* stream rather than the exhausted one. That is the H32
+        reseeding (`iterative_solver._fresh_plan_iterator`): a shifted seed plus at least two SIW
+        restarts, because restart 1 is SIW's identity view of the task and a reseeded stream
+        would otherwise replay exactly the search that already found nothing.
+        """
+        name = problem.name
+        attempts = self.planless_attempts.get(name, 0)
+        if attempts and self.fresh_plan_iterator is not None:
+            assert self.plan_iterators is not None
+            self.plan_iterators[name] = self.fresh_plan_iterator(problem, attempts)
+            self.planless_retries_spent += 1
+            log.info("Retrying the planner for %s with a fresh stream (attempt %d)", name, attempts + 1)
+        self._fill_plan_floor(problem)
+        if self.active_plans.get(name):
+            return True
+        self._note_planless(problem, "No example plan for {}; deferring it")
+        return False
+
+    def _note_planless(self, problem: Problem, message: str) -> None:
+        """Record one failed attempt at `problem` and skip it permanently once they run out."""
+        name = problem.name
+        attempts = self.planless_attempts.get(name, 0) + 1
+        self.planless_attempts[name] = attempts
+        self.deferred_problems.add(name)
+        log.info(message.format(name))
+        if attempts > self.config.get("planless_retries", 2):
+            self.skipped_planless.add(name)
+            log.warning(
+                "Giving up on %s after %d attempt(s) at an example plan; it stays in the"
+                " evaluation set but will not be added to the training set again",
+                name,
+                attempts,
+            )
+
+    def _next_addable_problem(self) -> Optional[Problem]:
+        """The next problem that may join the training set, if any.
+
+        With `defer_planless_problems` off this is the plain scan it always was. With it on, a
+        candidate is only addable once it actually has example plans, so the plans are drawn
+        here -- every caller invokes this immediately before `_add_next_problem`, so the draw is
+        never wasted, and the result is cached in `_pending_candidate` so the two calls agree.
+        """
+        if not self._defer_planless():
+            return self._first_addable_candidate()
+        pending = self._pending_candidate
+        if pending is not None and not self.solved[pending.name] and pending not in self.active_problems:
+            return pending
+        self._pending_candidate = None
+        # One attempt per candidate per resolution. A retry is meant to be a later round against
+        # a fresh planner stream -- spending every `planless_retries` attempt back to back here
+        # would burn the whole allowance on the round that first found the problem planless, and
+        # each attempt is a full planner run.
+        tried: set[str] = set()
+        while (candidate := self._first_addable_candidate(tried)) is not None:
+            if self._ensure_example_plans(candidate):
+                self._pending_candidate = candidate
+                return candidate
+            tried.add(candidate.name)
+        return None
+
+    def defer_active_problem(self, problem: Problem, expansion_cutoff: bool = False) -> None:
+        """Drop `problem` from the training set (H25) and retry the round without it.
+
+        Called when building the round's instance turned out to be infeasible for one problem --
+        today only `max_states_per_problem`, whose cutoff says the same thing a missing example
+        plan says: this problem's state space cannot be enumerated here.
+
+        Unlike a planless problem this one is *not* retried later, and that is not a shortcut:
+        every way the run can change a problem's state space afterwards -- an INC_PLANS draw, a
+        frontier expansion, a policy-conformant or policy-prefix plan -- only ever adds plans,
+        and every added plan can only make the plan-restricted expansion larger. A problem cut
+        off at N states would therefore be cut off again, at the price of another abandoned
+        expansion, which is exactly the cost this mechanism exists to avoid. It stays in the
+        evaluation set like any deferred problem.
+
+        The training set *shrinks*, which is not a monotone change: a level refuted over the
+        larger set says nothing about the smaller, easier one, so the refutations go. `max_cost`
+        is left alone, exactly as on a resample -- the best policy so far still stands and the
+        next round is still asked to beat it.
+        """
+        if expansion_cutoff:
+            self.expansion_cutoffs += 1
+        self.active_problems = [p for p in self.active_problems if p.name != problem.name]
+        self.deferred_problems.add(problem.name)
+        self.skipped_planless.add(problem.name)
+        self.planless_attempts[problem.name] = self.planless_attempts.get(problem.name, 0) + 1
+        log.warning(
+            "Cannot build the state space of %s; it stays in the evaluation set but will not be" " trained on again",
+            problem.name,
+        )
+        self.refuted_complexity = self.config["min_complexity"] - 1
+        self._retry_after_defer = True
 
     def _add_next_problem(self) -> None:
         """Add the next unsolved problem to the training set and reset the sweep for it.
@@ -650,6 +842,8 @@ class ProblemIterator:
         self.last_step = LastStep.START
         next_problem = self._next_addable_problem()
         assert next_problem is not None
+        # Consumed: the plans drawn while resolving this candidate belong to it now.
+        self._pending_candidate = None
         if (
             self.config["unselect_problems"]
             and self.active_problems
@@ -677,30 +871,9 @@ class ProblemIterator:
                 # which is reset here anyway.
                 self.refuted_complexity = self.succ_complexity - 1
         if self.plan_iterators:
-            # setdefault, not `= []`: a problem may already hold policy-conformant plans
-            # recorded while it was still outside the training set (`record_policy_plans`),
-            # and those are the whole point of the mechanism. Without any, this is `= []`.
-            self.active_plans.setdefault(next_problem.name, [])
-            # min_number_of_plans is a deliberate floor, not runaway growth, so it is exempt
-            # from max_plans_per_problem: the cap only stops *further* growth from INC_PLANS or
-            # frontier expansion, via _plan_cap_reached there.
-            # Policy-conformant plans are excluded from the floor too: they are not planner
-            # samples, and letting them suppress the planner's own diversity would defeat
-            # min_number_of_plans.
-            while (
-                len(self.active_plans[next_problem.name]) - self.policy_plan_counts.get(next_problem.name, 0)
-                < self.config["min_number_of_plans"]
-            ):
-                next_plan = next(self.plan_iterators[next_problem.name], None)
-                if next_plan is None:
-                    break
-                # This initial batch is not deduped by state coverage -- min_number_of_plans is
-                # a deliberate floor, not runaway growth -- but the coverage tracker still needs
-                # to know about these plans so later INC_PLANS/frontier additions are compared
-                # against the true baseline.
-                if self.plan_coverage is not None:
-                    self.plan_coverage.add(next_problem.name, next_plan)
-                self.active_plans[next_problem.name].append(next_plan)
+            # Already drawn by `_next_addable_problem` when planless problems are deferred --
+            # that draw is what established the problem is addable in the first place.
+            self._fill_plan_floor(next_problem)
         # Last, so the prefix plans are deduped against the floor batch that was just drawn (a
         # plan reaching no state those already cover cannot change the state space) and so the
         # refutation bound this method just set is dropped again if any plan is actually added.
@@ -818,7 +991,19 @@ class ProblemIterator:
         log.debug(
             f"last result: {self.last_result.name}, all features: {self.all_features}, complexity: {self.complexity}"
         )
-        if self.last_result == Result.FRONTIER and self.frontier_progress and self.frontier_budget_left():
+        if self._retry_after_defer:
+            # A problem was dropped from the training set while this round's instance was being
+            # built (`defer_active_problem`). Nothing was learned and nothing is escalated: the
+            # same configuration is retried over the problems that are left. This branch comes
+            # first because the round it retries never produced a result worth acting on.
+            self._retry_after_defer = False
+            if not self.active_problems:
+                # The dropped problem was the only one. Adding the next candidate is the only
+                # way forward; if there is none, every remaining problem is planless.
+                if self._next_addable_problem() is None:
+                    raise StopIteration
+                self._add_next_problem()
+        elif self.last_result == Result.FRONTIER and self.frontier_progress and self.frontier_budget_left():
             # Retry the exact same configuration; only the plan and dead-end sets grew.
             self.last_step = LastStep.EXPAND_FRONTIER
         elif (
