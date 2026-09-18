@@ -1431,3 +1431,5 @@ resample). Seed 0 at 94 from round 7, seed 2 at 26 at round 14; running.
 blocks4ops flat under H32: **81/95** (best 81 at round 15, three resamples) — the best flat figure so far
 (rec3 36, H27 63, H28-L6 80, H29 39, H30 41, H31 41). Combined stack seed 3: 95/95 in 101 s (no resample);
 seed 0 at 94 from round 7, seeds 2 and 4 at 28/33; running.
+Combined stack seeds 4 and 5: **95/95 in 533 s and 53 s**, no resample needed. Three of three finished seeds
+at 95; seed 0 sits at 94 from round 7 with no resample fired (checking), seed 2 at 28.
