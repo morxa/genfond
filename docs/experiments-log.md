@@ -1489,3 +1489,71 @@ Arms: full stack, and the stack minus H27 (policy plans), H29 (anchors), H30 (pr
 delivery, miconic, logistics, logistics_dp, reward, spanner, visitall-500); 2 h limit, 1 h 50 graceful;
 4 CPUs / 16 GB (24 GB for blocks3ops); one SLURM array per arm, 10 concurrent tasks each. 180 jobs.
 Summary via `scripts/ablation_summary.py`; held-out generalisation via `scripts/heldout_eval.sh` afterwards.
+
+### Ablation result, training suites (2026-09-19; 180 jobs, all terminal)
+
+Solved / problems per seed 0, 1, 2 (mean). A `*` marks a run whose log ends without the final summary line;
+the figure is then the last "Checkpointed best policy (k/n)" line, a lower bound (see "reporting gap").
+
+| domain | full | noH27 | noH29 | noH30 | noH32 | noH33 |
+|---|---|---|---|---|---|---|
+| blocks3ops | 95, 35, 95 (75.0) | 95, 32, 95 (74.0) | 29, 94, 95 (72.7) | 95, 29, 92* (72.0) | 95, 35, 95 (75.0) | 95, 35, 95 (75.0) |
+| blocks4ops-flat /95 | 53, 41, 57 (50.3) | 46, 33, 38 (39.0) | 54, 37, 36 (42.3) | 35, 36, 40 (37.0) | 34, 38, 49 (40.3) | 53, 42, 54 (49.7) |
+| spanner /140 | 128*, 123*, 125* (125.3) | 128*, 122*, 121* (123.7) | 125*, 127*, 123* (125.0) | 118*, 119*, 123* (120.0) | 125*, 126*, 125* (125.3) | 125*, 123*, 125* (124.3) |
+| delivery /225 | 142, 167, 151 (153.3) | 121*, 154, 137* (137.3) | 143, 141, 154 (146.0) | 122*, 141, 130* (131.0) | 145, 166, 167 (159.3) | 144, 167, 153 (154.7) |
+| miconic /25 | 22, 18*, 21 (20.3) | 20, 20, 21 (20.3) | 17, 25, 21 (21.0) | 20, 21, 25 (22.0) | 22, 19, 21 (20.7) | 22, 19, 21 (20.7) |
+| reward /20 | 20, 20, 20 (49 s) | 20, 20, 20 | 20, 20, 20 | 20, 20, 15* (s2 still in round at 1 h 50) | 20, 20, 20 | 20, 20, 20 |
+| logistics /25 | 8, 8, 8 | 8, 8, 8 | 8, 8, 8* | 8, 8, 8* | 8*, 8, 8* | 8, 8, 8 |
+| logistics_dp /25 | 8, 8, 8 | 8, 6*, 6* | 8, 6*, 6* | 6*, 6*, 8 | 8, 6*, 6* | 8, 8, 8 |
+| blocks /12 | 12 ×3 | 12 ×3 | 12 ×3 | 12 ×3 | 12 ×3 | 12 ×3 |
+| visitall-500 | 500 ×3 (11 min) | 500 ×3 | 500 ×3 | 500 ×3 | 500 ×3 | 500 ×3 |
+
+Median wall time is the budget (6 300–6 500 s) for blocks4ops-flat, delivery, miconic, logistics and
+logistics_dp in every arm except noH33, which ends delivery / logistics / logistics_dp at 2 556 / 1 867 /
+1 725 s with the same coverage: the max-complexity stop happens there, and continuing past it (H33) buys
+nothing in the remaining hour. blocks3ops: 516 s median (noH29 6 312 s, noH30 3 203 s); reward 49 s;
+visitall 11 min.
+
+Reading (three seeds per cell, so only differences larger than the within-arm spread count):
+
+- **blocks3ops**: the stack is irrelevant. Every arm solves 95/95 on two seeds and stalls at ~30 on one;
+  removing H27, H32 or H33 reproduces the full arm's numbers *exactly* (35, 32/35, 35), i.e. those mechanisms
+  never change the trajectory here; removing H29 or H30 only moves which seed is the unlucky one. The per-seed
+  "95/95" successes reported for H27–H32 above were draws from this same distribution.
+- **blocks4ops-flat** is the one suite with a stack effect: full 50.3 vs 37–42 without H27, H29, H30 or H32
+  (each −8 to −13), H33 neutral (49.7). The within-arm spread is 16, so each single ablation is at the edge
+  of noise, but all four point the same way and no ablation beats the full arm.
+- **spanner**: noH30 −5 (120.0 vs 125.3, and its 118/119 are the two lowest cells in the row); the others
+  are within ±2. All spanner runs climb to 118–128/140 within the first hour and then spend the rest on the
+  four largest instances where SIW finds no plan.
+- **delivery**: noH27 (137) and noH30 (131) sit below the full arm (153), but two of the three cells in
+  each are lower bounds, so this is suggestive only. noH32 159 and noH33 155 are within noise.
+- **reward**: without H30 one seed in three does not converge in 1 h 50 (15/20, still in a round), where every
+  other arm finishes at 20/20 in 49 s. One event, but a large one.
+- miconic, logistics, logistics_dp, blocks, visitall: no arm differs beyond noise (logistics and logistics_dp
+  are pinned at 8/25 = the ≤ small-size instances in every arm; the problem there is not the plan mechanism).
+
+Verdict on H27–H33 after the ablation: **H30 (prefix plans)** has support on three suites (blocks4ops-flat,
+spanner, reward) and is the only mechanism to keep with some confidence. **H27** and **H32** have one
+supporting suite each (blocks4ops-flat, plus delivery for H27 with the lower-bound caveat). **H29** has one
+weak signal (blocks4ops-flat) and made blocks3ops slower (6 312 s median). **H33** has no coverage effect
+anywhere and only uses the budget; it should default to off. None of them does anything for blocks3ops,
+which was the suite they were derived from — the earlier per-hypothesis blocks3ops gains were
+run-to-run noise ([H34](#h34-reproducible-runs-hypdeterministic-exec-2161b5b-377-tests--read-before-interpreting-any-table-above)).
+
+**Reporting gap (38 of 180 logs without a summary line):** genfond's graceful stop is only polled inside
+the clingo solve. When the 6 600 s budget expires during the final "Verifying policy" loop or during a
+round's DLPlan feature generation / redundancy elimination, the job runs into SLURM's forwarded SIGTERM and
+dies (exit 15, elapsed 1:49:3x–1:50:00, all 38) before printing "Policy solves N out of M". All 18 spanner
+jobs (140-problem verification) and 20 delivery / logistics / logistics_dp / miconic / reward / blocks3ops
+jobs are affected. Every one has a checkpointed best policy, which is what the held-out evaluation uses.
+Fix to make: check the stop flag in the verification loop and between feature-generation passes
+(`genfond/__main__.py`), and report the checkpoint coverage on an interrupted verification.
+
+### H25 result (sokoban / storage, 3.8 h, seed 0, pre-H34 build)
+
+sokoban: the plan-less first problem is deferred as intended (2 s), the next one (p095, five SIW plans of
+cost 25–27) enters feature-pool generation at round 1 and never leaves it in 3 h 49 (no state-space or
+solver line after the vocabulary dump). The bottleneck is expansion / feature generation on the first
+plannable instance, not the missing plan, so deferral does not open sokoban. storage: 3/30 checkpointed at
+30 s, no improvement in 3.8 h (109 MB log of anchoring/frontier rounds). Both unchanged from rec5.
