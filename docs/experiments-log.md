@@ -1426,3 +1426,5 @@ deferred while the sweep is still climbing (`stallDeferred`). The agent showed t
 practice once the counting is fixed (a SUCCESS round always ends "climbing"), so the counting change is the
 fix. Branch = H33 + H32b + H25 (merge, one conflict in `iterative_solver.py` resolved). Launched: full loop
 seeds 0–5 (`st-s*`, cluster worktree `stall`) and blocks4ops flat (`st-b4flat`).
+Combined stack, first seed: seed 1 **95/95 in 54 s** with no resample needed (H31: 34, H32: 95 after one
+resample). Seed 0 at 94 from round 7, seed 2 at 26 at round 14; running.
