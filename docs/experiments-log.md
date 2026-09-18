@@ -1428,3 +1428,6 @@ fix. Branch = H33 + H32b + H25 (merge, one conflict in `iterative_solver.py` res
 seeds 0–5 (`st-s*`, cluster worktree `stall`) and blocks4ops flat (`st-b4flat`).
 Combined stack, first seed: seed 1 **95/95 in 54 s** with no resample needed (H31: 34, H32: 95 after one
 resample). Seed 0 at 94 from round 7, seed 2 at 26 at round 14; running.
+blocks4ops flat under H32: **81/95** (best 81 at round 15, three resamples) — the best flat figure so far
+(rec3 36, H27 63, H28-L6 80, H29 39, H30 41, H31 41). Combined stack seed 3: 95/95 in 101 s (no resample);
+seed 0 at 94 from round 7, seeds 2 and 4 at 28/33; running.
