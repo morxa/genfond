@@ -1328,3 +1328,8 @@ H32 first seeds: seed 0 **95/95 in 110 s**, seed 1 **95/95 in 71 s** — the two
 seed 1: 1 resample(s), best at round 12). Seed 2 at best 39 after 16+ rounds, seed 3 resampling; running.
 H32 seed 3: 95/95 in 254 s (one resample). Seed 2 sits at 39 after two resamples, seed 4 at 84 after one;
 seed 5 and blocks4ops flat running.
+rec5 logistics_dp: **13/47, stopped by max complexity after 83 min** (rec4 23/47 at the 3.7 h limit, rec3
+18). With H31 every doomed round ends in seconds, so the complexity sweep on the 6-problem training set
+reaches `max_complexity` within the hour and the run terminates instead of spending its remaining budget —
+the abort exposes that "max complexity reached" is treated as the end of the run rather than as a stall.
+H32's resample-on-stall is the intended answer; logistics_dp resubmitted under the H32 stack (`rs-logdp`).
