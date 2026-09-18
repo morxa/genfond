@@ -246,7 +246,11 @@ def solver_config(**overrides):
 
 
 def run_stalling_rounds(monkeypatch, simple_blocks, num_rounds, **config_overrides):
-    """`num_rounds` rounds that never produce a policy, so the best coverage never improves.
+    """`num_rounds` rounds that each produce a policy solving 0 problems, so the best coverage
+    never improves. H32b (see docs/resample-on-stall-results.md) only counts a non-improving
+    `Result.SUCCESS` toward the stall counter, so this mocks a policy that "succeeds" (the ASP
+    round found a model) but validates against nothing -- a `Result.NO_SOLUTION` round, which used
+    to drive these same tests, no longer counts at all and would never trigger a resample here.
 
     Every call to the planner hands out a fresh two-plan stream from a disjoint slice of the
     plan pool, so which stream a problem's plans came from is visible in the plans themselves.
@@ -264,12 +268,17 @@ def run_stalling_rounds(monkeypatch, simple_blocks, num_rounds, **config_overrid
         planner_configs.append(dict(planner_config))
         return iter([pool_plan(2 * index + 1), pool_plan(2 * index + 2)])
 
+    monkeypatch.setattr(isolver, "_test_policy_on_problems", lambda *args, **kwargs: [])
     monkeypatch.setattr(
         isolver,
         "_get_example_plan_computer",
         lambda config: (fake_compute_plans, dict(config["planners"]["siw"]), "siw"),
     )
-    monkeypatch.setattr(isolver, "solve_step", lambda **kwargs: (Result.NO_SOLUTION, None, []))
+    # A SUCCESS whose validated coverage (mocked via _test_policy_on_problems above) is always
+    # 0/1 -- a real solve_step call would also invoke _validate_candidate, but with the default
+    # optimal_model_limit: 1 it never does, so candidate_results stays empty and the round loop
+    # falls through to _test_policy_on_problems for testing, exactly as it does outside tests.
+    monkeypatch.setattr(isolver, "solve_step", lambda **kwargs: (Result.SUCCESS, DummyPolicy(cost=(1000,)), []))
 
     iterators: list[ProblemIterator] = []
     rounds = {"n": 0}
@@ -292,13 +301,16 @@ def run_stalling_rounds(monkeypatch, simple_blocks, num_rounds, **config_overrid
 
 
 def test_the_stall_counter_triggers_after_stall_rounds_and_not_before(monkeypatch, simple_blocks):
-    """(a) With `stall_rounds: 3`, three non-improving rounds must not resample; the fourth round
-    -- the one that starts with the counter already at 3 -- must."""
-    _, stats_short, _ = run_stalling_rounds(monkeypatch, simple_blocks, num_rounds=3)
+    """(a) With `stall_rounds: 3`, the counter starts at 0 after round 1 -- H32b only counts a
+    non-improving `Result.SUCCESS`, and round 1's 0/1 coverage is a strict improvement over the
+    initial "nothing seen yet" baseline, not a stall. Three more non-improving rounds (4 total)
+    must not resample; the fifth round -- the one that starts with the counter already at 3 --
+    must."""
+    _, stats_short, _ = run_stalling_rounds(monkeypatch, simple_blocks, num_rounds=4)
     assert "resamples" not in stats_short
     assert stats_short["stallRoundsMax"] == 3
 
-    iterator, stats_long, configs = run_stalling_rounds(monkeypatch, simple_blocks, num_rounds=4)
+    iterator, stats_long, configs = run_stalling_rounds(monkeypatch, simple_blocks, num_rounds=5)
     assert stats_long["resamples"] == 1
     assert stats_long["resampledPlans"] == 2  # the min_number_of_plans floor, redrawn
     # The problem now holds the second stream's plans instead of the first stream's.
@@ -310,7 +322,7 @@ def test_the_fresh_stream_is_reseeded_and_asks_for_at_least_two_restarts(monkeyp
     """SIW's restart 1 is the identity view of the task, so the seed only reaches the permuted
     views from restart 2 on: at the measured `restarts: 1` a merely reseeded stream would replay
     the very same plans. The resample therefore changes both."""
-    _, _, configs = run_stalling_rounds(monkeypatch, simple_blocks, num_rounds=4)
+    _, _, configs = run_stalling_rounds(monkeypatch, simple_blocks, num_rounds=5)
 
     assert configs[0] == {"seed": 0, "restarts": 1}  # the run's own stream, untouched
     assert configs[1] == {"seed": 1000003, "restarts": 2}

@@ -877,6 +877,79 @@ def _final_cost_minimization_pass(
     return best_policy, best_solved
 
 
+class StallTracker:
+    """How many rounds in a row have failed to improve the best coverage, for H32's
+    resample-on-stall -- and, per H32b, whether the trigger must defer because the complexity
+    sweep on the current training set is still climbing.
+
+    H32b's fix to H32: a round only counts as evidence of a stall when it *produced a policy*
+    (`Result.SUCCESS`) that did not improve the best coverage. `NO_SOLUTION`, `FRONTIER`
+    (including the frontier lower-bound abort, H31), `TIMEOUT`/`OUT_OF_RESOURCES`/`UNKNOWN`, and a
+    round that itself just resampled or continued past `max_complexity` are sweep progress, not a
+    stall: counting them fired a resample *during* a complexity climb that a handful of fast
+    refutations was always going to finish on its own (blocks3ops: a near-general policy adds a
+    10-11-block problem needing complexity 6, and the H31 lower-bound-abort rounds that climb
+    there in seconds used to look identical to a genuine stall). See
+    docs/resample-on-stall-results.md, H32b.
+
+    `sweep_climbing` is the belt-and-suspenders half of the same fix: even a genuinely
+    non-improving streak must not spend a resample while the sweep is still expected to escalate
+    complexity on its own next round -- `complexity < max_complexity` and the round that just
+    ended refuted this level or proved a nonzero frontier lower bound (`refuting_or_abort`).
+    """
+
+    def __init__(self) -> None:
+        self.rounds_since_improvement = 0
+        self.best_coverage_seen = -1
+        self.stall_rounds_max = 0
+        self.sweep_climbing = False
+        self.deferred = 0
+
+    def record(
+        self,
+        coverage: Optional[int],
+        counts_toward_stall: bool,
+        refuting_or_abort: bool,
+        complexity: int,
+        max_complexity: int,
+    ) -> None:
+        """Note how one round ended.
+
+        `coverage` is how many problems the round's policy solved, `None` for a round that
+        produced no policy at all -- only a strict improvement resets the counter.
+        `counts_toward_stall` gates whether a non-improving round increments it (only a
+        non-improving `SUCCESS` should). `refuting_or_abort` and the two complexity levels
+        recompute `sweep_climbing` for the `should_resample` check the caller makes before the
+        *next* round.
+        """
+        if coverage is not None and coverage > self.best_coverage_seen:
+            self.best_coverage_seen = coverage
+            self.rounds_since_improvement = 0
+        elif counts_toward_stall:
+            self.rounds_since_improvement += 1
+        self.stall_rounds_max = max(self.stall_rounds_max, self.rounds_since_improvement)
+        self.sweep_climbing = refuting_or_abort and complexity < max_complexity
+
+    def note_resample(self) -> None:
+        """A resample just happened -- H32's own trigger or H33's max-complexity continuation,
+        whichever paid for it -- so the counter gets a fresh start either way."""
+        self.rounds_since_improvement = 0
+
+    def should_resample(self, stall_rounds: int, resamples_done: int, resample_max: int) -> bool:
+        """Whether H32's own trigger should fire at the top of the round about to start.
+
+        False while the sweep is still climbing (H32b), so this must be called *after* `record`
+        has recomputed `sweep_climbing` for the round that just ended. `resamples_done <
+        resample_max` only bounds *this* trigger; the max-complexity continuation (H33) checks
+        its own budget independently through `MaxComplexityContinuation.resample_available`, so
+        the two never race for it -- see the module docstring reference in
+        docs/resample-on-stall-results.md, H32b, point 3.
+        """
+        return (
+            self.rounds_since_improvement >= stall_rounds and resamples_done < resample_max and not self.sweep_climbing
+        )
+
+
 def _write_provisional_stats_row(config: Mapping, stats: Mapping[str, Any]) -> None:
     """Append a provisional row for the in-progress run, tagged with `stats["runId"]`.
 
@@ -1107,15 +1180,11 @@ def solve_iteratively(
         finally:
             random.setstate(rng_state)
 
-    # Stall bookkeeping (H32): how many rounds in a row have failed to improve on the best
-    # coverage seen so far. A round that produces no policy at all never improves anything, so it
-    # counts as a stalled round like any other -- what the counter measures is rounds spent
-    # without the run getting better, which is exactly when a different sample is worth trying.
-    # Declared before the iterator is built because the max-complexity continuation (H33) reaches
-    # into the same counters from inside `ProblemIterator.__next__`.
-    rounds_since_improvement = 0
-    best_coverage_seen = -1
-    stall_rounds_max = 0
+    # Stall bookkeeping (H32/H32b): how many rounds in a row have failed to improve on the best
+    # coverage seen so far, and whether the sweep is still climbing. See `StallTracker` for the
+    # H32b semantics. Declared before the iterator is built because the max-complexity
+    # continuation (H33) reaches into the same counters from inside `ProblemIterator.__next__`.
+    stall = StallTracker()
     resamples_done = 0
     resampled_plans = 0
 
@@ -1125,12 +1194,17 @@ def solve_iteratively(
         Shared by the two triggers: the stall counter (H32, at the top of the round body) and the
         max-complexity continuation (H33, inside `ProblemIterator.__next__`). The stall counter is
         cleared either way -- a resample is a fresh start for it, whichever trigger paid for it.
+        Only one of the two triggers can ever reach this in the same round: H33 fires from inside
+        the `__next__` call that produces this round's `iter_kwargs`, and the reset it does here
+        happens *before* the round body's own H32 check runs, so that check's
+        `rounds_since_improvement >= stall_rounds` is false immediately afterwards (`stall_rounds`
+        is always >= 1 while `resample_on_stall` is on).
         """
-        nonlocal resamples_done, resampled_plans, rounds_since_improvement
+        nonlocal resamples_done, resampled_plans
         resamples_done += 1
         replaced, affected = _resample_plans(resamples_done)
         resampled_plans += replaced
-        rounds_since_improvement = 0
+        stall.note_resample()
         stats["resamples"] = resamples_done
         stats["resampledPlans"] = resampled_plans
         return replaced, affected
@@ -1199,17 +1273,23 @@ def solve_iteratively(
         candidate_results.append((candidate, candidate_solved, outcomes, candidate_trajectories))
         return candidate_solved
 
-    def _record_round(coverage: Optional[int] = None) -> None:
-        """Note how one round ended: `coverage` is how many problems its policy solved, None for
-        a round that produced no policy."""
-        nonlocal rounds_since_improvement, best_coverage_seen, stall_rounds_max
-        if coverage is not None and coverage > best_coverage_seen:
-            best_coverage_seen = coverage
-            rounds_since_improvement = 0
-        else:
-            rounds_since_improvement += 1
-        stall_rounds_max = max(stall_rounds_max, rounds_since_improvement)
-        stats["stallRoundsMax"] = stall_rounds_max
+    def _record_round(
+        coverage: Optional[int] = None,
+        counts_toward_stall: bool = True,
+        refuting_or_abort: bool = False,
+    ) -> None:
+        """Note how one round ended (H32b): `coverage` is how many problems its policy solved,
+        None for a round that produced no policy. `counts_toward_stall` (default True, i.e. a
+        SUCCESS) says whether a non-improving round is allowed to increment the counter at all --
+        callers that pass `coverage=None` (no policy) pass False, since such a round is sweep
+        progress, not a stall (see `StallTracker`). `refuting_or_abort` says whether this round's
+        `Result` refuted the complexity level or proved a nonzero frontier lower bound, which
+        `StallTracker` needs to know whether the sweep is still climbing.
+        """
+        stall.record(
+            coverage, counts_toward_stall, refuting_or_abort, problem_iterator.complexity, config["max_complexity"]
+        )
+        stats["stallRoundsMax"] = stall.stall_rounds_max
 
     for iter_kwargs in problem_iterator:
         round_num += 1
@@ -1244,13 +1324,29 @@ def solve_iteratively(
             stats["wallBudgetUsed"] = time.perf_counter() - wall_time_start
             _write_provisional_stats_row(config, stats)
             break
-        if resample_on_stall and rounds_since_improvement >= stall_rounds and resamples_done < resample_max:
+        stall_ready = stall.rounds_since_improvement >= stall_rounds and resamples_done < resample_max
+        if resample_on_stall and stall_ready and stall.sweep_climbing:
+            # H32b: the counter and budget alone would fire the resample, but the sweep on this
+            # training set is still climbing -- the round that just ended refuted this complexity
+            # level (or proved a nonzero frontier lower bound) and there is a higher level left,
+            # so the iterator is about to escalate complexity on its own next round. Resampling
+            # now would throw away the very plans that climb depends on for no reason; defer and
+            # let the sweep finish. (H33's max-complexity continuation takes the opposite case --
+            # the sweep has nowhere left to climb -- and is unaffected by this guard.)
+            stall.deferred += 1
+            stats["stallDeferred"] = stall.deferred
+            log.info(
+                "Stall detected but the sweep is still climbing (complexity %d of %d); deferring the resample",
+                problem_iterator.complexity,
+                config["max_complexity"],
+            )
+        elif resample_on_stall and stall_ready:
             # The best coverage has not moved for stall_rounds rounds: the loop has converged on
             # whatever the current sample of example plans can express. Draw a different sample
             # and let this very round run over it -- `iter_kwargs["example_plans"]` *is* the
             # iterator's `active_plans` dict, so the new plans are already in this round's
             # configuration; only the two values the resample may have changed are refreshed.
-            stalled_rounds = rounds_since_improvement
+            stalled_rounds = stall.rounds_since_improvement
             replaced, affected = _do_resample()
             log.info(
                 "Resampling example plans after %d stalled rounds (resample %d/%d): %d problems," " %d plans replaced",
@@ -1315,7 +1411,14 @@ def solve_iteratively(
             )
             problem_iterator.record_frontier_expansion(new_plans, dead_states)
             problem_iterator.set_last_result(result)
-            _record_round()
+            # H32b: FRONTIER never counts toward the stall counter -- this includes the H31
+            # frontier lower-bound abort, which is reported as FRONTIER too (see
+            # docs/frontier-bound-results.md) and is exactly the "abort" half of "refuting/abort".
+            # It is always treated as a round the sweep may climb complexity from next; whether it
+            # actually does depends on `frontier_progress` (checked by `ProblemIterator.__next__`,
+            # not duplicated here), but over-guessing "climbing" only ever costs a deferred
+            # resample, never a missed one.
+            _record_round(counts_toward_stall=False, refuting_or_abort=True)
             continue
         problem_iterator.set_last_result(
             result,
@@ -1323,7 +1426,11 @@ def solve_iteratively(
             optimal=bool(stats.get("solveOptimal", True)),
         )
         if result != Result.SUCCESS:
-            _record_round()
+            # H32b: NO_SOLUTION is the "refuting" half of "refuting/abort" -- a full-pool
+            # refutation that (with a level left below max_complexity) makes the iterator climb
+            # complexity next. TIMEOUT/OUT_OF_RESOURCES/UNKNOWN refute nothing (see the `Result`
+            # docstring) and do not count as climbing either.
+            _record_round(counts_toward_stall=False, refuting_or_abort=(result == Result.NO_SOLUTION))
             continue
         assert new_policy is not None, "solve_step must return a policy on Result.SUCCESS"
         assert new_policy.cost is not None, "a Result.SUCCESS policy always has a cost"

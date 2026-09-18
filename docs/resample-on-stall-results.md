@@ -153,3 +153,139 @@ Worth recording, because the hypothesis as stated would have produced a no-op:
   resample nothing; the global RNG state is bit-identical across a run that resamples twice.
 
 Full suite: 323 passed, 1 skipped (baseline 309 + 14).
+
+## H32b: a climbing sweep is not a stall
+
+Date: 2026-09-18. Branch: `hyp/stall-refine` (parent: `hyp/no-maxc-stop`, commit `e9bbdac`).
+
+**Status: implemented and unit-tested. No benchmark numbers yet** -- as with H32/H33 above, this
+describes the mechanism, not a measured result.
+
+### The observation
+
+blocks3ops, full loop: after a near-general policy (88-93 of 95), the loop adds a 10-11-block
+problem whose instance provably needs feature complexity 6. Thanks to H31, the frontier
+lower-bound abort at complexity 4 and 5 each take only seconds. H32's stall counter, as written,
+counted every round that did not *improve* the best coverage as evidence of a stall -- including
+those abort rounds and any plain `Result.NO_SOLUTION` -- so it reached `stall_rounds` *during*
+this climb and resampled, discarding the example plans the climb depended on. The run then had to
+rebuild its state space from a different sample instead of simply finishing the climb it was
+already seconds away from completing.
+
+### The fix
+
+Two changes, both against `StallTracker` (`genfond/iterative_solver.py`, new; `_record_round`,
+`_do_resample` and the round loop's stall trigger are now thin call sites against it):
+
+1. **Only a non-improving `Result.SUCCESS` counts.** `StallTracker.record` takes `coverage`
+   (`None` for a round that produced no policy) and `counts_toward_stall`; every call site that
+   passes `coverage=None` also passes `counts_toward_stall=False`. Concretely: `Result.FRONTIER`
+   (the H31 lower-bound abort included -- it is reported as `Result.FRONTIER` too, see
+   `docs/frontier-bound-results.md`), `Result.NO_SOLUTION`, `Result.TIMEOUT`/
+   `Result.OUT_OF_RESOURCES`/`Result.UNKNOWN` never increment the counter; only a `SUCCESS` whose
+   validated coverage does not exceed the best seen does. A resample itself
+   (`StallTracker.note_resample`) resets the counter regardless of which trigger paid for it, so
+   it is never "evidence of a stall" either -- it is the fix for one.
+2. **A climbing sweep additionally blocks the trigger even if the counter is somehow at
+   threshold.** `StallTracker.sweep_climbing` is recomputed on every `record` call from
+   `refuting_or_abort` (was *this* round's `Result` a refutation or frontier lower-bound abort?)
+   and `complexity < max_complexity` (is there a higher level left to escalate to?).
+   `should_resample` -- and the round loop's own trigger -- refuse to fire while it is true, and
+   log `Stall detected but the sweep is still climbing (complexity %d of %d); deferring the
+   resample` (INFO) instead. `stats["stallDeferred"]` counts how often this happened.
+
+`refuting_or_abort` is set from the *actual* `Result` `solve_step` returned for that round, not
+from `ProblemIterator.last_result` -- which matters, because `solve_iteratively` forcibly
+overwrites `problem_iterator.last_result` to `Result.NO_SOLUTION` whenever a round's policy solves
+its training set but not every problem in the run (the `else` branch right after the round's own
+`keep_best_policy` bookkeeping, present before this change). Reading that overwritten value
+instead of the round's real `Result` would misclassify every "solved the training set, not the
+whole suite" round as climbing and defer resampling indefinitely below `max_complexity`, which
+would break fix 1's own test case: a run of nothing but non-improving `SUCCESS` rounds must still
+resample once `stall_rounds` is reached, regardless of how far below `max_complexity` it is.
+
+### A structural finding: fix 1 alone already closes the observed bug, and fix 2 cannot double-fire
+
+Point 1 alone is sufficient for the *observed* blocks3ops scenario: the climb is a run of genuine
+`Result.NO_SOLUTION`/`Result.FRONTIER` rounds with no `SUCCESS` in between, and none of those
+increment the counter any more, so the counter never reaches `stall_rounds` during the climb at
+all -- fix 1 already prevents the resample from firing mid-climb there.
+
+Point 2's guard is real, reachable logic (tested directly against `StallTracker`, see below), but
+it can be proven never to change the outcome of a round reached through the normal loop, given fix
+1: `rounds_since_improvement` only ever increases on a `Result.SUCCESS` call to `record`, and
+every such call passes `refuting_or_abort=False` (a `SUCCESS` is not a refutation), which sets
+`sweep_climbing = False` in that same call. So whichever round is the *first* to push the counter
+up to `stall_rounds` necessarily also clears `sweep_climbing` for the very next round's check --
+the round that first becomes stall-ready is never preceded by a climbing round, because "stall
+ready" and "just climbed" are set by two different kinds of round and the counter can only cross
+the threshold via the kind that clears climbing. Reaching `stall_ready and sweep_climbing`
+together would need the check to be skipped at the crossing round for some *other* reason (e.g.
+`resamples_done >= resample_max`) and later re-evaluated with the counter still elevated and
+budget restored -- and the budget only ever decreases. The guard is therefore a correct,
+intentional piece of defense in depth (and the natural place to put "do not resample while the
+sweep is expected to escalate on its own"), not dead code by design -- it is simply not
+observable as a behavioural difference through the `Result` sequences this fix's own test harness
+(a single, non-growing training set) can drive `solve_iteratively` through. `should_resample` and
+`record` are exercised directly against the sequence that produces "deferred, then fires" once
+climbing stops, since that is the actual mechanism the task asks for.
+
+The same reasoning gives point 3 (no double resample with H33 in the same round) for free: H33's
+continuation (`ProblemIterator._continue_past_max_complexity`, called from inside `__next__()`)
+runs *before* the round loop's own H32b trigger check for that round, and its resample -- via the
+same `_do_resample`/`StallTracker.note_resample` -- resets the counter to 0 first. Since
+`resample_on_stall` forces `stall_rounds >= 1` (see the `resample_on_stall = ... and (stall_rounds
+and resample_max)` guard near the top of `solve_iteratively`), a freshly-zeroed counter can never
+satisfy `rounds_since_improvement >= stall_rounds` on the very next check, so H32b's own trigger
+cannot also fire in the round H33 just resampled in.
+
+### Config / stats
+
+No new config keys. New stat: `stallDeferred` (only written once it is nonzero).
+
+### Tests
+
+`tests/test_stall_refine.py`, 16 tests, no solver calls:
+
+* `StallTracker`-level (11 tests): the first `SUCCESS` establishes a baseline rather than counting
+  as a stall; a non-improving `SUCCESS` increments the counter and an improving one resets it
+  while `stall_rounds_max` keeps the historical peak; `NO_SOLUTION`/`FRONTIER`/`TIMEOUT`/
+  `OUT_OF_RESOURCES` never increment it; `note_resample` resets the counter but not
+  `best_coverage_seen`/`stall_rounds_max`; `sweep_climbing` is true only after a refuting/abort
+  round strictly below `max_complexity`, false at the top of the sweep, and false after a
+  `SUCCESS`/`TIMEOUT`/`OUT_OF_RESOURCES` round; `should_resample` requires the threshold, the
+  budget, and not climbing together; and (c) the exact deferred-then-fires transition once the
+  climb reaches the top of the sweep.
+* End to end through `solve_iteratively` (mocked `solve_step`/`_test_policy_on_problems`, real
+  `ProblemIterator`, real plans for `simple_blocks`, mirroring `tests/test_resample.py`'s and
+  `tests/test_no_maxc_stop.py`'s harnesses): (a) six non-improving `SUCCESS` rounds (after the
+  round-1 baseline) trigger a resample at the top of round 8, not before; (b) sixteen
+  `NO_SOLUTION`/`FRONTIER`/`TIMEOUT`/`OUT_OF_RESOURCES` rounds with `stall_rounds: 1` never
+  resample at all; (d) a pure `NO_SOLUTION` climb to `max_complexity` with `stall_rounds: 1`
+  (stall-ready every round under the *old* counting) resamples exactly once, via H33's
+  continuation, with `stallRoundsMax` staying 0 throughout.
+
+Full suite: 351 passed, 1 skipped (baseline 335 + 16).
+
+### Where the task description and the code disagree
+
+The task's H32b brief frames the climbing guard as blocking a resample that the (fixed) counter
+would otherwise have fired mid-climb. Given fix 1, that specific composition cannot arise through
+`solve_iteratively`'s own round loop (see the structural finding above): the round that first
+makes the counter stall-ready is always a `SUCCESS`, which always clears `sweep_climbing` for the
+following check. The guard is implemented and tested exactly as specified regardless -- it is
+correct, and it is the right place to encode "do not resample while the sweep is about to escalate
+on its own" -- but it should be understood as defense in depth for a composition this
+architecture's own accounting does not otherwise produce, not as the mechanism actually closing
+the observed blocks3ops bug (fix 1 does that on its own).
+
+The H31 frontier lower-bound abort is confirmed to be reported as plain `Result.FRONTIER`, exactly
+as `docs/frontier-bound-results.md` describes -- there is no separate `Result` value for it, so
+`refuting_or_abort=True` at the `Result.FRONTIER` call site is what makes it a "refuting/abort"
+round for the climbing guard, indistinguishable at this layer from a `Result.FRONTIER` round that
+is about to retry via frontier expansion instead of escalating complexity (`frontier_progress`
+decides which happens next, but only inside `ProblemIterator.__next__`, not visible here). Treating
+every `Result.FRONTIER` as a potential "about to climb" round rather than trying to predict
+`frontier_progress` from `iterative_solver` can only ever cause an extra deferral, never a missed
+one, so this is a deliberately conservative reading of "abort," not an approximation that could
+let a resample through mid-climb.
