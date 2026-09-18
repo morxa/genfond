@@ -32,6 +32,14 @@ export PYTHONHASHSEED="${PYTHONHASHSEED:-0}"
 # below the sbatch --time in genfond.bash so a job finishes gracefully instead of being killed.
 WALL_TIME="${WALL_TIME:-}"
 MAX_WALL_TIME_ARGS="${WALL_TIME:+--max-wall-time $WALL_TIME}"
+# Resources per job. genfond.bash's directives ask for 32 CPUs and 128 GB, which was sized for
+# clingo's parallel mode; a single-threaded run peaks below 3 GB in 90% of cases (measured over
+# the 2026-09 batches), and the 128 GB request is what limits a 190 GB node to one job. Flags on
+# the sbatch command line override the in-file directives. MAX_MEMORY is genfond's own
+# --max-memory cap (RLIMIT_AS, address space, so allow ~2x the resident request).
+CPUS="${CPUS:-4}"
+MEM="${MEM:-16000}"
+MAX_MEMORY="${MAX_MEMORY:-$((MEM * 2))}"
 
 STAMP="$(date -Iseconds)"
 RESDIR="results-$STAMP$TAG"
@@ -42,6 +50,6 @@ for domain in $DOMAINS; do
   domainfile="$domain/domain.pddl"
   problemfiles=$(find -L $domain ! -name domain.pddl -name '*.pddl')
   for ptype in $POLICY_TYPE; do
-    sbatch $EXCLUDE $PARTITION -J $domainname-$ptype$TAG -o $RESDIR/out/%x-%j.out genfond.bash python -m genfond $VERBOSE --name $domainname -n $THREADS --max-memory 120000 --type $ptype $MAX_WALL_TIME_ARGS $CONFIG --dump-failed-policies --dump-config $RESDIR/$domainname-$ptype.yaml -o $RESDIR/$domainname-$ptype.policy --stats $RESDIR/stats.csv $domainfile $problemfiles
+    sbatch $EXCLUDE $PARTITION --cpus-per-task=$CPUS --mem=$MEM -J $domainname-$ptype$TAG -o $RESDIR/out/%x-%j.out genfond.bash python -m genfond $VERBOSE --name $domainname -n $THREADS --max-memory $MAX_MEMORY --type $ptype $MAX_WALL_TIME_ARGS $CONFIG --dump-failed-policies --dump-config $RESDIR/$domainname-$ptype.yaml -o $RESDIR/$domainname-$ptype.policy --stats $RESDIR/stats.csv $domainfile $problemfiles
   done
 done
