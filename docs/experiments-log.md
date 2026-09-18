@@ -1379,3 +1379,22 @@ max complexity within the budget.
 | sokoban | – | – | – | – | – (no SIW plan; H25 still open) |
 
 H32 seed 2 final: 40/95 (three resamples). Seed 4 and the follow-up arms running.
+
+### H32 result (full loop, seeds 0–5, 4 h graceful)
+
+| seed | H31 | H32 (+ resample on stall) | H32 early (`stall_rounds 3`, 6 resamples) | H32 reset (`resample_reset_complexity`) |
+|---|---|---|---|---|
+| 0 | 83 | **95 in 110 s** (1 resample) | | |
+| 1 | 34 | **95 in 71 s** (1 resample) | | |
+| 2 | 95 | 40 (3 resamples; never near-general) | best 88 at round 13, then drift (running) | best 88 at round 14, then drift (running) |
+| 3 | 95 | **95 in 254 s** (1 resample) | | |
+| 4 | 95 | 84 (3 resamples) | best 93 at round 28, then drift (running) | best 93 at round 29, then drift (running) |
+| 5 | 95 | **95 in 103 s** (1 resample) | | |
+
+Resampling fixes the two H31 failures and breaks two other seeds; the follow-up arms show why: they reach
+a near-general policy (88/93) and then the resample fires *during* the legitimate complexity climb on the
+enlarged training set (H30 diagnosis: the 10–11-block instance needs complexity 6, and with H31 those
+doomed rounds are seconds long), replacing the plans the climb depends on. The stall counter must not count
+sweep progress as a stall. H32b (in progress): count only rounds that produced a policy without improving
+the best, never lower-bound-abort / NO_SOLUTION rounds of an ongoing sweep, and never resample while the
+sweep on the current training set is still climbing. blocks4ops flat under H32: best 81 (running).
