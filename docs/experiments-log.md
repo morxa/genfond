@@ -1341,3 +1341,9 @@ are replaced at once — a resample of a large patchwork set does not recover. T
 and/or reset the sweep: arms `rs2-*` = `stall_rounds: 3, resample_max: 6` and `rsc-*` = `resample_reset_complexity: true`
 submitted for seeds 2 and 4.
 rec5 grid: 1/26, stopped by max complexity after 1.9 h (rec3 1/26 at 2.9 h) — unchanged; grid remains open.
+logistics_dp under the H32 stack: 15/47, again stopped by max complexity (84 min, 28 rounds, all three
+resamples used). The termination itself is the defect: `max_complexity` ends the run although 2.6 h of
+budget remain, whereas the slower stacks (rec4: 23/47) simply never got there. H33 (in progress): reaching
+max complexity with unsolved problems and budget left is treated as a stall — resample if H32 still may,
+otherwise add the next unsolved problem and restart the sweep at `min_complexity` with all accumulated
+plans — so the run ends only by budget or full coverage.
