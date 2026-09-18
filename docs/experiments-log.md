@@ -1433,3 +1433,17 @@ blocks4ops flat under H32: **81/95** (best 81 at round 15, three resamples) — 
 seed 0 at 94 from round 7, seeds 2 and 4 at 28/33; running.
 Combined stack seeds 4 and 5: **95/95 in 533 s and 53 s**, no resample needed. Three of three finished seeds
 at 95; seed 0 sits at 94 from round 7 with no resample fired (checking), seed 2 at 28.
+H32 follow-up arms, final: seed 2 → 88/95 under both `stall_rounds 3` and `resample_reset_complexity`;
+seed 4 → 93/95 under both. Same best as their mid-run peaks; no recovery after the resample.
+
+### Reproducibility check (2026-09-18, combined stack, blocks3ops seed 1, `PYTHONHASHSEED=1`, 1 thread)
+
+Five jobs of the identical commit and config: the original (`st-s1`, 32 CPUs / 128 GB request) reached
+95/95 in 54 s; a 4-CPU / 16 GB replica (`slim-s1`) and a second one (`slimA`) follow an identical trajectory
+that diverges from the original at the *first* validation of round 1 (the same candidate policy "solves"
+blocks-004-4 in one job and cycles in the other) and plateau at 49; a third slim replica (`slimB`) reaches
+93; a second 32-CPU / 128 GB job (`fatA`) plateaus at 62. So identically seeded runs are **not reproducible
+across jobs**, independent of the resource request, and the seed-to-seed tables above are partly
+run-to-run noise. The cause is being located (policy execution draws from the global RNG; a
+timing-, memory- or address-dependent consumer or an identity-hash iteration order is suspected). The
+ablation is on hold until executions are deterministic.
