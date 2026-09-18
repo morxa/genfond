@@ -1398,3 +1398,14 @@ doomed rounds are seconds long), replacing the plans the climb depends on. The s
 sweep progress as a stall. H32b (in progress): count only rounds that produced a policy without improving
 the best, never lower-bound-abort / NO_SOLUTION rounds of an ongoing sweep, and never resample while the
 sweep on the current training set is still climbing. blocks4ops flat under H32: best 81 (running).
+
+## H25: defer plan-less problems, interruptible expansion (`hyp/defer-planless`, 487cb71, on `hyp/no-maxc-stop`; 352 tests)
+
+`defer_planless_problems: true`: a problem for which the planner yields no plan is not added to the
+training set (it stays in the evaluation set), is retried with a reseeded planner stream up to
+`planless_retries: 2` times when it comes up again, and the next unsolved problem is taken instead; if no
+problem has a plan the run stops with `failureReason=no_example_plans` instead of expanding unrestrictedly
+(the fallback was the single `else: plans = []` in `StateSpaceGraph.__init__`, after which every successor is
+queued). `max_states_per_problem` (off by default) cuts an expansion and defers the problem permanently;
+the expansion loop now polls the stop flag every 128 states so SIGTERM interrupts it. New `Result.DEFERRED`.
+Launched under the full stack: sokoban, storage, barman (`df-*`, cluster worktree `defer`).
