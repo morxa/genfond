@@ -1,9 +1,13 @@
+import random
+
+import pddl
 import pytest
 
 from genfond.config_handler import ConfigHandler
 from genfond.datalog_policy import Cond, DatalogPolicy, DatalogPolicyRule
 from genfond.execute_datalog_policy import execute_datalog_policy
 from genfond.execute_rule_policy import ExecutionTimeout
+from genfond.ground import action_string
 
 
 def test_block_clear_all(blocks_clear):
@@ -211,3 +215,98 @@ def test_execute_datalog_policy_with_augmented_states(blocks_clear):
     )
     with pytest.raises(RuntimeError):
         execute_datalog_policy(domain, problem, policy, config)
+
+
+FLAT_PROBLEM = """(define (problem blocks-flat)
+    (:domain blocks3ops)
+    (:objects b0 b1 b2 b3 b4)
+    (:init (clear b0) (clear b1) (clear b2) (clear b3) (clear b4)
+           (ontable b0) (ontable b1) (ontable b2) (ontable b3) (ontable b4))
+    (:goal (and (on b0 b1) (on b1 b2) (on b2 b3) (on b3 b4)))
+)
+"""
+
+
+def _flat_blocks(tmp_path, blocks3ops):
+    """The blocks3ops domain over five loose blocks, so every `stack` binding is applicable."""
+    domain, _ = blocks3ops
+    path = tmp_path / "flat.pddl"
+    path.write_text(FLAT_PROBLEM)
+    return domain, pddl.parse_problem(path)
+
+
+def _pinned_trajectory(domain, problem, policy, seed, steps):
+    """The trajectory `policy` takes from `problem.init` under `seed`, as action strings."""
+    config = ConfigHandler()
+    config["policy_steps"] = steps
+    config["abort_on_cycle"] = False
+    random.seed(seed)
+    actions: list = []
+    try:
+        execute_datalog_policy(domain, problem, policy, config, out_actions=actions)
+    except RuntimeError:  # a stub policy need not reach the goal; only the prefix is of interest
+        pass
+    return [action_string(action) for action in actions]
+
+
+@pytest.mark.parametrize(
+    "seed, expected",
+    [
+        (0, ["stack(b4,b0)", "stack(b3,b2)", "stack(b1,b3)"]),
+        (7, ["stack(b4,b2)", "stack(b1,b3)", "stack(b0,b4)"]),
+    ],
+)
+def test_datalog_execution_binding_order_is_pinned(tmp_path, blocks3ops, seed, expected):
+    """A seeded execution must keep picking the *same* binding out of the applicable ones.
+
+    The rule is unconditioned and every block is loose, so all twenty ground `stack` actions are
+    legal choices and the trajectory is decided purely by the order the executor enumerates
+    candidate bindings in: one `random.shuffle` per rule parameter, then the object product in
+    the order those shuffles produced. `execute_datalog_policy` prunes that product hard -- it
+    only visits tuples that name a ground action applicable in the current state -- and this
+    pins that the pruning is order-preserving, i.e. that it skips exactly the tuples the
+    conditions would have rejected anyway. A change to the draw sequence or to the enumeration
+    order breaks this test, and with it the reproducibility of every recorded run.
+    """
+    domain, problem = _flat_blocks(tmp_path, blocks3ops)
+    policy = DatalogPolicy([DatalogPolicyRule("stack(X, Y)")])
+    assert _pinned_trajectory(domain, problem, policy, seed, len(expected)) == expected
+
+
+def test_datalog_execution_binding_order_is_pinned_with_concepts(tmp_path, blocks3ops):
+    """As above, but with one parameter already narrowed by a concept.
+
+    The concept filter shortens the list *before* the shuffle and the applicability pruning
+    shortens it after, so this pins that the two compose without disturbing the draw sequence.
+    """
+    domain, problem = _flat_blocks(tmp_path, blocks3ops)
+    policy = DatalogPolicy([DatalogPolicyRule("stack(X, Y)", concepts=[("Y", "c_some(r_primitive(on_g,0,1),c_top)")])])
+    assert _pinned_trajectory(domain, problem, policy, 0, 3) == [
+        "stack(b4,b0)",
+        "stack(b2,b3)",
+        "stack(b1,b2)",
+    ]
+
+
+def test_execute_datalog_policy_with_parameter_augmented_conditions(blocks_clear):
+    """A `param_aug_conds` rule: the feature is evaluated on the state augmented with one marked
+    action parameter (`aparam0`), not with the whole action.
+
+    The executor memoises that augmented dlplan state per marked object within a step, so this
+    also covers the cache: the conditions of one rule are checked against the same state the
+    unmemoised code rebuilt for each of them.
+    """
+    domain, problem = blocks_clear
+    feature = "b_empty(c_and(c_primitive(clear_g,0),c_primitive(aparam0,0)))"
+    config = ConfigHandler(None, "datalog-action-params")
+    config["policy_steps"] = 3
+    random.seed(0)
+    actions: list = []
+    execute_datalog_policy(
+        domain,
+        problem,
+        DatalogPolicy([DatalogPolicyRule("unstack(X, Y)", param_aug_conds={feature: (0, Cond.TRUE)})]),
+        config,
+        out_actions=actions,
+    )
+    assert [action_string(action) for action in actions] == ["unstack(b1,b0)"]

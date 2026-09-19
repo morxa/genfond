@@ -101,11 +101,23 @@ def ground_action(domain: Domain, action, grounding: tuple[Constant]) -> Optiona
     )
 
 
+def _typed_candidates(domain: Domain, constants: list[Constant], terms) -> list[list[Constant]]:
+    """The constants admissible at each of `terms`, each in the order of `constants`.
+
+    `itertools.product(constants, repeat=arity)` enumerates |constants|^arity tuples and discards
+    every one that is not well typed, which for a 4-ary action over a few dozen objects means
+    hundreds of thousands of tuples to produce a few hundred groundings. Filtering per parameter
+    first enumerates exactly the well-typed tuples instead. The result is the same set of
+    groundings, in the same relative order, and both callers sort or set-collect it anyway.
+    """
+    return [[c for c in constants if _check_types(c, term, domain.types)] for term in terms]
+
+
 def ground(domain: Domain, problem: Problem) -> list[Action]:
     constants = _stable_constants(domain, problem)
     operators = []
     for action in domain.actions:
-        for grounding in itertools.product(constants, repeat=len(action.parameters)):
+        for grounding in itertools.product(*_typed_candidates(domain, constants, action.parameters)):
             op = ground_action(domain, action, grounding)
             if op:
                 operators.append(op)
@@ -116,10 +128,8 @@ def ground_domain_predicates(domain: Domain, problem: Problem) -> set[Predicate]
     constants = _stable_constants(domain, problem)
     ground_predicates = set()
     for predicate in domain.predicates:
-        for grounding in itertools.product(constants, repeat=predicate.arity):
+        for grounding in itertools.product(*_typed_candidates(domain, constants, predicate.terms)):
             mapping = dict(zip(predicate.terms, grounding))
-            if not all(_check_types(c, v, domain.types) for v, c in mapping.items()):
-                continue
             ground_predicate = _ground_formula(predicate, mapping)
             ground_predicates.add(ground_predicate)
     return ground_predicates
