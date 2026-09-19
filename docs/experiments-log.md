@@ -1637,3 +1637,22 @@ reward and spanner); (c) the branch's held-out map lacks delivery (the test set 
 consolidated layout on `learn-from-examples`); (d) policy execution on large held-out instances (15×15 reward,
 20-location spanner) takes over 20 min per run, so generalisation results there are lower bounds until the
 executor is faster.
+
+### Does SIW produce plans for the unsolved domains? (2026-09-19, log tally, seed-0 full-arm ablation logs + rec5/H25 runs)
+
+| domain | problems sampled | without a plan | largest problem reached | reading |
+|---|---|---|---|---|
+| barman | 30 (each retried) | **30/30**, in two independent runs | none | SIW fails on every instance; the learner never sees an example |
+| spanner | 17 | **14**: everything from about s≥3, n≥2, l≥17 (e.g. `p_s-4_n-4_l-17..20`, `p_s-6_n-3_l-16..20`), both attempts and both frontier calls | `p_s-2_n-1_l-20` | genuine SIW limit at size; the 118–128/140 training coverage comes from a policy learned on the tiny instances |
+| sokoban | 2 | 1 (`p032`) | `p095` (5 plans) | first plannable instance stalls in the first ASP round for 3.8 h |
+| blocks4ops-flat | ~20 | 0 | `blocks-008-x` | complexity-6 round hits the solve budget, then the wall clock; 009–020 never sampled |
+| delivery | ~20 | 0 (3 trivial goal-holds-initially deferrals) | 1×5 / 5×1 grids | large grids never sampled; a sampled 1×5 instance's round never converged |
+| logistics / logistics_dp | 3 / 2 | 0 | `p4-a1`, `p5-a1` | training set never grows; complexity climbs to 15 with a real plan for `p4-a1` present since round 1 |
+| miconic | ~10 | 0 | `problem-3-3` | final complexity-7 round hits its budget, then the wall clock (3/25 unsolved) |
+| storage | 6 | 0 (73 plans) | `storage-8` | cycles at complexity 14–15 for 3.7 h |
+| grid | ~10 | 0 (82 plans) | `grid-x1-y9-t2-k20-l30-p100` | reaches complexity 15 repeatedly, adds one problem per cycle |
+
+Only barman is planner-limited outright, and spanner beyond the smallest sizes. Everywhere else SIW returns
+plans for every sampled instance and the failure is downstream: the ASP round for the sampled set does not
+converge (grounding/solving at complexity 6–15) before the solve or wall budget ends, so the loop never
+samples the larger instances. Frontier re-rooted calls found plans in every domain except spanner.
