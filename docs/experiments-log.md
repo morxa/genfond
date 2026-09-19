@@ -1586,3 +1586,54 @@ policy. delivery, reward and spanner: the per-policy 1 800 s timeout was too sho
 branch lacks the delivery test set (it lives at `domains/deterministic/delivery/test` on
 `learn-from-examples`). Re-running per problem with a 1 200 s per-problem timeout and policy deduplication
 (reward and spanner policies are 2- and 4-rule policies that look identical across arms); results follow.
+
+### Held-out generalisation, delivery / reward / spanner (2026-09-19, per problem, 1 200 s per execution pair, `-i 2`)
+
+Solved / n on the held-out set, then the number of held-out problems whose execution did not finish within
+1 200 s, and the rule count. Policies that are byte-identical across arms share one evaluation (reward:
+all 2-rule policies fall into two groups plus the noH30-s2 patchwork; spanner: three identical pairs).
+
+| domain (held-out n) | full | noH27 | noH29 | noH30 | noH32 | noH33 |
+|---|---|---|---|---|---|---|
+| delivery (30) | 0, 2, 0 (22/21/62 rules) | 0, 0, 2 (21/16/50) | 0, 0, 1 (22/21/28) | 2, 1, 2 (55/22/50) | 0, 2, 1 (121/21/149) | 0, 2, 0 (22/21/62) |
+| reward (15) | 5 ×3, 10 timeouts, 2 rules | same | same | 5, 5, **0** (153 rules, 13 failures) | same | same |
+| spanner (22) | 8, 9, 9; 13–14 timeouts; 4 rules | 8, 9, 7 | 9, 9, 9 | 7, 6, 9 | 9, 9, 9 | 11, 11, 11 |
+
+- **delivery**: no policy of any arm generalises. 0–2/30 with 16–149 rules; 22–30 of the 30 held-out
+  instances *fail* (not time out). The 141–167/225 training coverage of every arm is patchwork coverage of
+  the training suite, and the full arm's training lead over noH27/noH30 (153 vs 131–137) is worth nothing
+  here. This is the overfitting case in the clearest form.
+- **reward** and **spanner**: every arm learns the same 2-rule reward policy and a 4-rule spanner policy
+  (identical or near-identical across arms), and those policies have **zero failures** on the held-out sets;
+  every unsolved instance is an execution timeout (a single execution of a 15×15 reward grid or a
+  20-location spanner instance exceeds 20 min). The 6–11 spread on spanner is execution speed of
+  slightly different feature sets, not correctness. Lower bounds: reward ≥ 5/15, spanner ≥ 6–11/22. The
+  one real signal is noH30 seed 2 on reward: the 153-rule patchwork that did not converge in training fails
+  13/15 held-out, consistent with H30's training result there.
+
+**Ablation verdict (training + held-out):**
+
+1. On blocks3ops, the suite every mechanism in H27–H33 was derived from, none of them changes anything:
+   the general policy is found on the same 2 of 3 seeds in every arm, and the third seed yields a
+   patchwork in every arm. The earlier per-hypothesis "gains" were the run-to-run noise H34 exposed.
+2. Where the stack raises training coverage (blocks4ops-flat +8–13, delivery +16–22 over the single
+   ablations), that coverage does not transfer: delivery held-out is 0–2/30 for every arm. blocks4ops-flat
+   has no held-out set. So the evidence that H27/H29/H32 are "genuine improvements to the algorithm" is
+   one training suite without a generalisation check.
+3. H30 (prefix plans) is the only mechanism with a consistent direction (blocks4ops-flat, spanner training,
+   reward convergence on one seed, and the matching reward held-out failure), and even that rests on single
+   events per suite.
+4. H33 should default to off: no coverage effect anywhere, and the runs simply burn the remaining budget.
+5. The metrics that separate the arms are in-suite coverage on patchwork domains. The domains where the
+   learner finds a real general policy (blocks3ops, reward, spanner, visitall, blocks, blocks4ops) do so
+   with or without the stack; the domains where it does not (delivery, logistics, logistics_dp, miconic)
+   are not helped by any of it. Progress on those needs a different lever (feature expressivity or the plan
+   sampler), not more plan-selection mechanisms tuned on blocks3ops.
+
+Infrastructure notes from this round: (a) the graceful stop must be polled in the final verification loop
+and in feature generation (38/180 logs without a summary line); (b) `scripts/heldout_eval.sh` needs a
+per-problem timeout and per-problem counting (the per-policy 1 800 s cap silently produced no result for
+reward and spanner); (c) the branch's held-out map lacks delivery (the test set only exists in the
+consolidated layout on `learn-from-examples`); (d) policy execution on large held-out instances (15×15 reward,
+20-location spanner) takes over 20 min per run, so generalisation results there are lower bounds until the
+executor is faster.
