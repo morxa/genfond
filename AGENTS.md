@@ -33,7 +33,7 @@ Multiple types of problems and solution forms are supported:
 
 ## Commands
 
-Dependencies are managed by Poetry and require **Python 3.14+** (not 3.13 — dependency constraint). Run everything through the venv (`poetry run …` or inside `poetry shell`).
+Dependencies are managed by Poetry and require **Python 3.14+** (not 3.13 — dependency constraint). Run everything through the venv (`poetry run …` or inside `poetry shell`). Always install with `--no-root`: the `genfond` package is imported from the current checkout (pytest via `pythonpath = ["."]`, `python -m genfond` via the cwd, `scripts/*.py` via a path shim), so several git worktrees can share the one venv. An installed copy would shadow the worktree you are in.
 
 ```bash
 poetry install --no-root --with=dev

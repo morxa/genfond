@@ -11,13 +11,18 @@ import argparse
 import logging
 import pickle
 import random
+import sys
 import time
+from pathlib import Path
 
-import pddl
+# The package is not installed into the venv; import it from the checkout this script lives in.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from genfond.config_handler import ConfigHandler
-from genfond.datalog_policy import DatalogPolicy
-from genfond.execute_policy import execute_policy
+import pddl  # noqa: E402
+
+from genfond.config_handler import ConfigHandler  # noqa: E402
+from genfond.datalog_policy import DatalogPolicy  # noqa: E402
+from genfond.execute_policy import execute_policy  # noqa: E402
 
 logging.basicConfig(format="%(message)s", level=logging.INFO)
 log = logging.getLogger(__name__)
