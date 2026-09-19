@@ -1557,3 +1557,32 @@ cost 25–27) enters feature-pool generation at round 1 and never leaves it in 3
 solver line after the vocabulary dump). The bottleneck is expansion / feature generation on the first
 plannable instance, not the missing plan, so deferral does not open sokoban. storage: 3/30 checkpointed at
 30 s, no improvement in 3.8 h (109 MB log of anchoring/frontier rounds). Both unchanged from rec5.
+
+### Ablation result, held-out generalisation (2026-09-19, `scripts/heldout_eval.sh`, desk-03, `--seed 0 -i 2`)
+
+blocks3ops held-out (12 problems, 8–30 blocks); cells are solved/12 and the rule count of the policy,
+seeds 0, 1, 2:
+
+| arm | seed 0 | seed 1 | seed 2 |
+|---|---|---|---|
+| full | 12 (6 rules) | 1 (228) | 12 (9) |
+| noH27 | 12 (6) | 0 (168) | 12 (9) |
+| noH29 | 2 (132) | 11 (7) | 12 (5) |
+| noH30 | 12 (5) | 0 (123) | 10 (5) |
+| noH32 | 12 (6) | 1 (228) | 12 (9) |
+| noH33 | 12 (6) | 1 (228) | 12 (9) |
+
+Held-out mirrors training exactly: a seed that reaches 95/95 in training yields a ≤9-rule policy that
+solves 12/12 (two exceptions: noH30 s2 95/95 → 10/12 with 5 rules, noH29 s1 94/95 → 11/12), and the
+unlucky seed of every arm yields a 123–228-rule patchwork that solves 0–2/12. The full, noH32 and noH33
+arms produce byte-identical policies (same rule counts, same held-out score), confirming that H32/H33 never
+fire on blocks3ops within the budget. No arm changes the odds of finding the general policy: it is a
+property of the plan sample, 2 of 3 seeds in every arm.
+
+logistics and logistics_dp held-out (22 problems each): 1/22 for every arm and seed, always the same 4-rule
+policy — the 8/25 training coverage is the trivial instances, and what is learned there is not a logistics
+policy. delivery, reward and spanner: the per-policy 1 800 s timeout was too short (spanner
+`p_s-20_n-10_l-10` alone executes for 1 517 s; the first 15×15 reward instance does not finish), and the
+branch lacks the delivery test set (it lives at `domains/deterministic/delivery/test` on
+`learn-from-examples`). Re-running per problem with a 1 200 s per-problem timeout and policy deduplication
+(reward and spanner policies are 2- and 4-rule policies that look identical across arms); results follow.
