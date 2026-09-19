@@ -1656,3 +1656,46 @@ Only barman is planner-limited outright, and spanner beyond the smallest sizes. 
 plans for every sampled instance and the failure is downstream: the ASP round for the sampled set does not
 converge (grounding/solving at complexity 6–15) before the solve or wall budget ends, so the loop never
 samples the larger instances. Frontier re-rooted calls found plans in every domain except spanner.
+
+## H35: fast datalog policy execution (`hyp/fast-exec`, eb3ff9b, on `hyp/deterministic-exec`; 381 tests)
+
+Motivation: the spanner policy learned in the ablation is the canonical one (pick up, tighten, walk only when
+no useable spanner is left here) and every unsolved instance, training and held-out, was an execution
+timeout (>60 s for a 50-step, 28-object instance; 1 517 s for a 41-object held-out instance).
+
+Profile (`spanner_s-4_n-2_l-17`, one execution, 26 s): 79 of 110 profiled seconds in the name→`Constant`
+conversion that rebuilt `problem.objects | domain.constants` and linearly scanned it **per candidate tuple**;
+the candidate tuples were the full object product per rule head (24⁴ = 331 k per rule per step, 2.8 M on
+the 41-object instance) of which 136 named a ground action at all; then `to_vector()` list scans per role per
+tuple, three DLPlan state rebuilds per step, the constant goal state rebuilt each time, `sorted(rules,
+key=repr)` per step, 10.8 M discarded debug f-strings, and `ground()` enumerating ill-typed tuples.
+
+Change (agent implementation): a per-policy ground-action index (prefix trie over parameter tuples plus
+per-position name sets) so the binding search enumerates only tuples that name an applicable ground action,
+in the same order the product visited them; flattened conjunctive preconditions; one DLPlan state per step
+shared by concepts/roles/features; frozenset denotations; parameter-index resolution once per policy;
+augmented-state memoisation; log guards; type-filtered grounding. Comparison with moose's executor (agent
+study): moose compiles each rule to one indexed SQLite join over an incrementally updated fact store and
+grounds only the action it fires; the join-once-per-rule idea is what this change implements over DLPlan
+bitsets, the SQLite store does not transfer because DLPlan recomputes denotations per state anyway.
+
+**Semantics unchanged**: the RNG draw sequence is identical (one `sample` over rules, one `shuffle` per
+parameter, one `choice` over successors) and the pruning only filters the enumeration, so action sequences
+are byte-identical before/after on 10 mixed spanner instances × 3 iterations from one RNG stream; three new
+tests pin seeded action sequences and pass on the old executor too.
+
+| instance | objects | before | after |
+|---|---|---|---|
+| `spanner_s-4_n-2_l-17` | 24 | 26.1 s | 0.03 s |
+| `spanner_s-6_n-3_l-18` | 28 | 67.2 s | 0.04 s |
+| held-out `spanner_s-10_n-10_l-10` | 31 | 105.3 s | 0.07 s |
+| held-out `spanner_s-20_n-10_l-10` | 41 | 498.4 s | 0.13 s |
+| 10 mixed instances × 3 iterations | | 575 s | 3.2 s |
+
+With the ablation's spanner policy: **140/140 training in 12 s and 22/22 held-out in 10 s** (3 iterations
+each; before: 128/140 and 8–11/22, all misses timeouts). Remaining cost is `ground()` per `execute_policy`
+call (redone `policy_iterations` times per problem; caching it per problem would cut validation ~3× more).
+Note for worktree runs: `poetry run python scripts/x.py` imports `genfond` from the main checkout (installed as
+a path dependency in the shared venv); set `PYTHONPATH=<worktree>` or use `python -m`.
+Follow-up: re-run the reward/spanner/delivery held-out evaluations with this executor; re-measure the
+validation share of the large suites ([validation-cost note](#) in memory).
