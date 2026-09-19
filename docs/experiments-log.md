@@ -1699,3 +1699,21 @@ Note for worktree runs: `poetry run python scripts/x.py` imports `genfond` from 
 a path dependency in the shared venv); set `PYTHONPATH=<worktree>` or use `python -m`.
 Follow-up: re-run the reward/spanner/delivery held-out evaluations with this executor; re-measure the
 validation share of the large suites ([validation-cost note](#) in memory).
+
+### Held-out generalisation re-run with the fast executor (2026-09-19, H35 build, desk-03, `--seed 0 -i 2`)
+
+| domain (held-out n) | full | noH27 | noH29 | noH30 | noH32 | noH33 |
+|---|---|---|---|---|---|---|
+| spanner (22) | 22, 22, 22 | 22, 22, 22 | 22, 22, 22 | 22, 22, 22 | 22, 22, 22 | 22, 22, 22 |
+| reward (15) | 15, 15, 15 | 15, 15, 15 | 15, 15, 15 | 15, 15, **0** (153-rule patchwork) | 15, 15, 15 | 15, 15, 15 |
+| delivery (30) | 0, 0, 0 | 0, 0, 4 | 0, 0, 1 | 2, 1, 1 | 0, 0, 2 | 0, 0, 0 |
+
+No timeouts anywhere: spanner ≤ 2.5 s per instance (was up to 1 200 s+), reward 70–265 s per 15×15 instance
+for two executions (was > 1 200 s), delivery ≤ 1.3 s. The spanner training set is 140/140 in 22 s with the
+same policy (was 128/140 with 12 validation timeouts). So spanner and reward are **solved with generalisation
+in every arm** by the policies the ablation already had; the only real held-out failures are delivery (the
+patchworks, 26–30 of 30 fail) and the one reward patchwork (noH30 seed 2). This does not change the ablation
+verdict, it sharpens it: H27–H33 never decided whether a general policy was found, and where the executor
+was the reason for a miss, the fix is H35.
+Remaining executor cost on 225-object reward grids (up to 130 s per execution) is DLPlan evaluation on
+n² role denotations per step plus `ground()` per `execute_policy` call; the latter is cacheable per problem.
